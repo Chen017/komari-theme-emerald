@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import type { NodeData } from '@/stores/nodes'
-import { NBadge, NButton, NIcon, NList, NListItem, NModal, NProgress, NText, NTooltip } from 'naive-ui'
+import { NBadge, NButton, NIcon, NList, NListItem, NModal, NProgress, NText, NTooltip, useThemeVars } from 'naive-ui'
 import { ref } from 'vue'
 import PingChart from '@/components/PingChart.vue'
+import TrafficProgress from '@/components/TrafficProgress.vue'
 import { formatBytes, formatBytesPerSecond, formatUptime, getStatus } from '@/utils/helper'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
 import { getRegionCode, getRegionDisplayName } from '@/utils/regionHelper'
@@ -14,6 +15,9 @@ const props = defineProps<{
 const emit = defineEmits<{
   click: [node: NodeData]
 }>()
+
+// 获取 Naive UI 主题变量
+const themeVars = useThemeVars()
 
 // 延迟图表弹窗状态
 const showPingChart = ref(false)
@@ -32,6 +36,59 @@ function handleClick(node: NodeData) {
 function openPingChart(node: NodeData) {
   selectedNode.value = node
   showPingChart.value = true
+}
+
+// 计算节点是否显示流量进度条
+function showTrafficProgress(node: NodeData): boolean {
+  return node.traffic_limit > 0
+}
+
+// 计算流量使用百分比
+function getTrafficUsedPercentage(node: NodeData): number {
+  if (node.traffic_limit <= 0)
+    return 0
+
+  const { net_total_up = 0, net_total_down = 0, traffic_limit_type } = node
+  let used = 0
+
+  switch (traffic_limit_type) {
+    case 'up':
+      used = net_total_up
+      break
+    case 'down':
+      used = net_total_down
+      break
+    case 'min':
+      used = Math.min(net_total_up, net_total_down)
+      break
+    case 'max':
+      used = Math.max(net_total_up, net_total_down)
+      break
+    case 'sum':
+    default:
+      used = net_total_up + net_total_down
+      break
+  }
+
+  return Math.min((used / node.traffic_limit) * 100, 100)
+}
+
+// 计算已用流量
+function getTrafficUsed(node: NodeData): number {
+  const { net_total_up = 0, net_total_down = 0, traffic_limit_type } = node
+  switch (traffic_limit_type) {
+    case 'up':
+      return net_total_up
+    case 'down':
+      return net_total_down
+    case 'min':
+      return Math.min(net_total_up, net_total_down)
+    case 'max':
+      return Math.max(net_total_up, net_total_down)
+    case 'sum':
+    default:
+      return net_total_up + net_total_down
+  }
 }
 </script>
 
@@ -183,13 +240,58 @@ function openPingChart(node: NodeData) {
 
           <!-- 流量 -->
           <div class="node-list-item__traffic">
-            <div class="flex flex-col gap-0.5">
-              <div class="text-xs flex gap-1 items-center">
-                <NText>↑{{ formatBytes(node.net_total_up ?? 0) }} ↓{{ formatBytes(node.net_total_down ?? 0) }}</NText>
-              </div>
-              <div class="text-xs flex gap-1 items-center">
-                <NText>↑{{ formatBytesPerSecond(node.net_out ?? 0) }} ↓{{ formatBytesPerSecond(node.net_in ?? 0) }}</NText>
-              </div>
+            <div class="traffic-cell">
+              <!-- 有流量限制时显示进度条版式 -->
+              <template v-if="showTrafficProgress(node)">
+                <NTooltip>
+                  <template #trigger>
+                    <div class="flex flex-col gap-0.5 w-full cursor-help">
+                      <div class="text-xs flex gap-1 items-center">
+                        <NText>{{ getTrafficUsedPercentage(node).toFixed(1) }}%</NText>
+                        <NText :depth="3">
+                          ({{ formatBytes(getTrafficUsed(node)) }}/{{ formatBytes(node.traffic_limit) }})
+                        </NText>
+                      </div>
+                      <!-- sum 类型使用双颜色进度条 -->
+                      <TrafficProgress
+                        v-if="node.traffic_limit_type === 'sum'"
+                        :upload="node.net_total_up ?? 0"
+                        :download="node.net_total_down ?? 0"
+                        :traffic-limit="node.traffic_limit"
+                        traffic-limit-type="sum"
+                        height="4px"
+                      />
+                      <!-- 其他类型使用单色进度条 -->
+                      <NProgress
+                        v-else
+                        :show-indicator="false"
+                        :percentage="getTrafficUsedPercentage(node)"
+                        :status="getStatus(getTrafficUsedPercentage(node))"
+                        :height="4"
+                      />
+                    </div>
+                  </template>
+                  <div class="text-xs flex flex-col gap-1">
+                    <span><span :style="{ color: themeVars.successColor }">↑{{ formatBytesPerSecond(node.net_out ?? 0) }}</span> <span style="opacity: 0.6;">({{ formatBytes(node.net_total_up ?? 0) }})</span></span>
+                    <span><span :style="{ color: themeVars.infoColor }">↓{{ formatBytesPerSecond(node.net_in ?? 0) }}</span> <span style="opacity: 0.6;">({{ formatBytes(node.net_total_down ?? 0) }})</span></span>
+                  </div>
+                </NTooltip>
+              </template>
+              <!-- 无流量限制时保持现有版式 -->
+              <template v-else>
+                <div class="text-xs flex flex-col gap-1">
+                  <NText>
+                    <span :style="{ color: themeVars.successColor }">↑{{ formatBytesPerSecond(node.net_out ?? 0) }}</span> <NText :depth="3">
+                      ({{ formatBytes(node.net_total_up ?? 0) }})
+                    </NText>
+                  </NText>
+                  <NText>
+                    <span :style="{ color: themeVars.infoColor }">↓{{ formatBytesPerSecond(node.net_in ?? 0) }}</span><NText :depth="3">
+                      ({{ formatBytes(node.net_total_down ?? 0) }})
+                    </NText>
+                  </NText>
+                </div>
+              </template>
             </div>
           </div>
         </div>
@@ -286,5 +388,12 @@ function openPingChart(node: NodeData) {
 .node-list-header__traffic,
 .node-list-item__traffic {
   min-width: 0;
+}
+
+.traffic-cell {
+  min-height: 38px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 </style>

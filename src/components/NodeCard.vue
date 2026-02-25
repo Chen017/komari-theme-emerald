@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import type { NodeData } from '@/stores/nodes'
-import { NButton, NCard, NEllipsis, NIcon, NModal, NProgress, NTag, NText, NTooltip } from 'naive-ui'
+import { NButton, NCard, NEllipsis, NIcon, NModal, NProgress, NTag, NText, NTooltip, useThemeVars } from 'naive-ui'
 import { computed, ref } from 'vue'
 import PingChart from '@/components/PingChart.vue'
+import TrafficProgress from '@/components/TrafficProgress.vue'
 import { formatBytes, formatBytesPerSecond, formatUptime, getStatus } from '@/utils/helper'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
 import { getRegionCode, getRegionDisplayName } from '@/utils/regionHelper'
@@ -15,6 +16,9 @@ const emit = defineEmits<{
   click: []
 }>()
 
+// 获取 Naive UI 主题变量
+const themeVars = useThemeVars()
+
 // 延迟图表弹窗状态
 const showPingChart = ref(false)
 
@@ -24,14 +28,66 @@ const memPercentage = computed(() => (props.node.ram ?? 0) / (props.node.mem_tot
 const memStatus = computed(() => getStatus(memPercentage.value))
 const diskPercentage = computed(() => (props.node.disk ?? 0) / (props.node.disk_total || 1) * 100)
 const diskStatus = computed(() => getStatus(diskPercentage.value))
+
+// 流量进度条相关计算
+const showTrafficProgress = computed(() => props.node.traffic_limit > 0)
+
+// 根据流量类型计算已用流量和百分比
+const trafficUsedPercentage = computed(() => {
+  if (props.node.traffic_limit <= 0)
+    return 0
+
+  const { net_total_up = 0, net_total_down = 0, traffic_limit_type } = props.node
+  let used = 0
+
+  switch (traffic_limit_type) {
+    case 'up':
+      used = net_total_up
+      break
+    case 'down':
+      used = net_total_down
+      break
+    case 'min':
+      used = Math.min(net_total_up, net_total_down)
+      break
+    case 'max':
+      used = Math.max(net_total_up, net_total_down)
+      break
+    case 'sum':
+    default:
+      used = net_total_up + net_total_down
+      break
+  }
+
+  return Math.min((used / props.node.traffic_limit) * 100, 100)
+})
+
+const trafficStatus = computed(() => getStatus(trafficUsedPercentage.value))
+
+// 已用流量（用于显示）
+const trafficUsed = computed(() => {
+  const { net_total_up = 0, net_total_down = 0, traffic_limit_type } = props.node
+  switch (traffic_limit_type) {
+    case 'up':
+      return net_total_up
+    case 'down':
+      return net_total_down
+    case 'min':
+      return Math.min(net_total_up, net_total_down)
+    case 'max':
+      return Math.max(net_total_up, net_total_down)
+    case 'sum':
+    default:
+      return net_total_up + net_total_down
+  }
+})
 </script>
 
 <template>
   <div>
     <NCard
       hoverable
-      :class="[
-        'node-card min-w-72 w-full cursor-pointer transition-all duration-200',
+      class="node-card min-w-72 w-full cursor-pointer transition-all duration-200" :class="[
         props.node.online ? 'hover:border-primary' : 'opacity-50 pointer-events-none',
       ]"
       @click="emit('click')"
@@ -131,13 +187,43 @@ const diskStatus = computed(() => getStatus(diskPercentage.value))
             </NText>
           </div>
 
-          <!-- 总流量 -->
-          <div class="flex-between">
-            <NText :depth="3" class="">
-              总流量
-            </NText>
-            <NText class="">
-              ↑ {{ formatBytes(props.node.net_total_up ?? 0) }} ｜ ↓ {{ formatBytes(props.node.net_total_down ?? 0) }}
+          <!-- 流量进度条 -->
+          <div class="flex-col gap-1">
+            <div class="flex-between">
+              <NText :depth="3" class="">
+                流量
+              </NText>
+              <NText class="">
+                <template v-if="showTrafficProgress">
+                  {{ trafficUsedPercentage.toFixed(1) }}%
+                </template>
+                <template v-else>
+                  ∞
+                </template>
+              </NText>
+            </div>
+            <!-- sum 类型使用双颜色进度条 -->
+            <TrafficProgress
+              v-if="props.node.traffic_limit_type === 'sum' || !showTrafficProgress"
+              :upload="props.node.net_total_up ?? 0"
+              :download="props.node.net_total_down ?? 0"
+              :traffic-limit="props.node.traffic_limit"
+              :traffic-limit-type="showTrafficProgress ? 'sum' : 'sum'"
+            />
+            <!-- 其他类型使用单色进度条 -->
+            <NProgress
+              v-else
+              :show-indicator="false"
+              :percentage="trafficUsedPercentage"
+              :status="trafficStatus"
+            />
+            <NText :depth="3" class="text-xs">
+              <template v-if="showTrafficProgress">
+                {{ formatBytes(trafficUsed) }} / {{ formatBytes(props.node.traffic_limit) }}（<span :style="{ color: themeVars.successColor }">↑ {{ formatBytes(props.node.net_total_up ?? 0) }}</span> ｜ <span :style="{ color: themeVars.infoColor }">↓ {{ formatBytes(props.node.net_total_down ?? 0) }}</span>）
+              </template>
+              <template v-else>
+                <span :style="{ color: themeVars.successColor }">↑ {{ formatBytes(props.node.net_total_up ?? 0) }}</span> ｜ <span :style="{ color: themeVars.infoColor }">↓ {{ formatBytes(props.node.net_total_down ?? 0) }}</span>
+              </template>
             </NText>
           </div>
 
@@ -147,7 +233,7 @@ const diskStatus = computed(() => getStatus(diskPercentage.value))
               网络速率
             </NText>
             <NText class="">
-              ↑ {{ formatBytesPerSecond(props.node.net_out ?? 0) }} ｜ ↓ {{ formatBytesPerSecond(props.node.net_in ?? 0) }}
+              <span :style="{ color: themeVars.successColor }">↑ {{ formatBytesPerSecond(props.node.net_out ?? 0) }}</span> ｜ <span :style="{ color: themeVars.infoColor }">↓ {{ formatBytesPerSecond(props.node.net_in ?? 0) }}</span>
             </NText>
           </div>
 

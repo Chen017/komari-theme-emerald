@@ -3,9 +3,9 @@ import { NButton, NEmpty, NSpin, NSwitch, NTooltip } from 'naive-ui'
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import VChart from 'vue-echarts'
 import { useAppStore } from '@/stores/app'
-import '@/utils/echarts' // 共享 ECharts 配置
 import { cutPeakValues, interpolateNullsLinear } from '@/utils/recordHelper'
 import { getSharedRpc } from '@/utils/rpc'
+import '@/utils/echarts' // 共享 ECharts 配置
 
 const props = defineProps<{
   uuid: string

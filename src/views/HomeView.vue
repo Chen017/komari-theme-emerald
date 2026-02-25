@@ -140,7 +140,7 @@ function handleNodeClick(node: typeof nodesStore.nodes[number]) {
         <NTabs v-model:value="appStore.nodeSelectedGroup" animated>
           <NTabPane v-for="group in groups" :key="group.name" :tab="group.tab" :name="group.name">
             <!-- Card 视图 -->
-            <div v-if="nodeList.length !== 0 && appStore.nodeViewMode === 'card'" class="gap-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+            <div v-if="nodeList.length !== 0 && appStore.nodeViewMode === 'card'" class="gap-4 grid grid-cols-1 2xl:grid-cols-5 lg:grid-cols-3 sm:grid-cols-2 xl:grid-cols-4">
               <NodeCard v-for="node in nodeList" :key="node.uuid" :node="node" @click="handleNodeClick(node)" />
             </div>
             <!-- List 视图 -->

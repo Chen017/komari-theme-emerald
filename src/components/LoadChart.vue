@@ -7,10 +7,10 @@ import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import VChart from 'vue-echarts'
 import { useAppStore } from '@/stores/app'
 import { useNodesStore } from '@/stores/nodes'
-import '@/utils/echarts' // 共享 ECharts 配置
 import { formatBytes } from '@/utils/helper'
 import { fillMissingTimePoints } from '@/utils/recordHelper'
 import { getSharedRpc } from '@/utils/rpc'
+import '@/utils/echarts' // 共享 ECharts 配置
 
 const props = defineProps<{
   uuid: string

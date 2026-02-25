@@ -29,7 +29,7 @@ const buildGitHash = __BUILD_GIT_HASH__
               Komari Naive
             </NText>
           </NButton>
-          <NText :depth="3" class="ml-2 text-xs font-mono">
+          <NText :depth="3" class="text-xs font-mono ml-2">
             v{{ buildVersion }} ({{ buildGitHash }})
           </NText>
         </div>

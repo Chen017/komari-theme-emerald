@@ -55,6 +55,15 @@ const useAppStore = defineStore('app', () => {
     return 'websocket'
   })
 
+  // 计算属性：从主题配置获取是否显示登录按钮
+  const showLoginButton = computed<boolean>(() => {
+    const settings = publicSettings.value?.theme_settings
+    if (settings && typeof settings.showLoginButton === 'boolean') {
+      return settings.showLoginButton
+    }
+    return true
+  })
+
   // 当 publicSettings 加载后，如果 localStorage 没有保存过视图模式，使用默认值
   watch(publicSettings, (settings) => {
     if (settings && storedViewMode.value === null) {
@@ -112,6 +121,7 @@ const useAppStore = defineStore('app', () => {
     nodeViewMode,
     defaultViewMode,
     rpcTransportMode,
+    showLoginButton,
     isLoggedIn,
     userInfo,
     publicSettings,

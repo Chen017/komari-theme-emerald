@@ -23,5 +23,6 @@ declare module 'vue' {
     Provider: typeof import('./src/components/Provider.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    TrafficProgress: typeof import('./src/components/TrafficProgress.vue')['default']
   }
 }
