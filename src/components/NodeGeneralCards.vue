@@ -1,15 +1,14 @@
 <script setup lang="ts">
+import { useNow } from '@vueuse/core'
 import { NCard, NText } from 'naive-ui'
-import { computed, onUnmounted, ref } from 'vue'
+import { computed } from 'vue'
 import { useNodesStore } from '@/stores/nodes'
 
 const nodesStore = useNodesStore()
 
-const currentTime = ref(new Date().toLocaleString())
-
-const currentTimeInterval = setInterval(() => {
-  currentTime.value = new Date().toLocaleString()
-}, 1000)
+// 使用 VueUse 的 useNow 自动管理定时器，每秒更新
+const now = useNow({ interval: 1000 })
+const currentTime = computed(() => now.value.toLocaleString())
 
 /** 计算所有在线节点的实时速率总和 */
 const totalSpeed = computed(() => {
@@ -68,10 +67,6 @@ const onlineRegionCount = computed(() => {
 
 /** 在线节点数量 */
 const onlineNodeCount = computed(() => nodesStore.nodes.filter(node => node.online).length)
-
-onUnmounted(() => {
-  clearInterval(currentTimeInterval)
-})
 </script>
 
 <template>

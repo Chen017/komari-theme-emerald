@@ -19,22 +19,16 @@ import {
   useMessage,
   useModal,
   useNotification,
-  useOsTheme,
   zhCN,
 } from 'naive-ui'
 
-import { computed, defineComponent, h } from 'vue'
+import { computed, defineComponent, h, watch } from 'vue'
 import { useAppStore } from '@/stores/app'
 
 const appStore = useAppStore()
-const osTheme = useOsTheme()
 
-const isDark = computed(() => {
-  if (appStore.themeMode === 'auto') {
-    return osTheme.value === 'dark'
-  }
-  return appStore.themeMode === 'dark'
-})
+// 直接使用 store 中的 isDark computed
+const isDark = computed(() => appStore.isDark)
 
 const theme = computed<GlobalTheme | null>(() => {
   return isDark.value ? darkTheme : lightTheme
@@ -105,6 +99,24 @@ const themeOverride = computed<GlobalThemeOverrides>(() => {
     },
   }
 })
+
+// 将主题颜色同步到 CSS 变量，供 UnoCSS 和自定义样式使用
+watch(
+  themeOverride,
+  (overrides) => {
+    const root = document.documentElement
+    if (overrides.common?.primaryColor) {
+      root.style.setProperty('--primary-color', overrides.common.primaryColor)
+    }
+    if (overrides.common?.primaryColorHover) {
+      root.style.setProperty('--primary-color-hover', overrides.common.primaryColorHover)
+    }
+    if (overrides.common?.primaryColorPressed) {
+      root.style.setProperty('--primary-color-pressed', overrides.common.primaryColorPressed)
+    }
+  },
+  { immediate: true },
+)
 </script>
 
 <template>

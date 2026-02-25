@@ -56,24 +56,26 @@ function handleButtonClick(action: string) {
 </script>
 
 <template>
-  <div class="mx-auto px-4 flex-between h-16 shadow-sm top-0 position-sticky z-10 backdrop-blur-md">
-    <NFlex class="flex-center cursor-pointer" @click="router.push('/')">
-      <NAvatar :src="siteFavicon" round />
-      <NH3 class="m-0">
-        {{ appStore.publicSettings?.sitename || 'Komari Monitor' }}
-      </NH3>
-    </NFlex>
-    <NFlex class="flex gap-4">
-      <NPopover v-for="button in actionButtons" :key="button.action" :disabled="button.disabled">
-        <template #trigger>
-          <NButton :disabled="button.disabled" class="p-2 h-8 w-8" text @click="handleButtonClick(button.action)">
-            <div :class="button.icon" />
-          </NButton>
-        </template>
-        <template #default>
-          {{ button.title }}
-        </template>
-      </NPopover>
-    </NFlex>
+  <div class="bg-$n-color shadow-sm top-0 position-sticky z-10 backdrop-blur-md">
+    <div class="mx-auto px-4 flex-between h-16 max-w-[1800px]">
+      <NFlex class="flex-center cursor-pointer" @click="router.push('/')">
+        <NAvatar :src="siteFavicon" round />
+        <NH3 class="m-0">
+          {{ appStore.publicSettings?.sitename || 'Komari Monitor' }}
+        </NH3>
+      </NFlex>
+      <NFlex class="flex gap-4">
+        <NPopover v-for="button in actionButtons" :key="button.action" :disabled="button.disabled">
+          <template #trigger>
+            <NButton :disabled="button.disabled" class="p-2 h-8 w-8" text @click="handleButtonClick(button.action)">
+              <div :class="button.icon" />
+            </NButton>
+          </template>
+          <template #default>
+            {{ button.title }}
+          </template>
+        </NPopover>
+      </NFlex>
+    </div>
   </div>
 </template>

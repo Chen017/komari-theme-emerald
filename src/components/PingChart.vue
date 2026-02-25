@@ -4,11 +4,11 @@ import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/compon
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { NButton, NEmpty, NSpin, NSwitch, NTooltip } from 'naive-ui'
-import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
+import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import VChart from 'vue-echarts'
 import { useAppStore } from '@/stores/app'
 import { cutPeakValues, interpolateNullsLinear } from '@/utils/recordHelper'
-import { KomariRpc } from '@/utils/rpc'
+import { getSharedRpc } from '@/utils/rpc'
 
 const props = defineProps<{
   uuid: string
@@ -24,15 +24,11 @@ use([
 ])
 
 const appStore = useAppStore()
-const rpc = new KomariRpc({ useWebSocket: false })
+// 使用共享的 RPC 实例，避免重复创建连接
+const rpc = getSharedRpc()
 
-// 判断是否为暗色模式
-const isDark = computed(() => {
-  if (appStore.themeMode === 'auto') {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches
-  }
-  return appStore.themeMode === 'dark'
-})
+// 使用 store 中的 isDark computed
+const isDark = computed(() => appStore.isDark)
 
 // 图表主题相关颜色
 const chartThemeColors = computed(() => ({
@@ -527,10 +523,6 @@ onMounted(() => {
     selectedView.value = firstView.label
   }
   fetchRecords()
-})
-
-onUnmounted(() => {
-  rpc.close()
 })
 </script>
 

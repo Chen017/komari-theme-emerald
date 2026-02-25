@@ -37,7 +37,7 @@ class InitManager {
   private pollTimer: ReturnType<typeof setInterval> | null = null
   private isPolling = false
   private isInitialized = false
-  private useWebSocket = true
+  private useWebSocket: boolean | null = null // 根据主题配置决定
   private postFailureCount = 0
 
   constructor(config: InitConfig = {}) {
@@ -169,8 +169,20 @@ class InitManager {
    * 启动 WebSocket 连接和轮询
    */
   private startWebSocketAndPolling(): void {
-    // 尝试建立 WebSocket 连接
-    this.connectWebSocket()
+    // 根据主题配置决定初始连接模式
+    const configuredMode = this.appStore.rpcTransportMode
+    this.useWebSocket = configuredMode === 'websocket'
+
+    if (this.useWebSocket) {
+      // 尝试建立 WebSocket 连接
+      this.connectWebSocket()
+    }
+    else {
+      // HTTP 模式：直接设置 RPC 客户端为 HTTP 模式
+      const client = this.rpc.getClient()
+      client.setTransport(false)
+      this.nodesStore.updateWsState('disconnected', this.config.wsMaxReconnectAttempts)
+    }
 
     // 开始轮询（作为 WebSocket 的补充或备选方案）
     this.startPolling()
@@ -180,8 +192,8 @@ class InitManager {
    * 建立 WebSocket 连接
    */
   private async connectWebSocket(): Promise<void> {
-    // 如果已回落到 POST 模式，不再尝试 WebSocket
-    if (!this.useWebSocket) {
+    // 如果已回落到 POST 模式或配置为 HTTP 模式，不再尝试 WebSocket
+    if (this.useWebSocket === false) {
       return
     }
 
@@ -195,6 +207,9 @@ class InitManager {
       // 使用 ping 验证连接，10 秒超时
       await client.ensureWebSocketConnectedWithPing(10000)
       this.nodesStore.updateWsState('connected', 0)
+
+      // 连接成功，重置错误状态
+      this.appStore.connectionError = false
 
       // 监听连接状态变化
       this.monitorWebSocketConnection()
@@ -219,7 +234,7 @@ class InitManager {
 
     ws.onclose = () => {
       // 如果当前是已连接状态且还在使用 WebSocket 模式，触发重连
-      if (this.useWebSocket && this.nodesStore.wsConnectionState === 'connected') {
+      if (this.useWebSocket === true && this.nodesStore.wsConnectionState === 'connected') {
         this.nodesStore.updateWsState('disconnected')
         this.scheduleReconnect()
       }
@@ -319,8 +334,8 @@ class InitManager {
       // 更新节点状态
       this.nodesStore.updateNodeStatuses(statusesResult)
 
-      // 重置失败计数
-      this.postFailureCount = 0
+      // 连接恢复正常，重置错误状态
+      this.appStore.connectionError = false
     }
     catch (error) {
       if (error instanceof RpcError) {
@@ -330,14 +345,8 @@ class InitManager {
         console.error('[InitManager] Poll error:', error)
       }
 
-      // POST 模式下累计失败次数
-      if (!this.useWebSocket) {
-        this.postFailureCount++
-        if (this.postFailureCount >= this.config.postFailureThreshold) {
-          console.error('[InitManager] POST mode failed repeatedly, setting connectionError')
-          this.appStore.connectionError = true
-        }
-      }
+      // 一次失败就显示错误
+      this.appStore.connectionError = true
     }
     finally {
       this.isPolling = false
@@ -366,14 +375,15 @@ class InitManager {
       client.close()
     }
 
-    // 重置状态
-    this.useWebSocket = true
+    // 根据主题配置重置连接模式
+    const configuredMode = this.appStore.rpcTransportMode
+    this.useWebSocket = configuredMode === 'websocket'
     this.nodesStore.updateWsState('disconnected', 0)
 
     // 重新获取用户信息
     await this.fetchUserInfo()
 
-    // 重新建立 WebSocket 连接
+    // 重新建立 WebSocket 连接（如果配置为 websocket 模式）
     this.connectWebSocket()
   }
 

@@ -1,3 +1,14 @@
+/** 字节单位常量 */
+const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'] as const
+
+/** 时间单位配置（秒为单位） */
+const TIME_UNITS = [
+  { value: 86400, label: '天' },
+  { value: 3600, label: '小时' },
+  { value: 60, label: '分钟' },
+  { value: 1, label: '秒' },
+] as const
+
 /**
  * 格式化字节数为可读单位
  * @param bytes 字节数
@@ -8,10 +19,10 @@ export function formatBytes(bytes: number, decimals = 1): string {
   if (bytes === 0)
     return '0 B'
 
-  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
   const k = 1024
   const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return `${(bytes / k ** i).toFixed(decimals)} ${units[i]}`
+  const unit = BYTE_UNITS[i] ?? BYTE_UNITS[BYTE_UNITS.length - 1]
+  return `${(bytes / k ** i).toFixed(decimals)} ${unit}`
 }
 
 /**
@@ -32,22 +43,18 @@ export function formatUptime(seconds: number): string {
   if (!seconds || seconds <= 0)
     return '0 秒'
 
-  const days = Math.floor(seconds / 86400)
-  const hours = Math.floor((seconds % 86400) / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  const secs = Math.floor(seconds % 60)
-
   const parts: string[] = []
-  if (days > 0)
-    parts.push(`${days} 天`)
-  if (hours > 0)
-    parts.push(`${hours} 小时`)
-  if (minutes > 0)
-    parts.push(`${minutes} 分钟`)
-  if (secs > 0 || parts.length === 0)
-    parts.push(`${secs} 秒`)
+  let remaining = seconds
 
-  return parts.join(' ')
+  for (const { value, label } of TIME_UNITS) {
+    const amount = Math.floor(remaining / value)
+    if (amount > 0) {
+      parts.push(`${amount} ${label}`)
+      remaining %= value
+    }
+  }
+
+  return parts.length > 0 ? parts.join(' ') : '0 秒'
 }
 
 /**
@@ -62,15 +69,21 @@ export function calcPercentage(used: number, total: number): number {
   return (used / total) * 100
 }
 
+/** 状态阈值配置 */
+const STATUS_THRESHOLDS = {
+  success: 60,
+  warning: 80,
+} as const
+
 /**
  * 根据占用百分比返回状态
  * @param percentage 百分比
  * @returns 状态类型
  */
 export function getStatus(percentage: number): 'success' | 'warning' | 'error' {
-  if (percentage < 60)
+  if (percentage < STATUS_THRESHOLDS.success)
     return 'success'
-  if (percentage < 80)
+  if (percentage < STATUS_THRESHOLDS.warning)
     return 'warning'
   return 'error'
 }
@@ -89,12 +102,10 @@ export function formatDateTime(timestamp: string | Date | undefined): string {
   if (Number.isNaN(date.getTime()))
     return '-'
 
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const hours = String(date.getHours()).padStart(2, '0')
-  const minutes = String(date.getMinutes()).padStart(2, '0')
-  const seconds = String(date.getSeconds()).padStart(2, '0')
+  // 使用 toISOString 的日期部分和手动格式化的时间部分
+  const iso = date.toISOString()
+  const datePart = iso.slice(0, 10)
+  const timePart = iso.slice(11, 19)
 
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+  return `${datePart} ${timePart}`
 }

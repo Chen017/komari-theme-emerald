@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import type { RecordFormat } from '@/utils/recordHelper'
 import type { StatusRecord } from '@/utils/rpc'
+import { useIntervalFn } from '@vueuse/core'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { NButton, NCard, NEmpty, NSpin, NText } from 'naive-ui'
-import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
+import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import VChart from 'vue-echarts'
 import { useAppStore } from '@/stores/app'
 import { useNodesStore } from '@/stores/nodes'
@@ -43,13 +44,8 @@ const dataUpdateInterval = computed(() => {
   return 3000 // 默认 3 秒
 })
 
-// 判断是否为暗色模式
-const isDark = computed(() => {
-  if (appStore.themeMode === 'auto') {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches
-  }
-  return appStore.themeMode === 'dark'
-})
+// 使用 store 中的 isDark computed
+const isDark = computed(() => appStore.isDark)
 
 // 优化后的图表配色方案（基于 Material Design 色彩）
 const chartColors = {
@@ -163,9 +159,6 @@ const remoteData = shallowRef<StatusRecord[]>([])
 const loading = ref(false)
 const isInitialLoad = ref(true) // 是否为首次加载（用于控制实时模式下的 NSpin 显示）
 const error = ref<string | null>(null)
-
-// 实时更新定时器
-let realtimeTimer: ReturnType<typeof setInterval> | null = null
 
 // 节点信息
 const nodeInfo = computed(() => nodesStore.nodesByUuid.get(props.uuid))
@@ -818,33 +811,28 @@ const processChartOption = computed(() => ({
 
 // ==================== 实时更新 ====================
 
-function startRealtimeUpdate() {
-  stopRealtimeUpdate()
-  if (isRealtime.value) {
-    realtimeTimer = setInterval(() => {
-      fetchData()
-    }, dataUpdateInterval.value)
-  }
-}
+// 使用 VueUse 的 useIntervalFn 自动管理定时器
+const { pause: pauseRealtimeUpdate, resume: resumeRealtimeUpdate } = useIntervalFn(
+  () => fetchData(),
+  dataUpdateInterval,
+  { immediate: false },
+)
 
-function stopRealtimeUpdate() {
-  if (realtimeTimer) {
-    clearInterval(realtimeTimer)
-    realtimeTimer = null
+// 根据是否为实时模式控制定时器
+watch(isRealtime, (realtime) => {
+  if (realtime) {
+    resumeRealtimeUpdate()
   }
-}
+  else {
+    pauseRealtimeUpdate()
+  }
+}, { immediate: true })
 
 // ==================== 生命周期 ====================
 
 watch(selectedView, () => {
   isInitialLoad.value = true // 切换视图时重置首次加载状态
   fetchData()
-  if (isRealtime.value) {
-    startRealtimeUpdate()
-  }
-  else {
-    stopRealtimeUpdate()
-  }
 })
 
 watch(() => props.uuid, () => {
@@ -855,13 +843,6 @@ watch(() => props.uuid, () => {
 
 onMounted(() => {
   fetchData()
-  if (isRealtime.value) {
-    startRealtimeUpdate()
-  }
-})
-
-onUnmounted(() => {
-  stopRealtimeUpdate()
 })
 </script>
 

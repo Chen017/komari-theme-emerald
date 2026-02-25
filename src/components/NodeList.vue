@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import type { NodeData } from '@/stores/nodes'
-import { NBadge, NIcon, NList, NListItem, NProgress, NText } from 'naive-ui'
-import { calcPercentage, formatBytes, formatBytesPerSecond, formatUptime, getStatus } from '@/utils/helper'
+import { NBadge, NButton, NIcon, NList, NListItem, NModal, NProgress, NText, NTooltip } from 'naive-ui'
+import { ref } from 'vue'
+import PingChart from '@/components/PingChart.vue'
+import { formatBytes, formatBytesPerSecond, formatUptime, getStatus } from '@/utils/helper'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
 import { getRegionCode, getRegionDisplayName } from '@/utils/regionHelper'
 
@@ -13,27 +15,23 @@ const emit = defineEmits<{
   click: [node: NodeData]
 }>()
 
+// 延迟图表弹窗状态
+const showPingChart = ref(false)
+const selectedNode = ref<NodeData | null>(null)
+
 // 计算国旗图标路径
 function getFlagSrc(region: string): string {
   const code = getRegionCode(region)
   return `/images/flags/${code}.svg`
 }
 
-// 计算状态
-function getCpuStatus(cpu: number): 'default' | 'error' | 'warning' | 'success' {
-  return getStatus(cpu)
-}
-
-function getMemPercentage(ram: number, memTotal: number): number {
-  return calcPercentage(ram, memTotal)
-}
-
-function getDiskPercentage(disk: number, diskTotal: number): number {
-  return calcPercentage(disk, diskTotal)
-}
-
 function handleClick(node: NodeData) {
   emit('click', node)
+}
+
+function openPingChart(node: NodeData) {
+  selectedNode.value = node
+  showPingChart.value = true
 }
 </script>
 
@@ -89,11 +87,29 @@ function handleClick(node: NodeData) {
           </div>
         </div>
       </template>
-      <NListItem v-for="node in props.nodes" :key="node.uuid" @click="handleClick(node)">
+      <NListItem v-for="node in props.nodes" :key="node.uuid" :class="{ 'opacity-50 pointer-events-none': !node.online }" @click="handleClick(node)">
         <div class="node-list-item">
           <!-- 在线状态指示器 -->
           <div class="node-list-item__status">
-            <NBadge :type="node.online ? 'success' : 'error'" :value="node.online ? '在线' : '离线'" />
+            <div class="flex gap-1 items-center">
+              <NTooltip>
+                <template #trigger>
+                  <NButton
+                    quaternary
+                    circle
+                    size="tiny"
+                    class="p-1!"
+                    @click.stop="openPingChart(node)"
+                  >
+                    <template #icon>
+                      <div class="i-icon-park-outline-area-map text-sm" />
+                    </template>
+                  </NButton>
+                </template>
+                查看延迟图表
+              </NTooltip>
+              <NBadge :type="node.online ? 'success' : 'error'" :value="node.online ? '在线' : '离线'" />
+            </div>
           </div>
 
           <!-- 国旗 -->
@@ -135,7 +151,7 @@ function handleClick(node: NodeData) {
               <div class="text-xs flex gap-1 items-center">
                 <NText>{{ (node.cpu ?? 0).toFixed(1) }}%</NText>
               </div>
-              <NProgress :show-indicator="false" :percentage="node.cpu ?? 0" :status="getCpuStatus(node.cpu ?? 0)" :height="4" />
+              <NProgress :show-indicator="false" :percentage="node.cpu ?? 0" :status="getStatus(node.cpu ?? 0)" :height="4" />
             </div>
           </div>
 
@@ -143,12 +159,12 @@ function handleClick(node: NodeData) {
           <div class="node-list-item__mem">
             <div class="flex flex-col gap-0.5">
               <div class="text-xs flex gap-1 items-center">
-                <NText>{{ getMemPercentage(node.ram ?? 0, node.mem_total ?? 0).toFixed(1) }}%</NText>
+                <NText>{{ ((node.ram ?? 0) / (node.mem_total || 1) * 100).toFixed(1) }}%</NText>
                 <NText :depth="3">
                   ({{ formatBytes(node.ram ?? 0) }}/{{ formatBytes(node.mem_total ?? 0) }})
                 </NText>
               </div>
-              <NProgress :show-indicator="false" :percentage="getMemPercentage(node.ram ?? 0, node.mem_total ?? 0)" :status="getStatus(getMemPercentage(node.ram ?? 0, node.mem_total ?? 0))" :height="4" />
+              <NProgress :show-indicator="false" :percentage="(node.ram ?? 0) / (node.mem_total || 1) * 100" :status="getStatus((node.ram ?? 0) / (node.mem_total || 1) * 100)" :height="4" />
             </div>
           </div>
 
@@ -156,12 +172,12 @@ function handleClick(node: NodeData) {
           <div class="node-list-item__disk">
             <div class="flex flex-col gap-0.5">
               <div class="text-xs flex gap-1 items-center">
-                <NText>{{ getDiskPercentage(node.disk ?? 0, node.disk_total ?? 0).toFixed(1) }}%</NText>
+                <NText>{{ ((node.disk ?? 0) / (node.disk_total || 1) * 100).toFixed(1) }}%</NText>
                 <NText :depth="3">
                   ({{ formatBytes(node.disk ?? 0) }}/{{ formatBytes(node.disk_total ?? 0) }})
                 </NText>
               </div>
-              <NProgress :show-indicator="false" :percentage="getDiskPercentage(node.disk ?? 0, node.disk_total ?? 0)" :status="getStatus(getDiskPercentage(node.disk ?? 0, node.disk_total ?? 0))" :height="4" />
+              <NProgress :show-indicator="false" :percentage="(node.disk ?? 0) / (node.disk_total || 1) * 100" :status="getStatus((node.disk ?? 0) / (node.disk_total || 1) * 100)" :height="4" />
             </div>
           </div>
 
@@ -179,6 +195,18 @@ function handleClick(node: NodeData) {
         </div>
       </NListItem>
     </NList>
+
+    <!-- 延迟图表弹窗 -->
+    <NModal
+      v-model:show="showPingChart"
+      preset="card"
+      :title="selectedNode ? `${selectedNode.name} - 延迟监控` : '延迟监控'"
+      class="w-full sm:w-3/4"
+      :bordered="false"
+      :segmented="{ content: true, footer: 'soft' }"
+    >
+      <PingChart v-if="selectedNode" :uuid="selectedNode.uuid" />
+    </NModal>
   </div>
 </template>
 
@@ -192,10 +220,14 @@ function handleClick(node: NodeData) {
   padding: 0px !important;
 }
 
+:deep(.n-list-item) {
+  padding: 8px 16px !important;
+}
+
 .node-list-header,
 .node-list-item {
   display: grid;
-  grid-template-columns: 52px 32px minmax(200px, 1fr) minmax(180px, 0.6fr) 120px 180px 180px 180px minmax(180px, 0.5fr);
+  grid-template-columns: 76px 32px minmax(200px, 1fr) minmax(180px, 0.6fr) 120px 180px 180px 180px minmax(180px, 0.5fr);
   align-items: center;
   gap: 12px;
 }
@@ -217,6 +249,7 @@ function handleClick(node: NodeData) {
 .node-list-item__region {
   display: flex;
   justify-content: center;
+  align-items: center;
 }
 
 .node-list-header__name,
