@@ -2,6 +2,9 @@
 import type { GlobalTheme, GlobalThemeOverrides } from 'naive-ui'
 import {
   darkTheme,
+  dateEnUS,
+  dateZhCN,
+  enUS,
   lightTheme,
   NBackTop,
   NConfigProvider,
@@ -17,6 +20,7 @@ import {
   useModal,
   useNotification,
   useOsTheme,
+  zhCN,
 } from 'naive-ui'
 
 import { computed, defineComponent, h } from 'vue'
@@ -36,6 +40,22 @@ const theme = computed<GlobalTheme | null>(() => {
   return isDark.value ? darkTheme : lightTheme
 })
 
+const locale = computed(() => {
+  const langMap = {
+    'zh-CN': zhCN,
+    'en-US': enUS,
+  }
+  return langMap[appStore.lang] || zhCN
+})
+
+const dateLocale = computed(() => {
+  const langMap = {
+    'zh-CN': dateZhCN,
+    'en-US': dateEnUS,
+  }
+  return langMap[appStore.lang] || dateZhCN
+})
+
 function setupNaiveTools() {
   window.$loadingBar = useLoadingBar()
   window.$notification = useNotification()
@@ -53,15 +73,32 @@ const NaiveProviderContent = defineComponent({
   },
 })
 
-const themeOverride: GlobalThemeOverrides = {
-  common: {
-    fontFamily: '"MiSans VF", sans-serif',
-  },
-}
+// 从主题配置读取设置，支持基础颜色和字体配置
+const themeOverride = computed<GlobalThemeOverrides>(() => {
+  const settings = appStore.publicSettings?.theme_settings as Record<string, unknown> | undefined
+
+  // 默认值
+  const primaryColor = (settings?.primaryColor as string) || '#63e2b6'
+  const primaryColorHover = (settings?.primaryColorHover as string) || '#7fe7c4'
+  const primaryColorPressed = (settings?.primaryColorPressed as string) || '#5acea7'
+  const borderRadius = (settings?.borderRadius as string) || '3px'
+  const fontFamily = (settings?.fontFamily as string) || '"MiSans VF", sans-serif'
+
+  return {
+    common: {
+      primaryColor,
+      primaryColorHover,
+      primaryColorPressed,
+      primaryColorSuppl: primaryColorHover,
+      borderRadius,
+      fontFamily,
+    },
+  }
+})
 </script>
 
 <template>
-  <NConfigProvider :theme="theme" :theme-overrides="themeOverride">
+  <NConfigProvider :theme="theme" :theme-overrides="themeOverride" :locale="locale" :date-locale="dateLocale">
     <NBackTop :visibility-height="80" />
     <NGlobalStyle />
     <NLoadingBarProvider>

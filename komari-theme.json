@@ -12,6 +12,13 @@
     "data": [
       { "name": "显示设置", "type": "title" },
       { "key": "defaultViewMode", "name": "默认视图模式", "type": "select", "default": "card", "options": "card,list", "help": "节点列表的默认显示模式" },
+      { "name": "主题颜色", "type": "title" },
+      { "key": "primaryColor", "name": "主色调", "type": "string", "default": "#18a058", "help": "主题主色调，支持任意 CSS 颜色值（如 #18a058、rgb(24,160,88)）" },
+      { "key": "primaryColorHover", "name": "主色调悬停色", "type": "string", "default": "#36ad6a", "help": "按钮等元素悬停时的颜色" },
+      { "key": "primaryColorPressed", "name": "主色调按下色", "type": "string", "default": "#0c7a43", "help": "按钮等元素按下时的颜色" },
+      { "key": "borderRadius", "name": "圆角大小", "type": "string", "default": "3px", "help": "全局圆角大小（如 3px、0.5rem）" },
+      { "name": "字体设置", "type": "title" },
+      { "key": "fontFamily", "name": "字体", "type": "string", "default": "\"MiSans VF\", sans-serif", "help": "全局字体设置，多个字体用逗号分隔" },
       { "name": "数据刷新设置", "type": "title" },
       { "key": "dataUpdateInterval", "name": "数据更新间隔", "type": "number", "default": 3, "help": "实时数据刷新间隔，单位：秒（建议 1-10 秒）" }
     ]
