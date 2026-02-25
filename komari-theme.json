@@ -32,7 +32,7 @@
       { "key": "hideSingleGroupTab", "name": "单分组时隐藏 Tab", "type": "switch", "default": true, "help": "当只有一个分组时，隐藏分组选择标签页" },
       { "key": "listRelaxedStyle", "name": "宽松样式", "type": "switch", "default": false, "help": "启用后列表行高增加，视觉效果更宽松" },
       { "key": "listViewColumns", "name": "显示列", "type": "string", "default": "[\"status\",\"region\",\"name\",\"uptime\",\"os\",\"cpu\",\"mem\",\"disk\",\"traffic\"]", "help": "List 视图下显示的列，JSON 数组格式" },
-      { "key": "listColumnWidths", "name": "列宽度配置", "type": "string", "default": "{\"status\":\"76px\",\"region\":\"32px\",\"name\":\"minmax(200px, 1fr)\",\"uptime\":\"minmax(180px, 0.6fr)\",\"os\":\"120px\",\"cpu\":\"180px\",\"mem\":\"180px\",\"disk\":\"180px\",\"traffic\":\"minmax(180px, 0.5fr)\"}", "help": "List 视图各列宽度配置，JSON 对象格式" },
+      { "key": "listColumnWidths", "name": "列宽度配置", "type": "string", "default": "{\"status\":\"76px\",\"region\":\"32px\",\"name\":\"minmax(200px, 1fr)\",\"uptime\":\"minmax(180px, 0.6fr)\",\"os\":\"120px\",\"cpu\":\"180px\",\"mem\":\"180px\",\"disk\":\"180px\",\"traffic\":\"180px\"}", "help": "List 视图各列宽度配置，JSON 对象格式" },
       { "name": "格式化设置", "type": "title" },
       { "key": "uptimeFormat", "name": "运行时间格式", "type": "select", "default": "day", "options": "day,hour,minute,second", "help": "运行时间显示精度：精确到天/小时/分钟/秒" },
       { "key": "byteDecimalsB", "name": "B 精确位数", "type": "number", "default": 0, "help": "字节数显示精确位数，-1 为不显示此单位" },

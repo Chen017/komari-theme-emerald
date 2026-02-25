@@ -24,7 +24,7 @@ const DEFAULT_LIST_COLUMN_WIDTHS: Record<string, string> = {
   cpu: '180px',
   mem: '180px',
   disk: '180px',
-  traffic: 'minmax(180px, 0.5fr)',
+  traffic: '180px',
 }
 
 /** 默认的字节精度配置 */
