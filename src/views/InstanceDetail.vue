@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { NButton, NCard, NDivider, NEmpty, NIcon, NTabPane, NTabs, NTag, NText } from 'naive-ui'
-import { computed, ref } from 'vue'
+import { computed, defineAsyncComponent, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import LoadChart from '@/components/LoadChart.vue'
-import PingChart from '@/components/PingChart.vue'
 import { useNodesStore } from '@/stores/nodes'
 import { formatBytes, formatBytesPerSecond, formatDateTime, formatUptime } from '@/utils/helper'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
 import { getRegionCode, getRegionDisplayName } from '@/utils/regionHelper'
+
+// 异步组件：按需加载图表，减少首屏体积
+const LoadChart = defineAsyncComponent(() => import('@/components/LoadChart.vue'))
+const PingChart = defineAsyncComponent(() => import('@/components/PingChart.vue'))
 
 const route = useRoute()
 const router = useRouter()

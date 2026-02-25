@@ -2,15 +2,12 @@
 import type { RecordFormat } from '@/utils/recordHelper'
 import type { StatusRecord } from '@/utils/rpc'
 import { useIntervalFn } from '@vueuse/core'
-import { LineChart } from 'echarts/charts'
-import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
-import { use } from 'echarts/core'
-import { CanvasRenderer } from 'echarts/renderers'
 import { NButton, NCard, NEmpty, NSpin, NText } from 'naive-ui'
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import VChart from 'vue-echarts'
 import { useAppStore } from '@/stores/app'
 import { useNodesStore } from '@/stores/nodes'
+import '@/utils/echarts' // 共享 ECharts 配置
 import { formatBytes } from '@/utils/helper'
 import { fillMissingTimePoints } from '@/utils/recordHelper'
 import { getSharedRpc } from '@/utils/rpc'
@@ -18,15 +15,6 @@ import { getSharedRpc } from '@/utils/rpc'
 const props = defineProps<{
   uuid: string
 }>()
-
-// 注册 ECharts 组件
-use([
-  LineChart,
-  GridComponent,
-  TooltipComponent,
-  LegendComponent,
-  CanvasRenderer,
-])
 
 const appStore = useAppStore()
 const nodesStore = useNodesStore()

@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { NButton, NLayoutFooter, NText } from 'naive-ui'
+
+// 构建时注入的版本信息
+const buildVersion = __BUILD_VERSION__
+const buildGitHash = __BUILD_GIT_HASH__
 </script>
 
 <template>
@@ -25,6 +29,9 @@ import { NButton, NLayoutFooter, NText } from 'naive-ui'
               Komari Naive
             </NText>
           </NButton>
+          <NText :depth="3" class="ml-2 text-xs font-mono">
+            v{{ buildVersion }} ({{ buildGitHash }})
+          </NText>
         </div>
       </div>
     </NLayoutFooter>

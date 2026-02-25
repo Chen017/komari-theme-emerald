@@ -1,27 +1,15 @@
 <script setup lang="ts">
-import { LineChart } from 'echarts/charts'
-import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
-import { use } from 'echarts/core'
-import { CanvasRenderer } from 'echarts/renderers'
 import { NButton, NEmpty, NSpin, NSwitch, NTooltip } from 'naive-ui'
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import VChart from 'vue-echarts'
 import { useAppStore } from '@/stores/app'
+import '@/utils/echarts' // 共享 ECharts 配置
 import { cutPeakValues, interpolateNullsLinear } from '@/utils/recordHelper'
 import { getSharedRpc } from '@/utils/rpc'
 
 const props = defineProps<{
   uuid: string
 }>()
-
-// 注册 ECharts 组件
-use([
-  LineChart,
-  GridComponent,
-  TooltipComponent,
-  LegendComponent,
-  CanvasRenderer,
-])
 
 const appStore = useAppStore()
 // 使用共享的 RPC 实例，避免重复创建连接

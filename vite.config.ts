@@ -93,8 +93,16 @@ function komariThemeZip(): Plugin {
   }
 }
 
+// 读取 package.json 获取版本号
+const packageJson = require('./package.json')
+
 // https://vite.dev/config/
 export default defineConfig({
+  // 定义全局常量，在构建时注入
+  define: {
+    __BUILD_VERSION__: JSON.stringify(packageJson.version),
+    __BUILD_GIT_HASH__: JSON.stringify(getCommitHash()),
+  },
   plugins: [
     vue(),
     vueDevTools(),
@@ -124,5 +132,19 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0',
+  },
+  build: {
+    // 调整 chunk 大小警告阈值
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vue-vendor': ['vue', 'vue-router', 'pinia'],
+          'echarts': ['echarts', 'vue-echarts'],
+          'naive-ui': ['naive-ui'],
+          'vueuse': ['@vueuse/core'],
+        },
+      },
+    },
   },
 })

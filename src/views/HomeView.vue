@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { useDebounceFn } from '@vueuse/core'
 import { NAlert, NDivider, NEmpty, NInput, NRadioButton, NRadioGroup, NTabPane, NTabs } from 'naive-ui'
-import { computed, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import NodeCard from '@/components/NodeCard.vue'
-import NodeGeneralCards from '@/components/NodeGeneralCards.vue'
-import NodeList from '@/components/NodeList.vue'
 import { useAppStore } from '@/stores/app'
 import { useNodesStore } from '@/stores/nodes'
 import { isRegionMatch } from '@/utils/regionHelper'
+
+// 异步组件：按需加载，减少首屏体积
+const NodeCard = defineAsyncComponent(() => import('@/components/NodeCard.vue'))
+const NodeGeneralCards = defineAsyncComponent(() => import('@/components/NodeGeneralCards.vue'))
+const NodeList = defineAsyncComponent(() => import('@/components/NodeList.vue'))
 
 const appStore = useAppStore()
 const nodesStore = useNodesStore()
