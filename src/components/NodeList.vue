@@ -17,6 +17,13 @@ const emit = defineEmits<{
   click: [node: NodeData]
 }>()
 
+// 检测是否为触摸设备（移动端）
+const isTouchDevice = computed(() => {
+  if (typeof window === 'undefined')
+    return false
+  return 'ontouchstart' in window || navigator.maxTouchPoints > 0
+})
+
 const appStore = useAppStore()
 
 // 获取 Naive UI 主题变量
@@ -35,13 +42,15 @@ const formatBytes = (bytes: number) => formatBytesWithConfig(bytes, appStore.byt
 const formatBytesPerSecond = (bytes: number) => formatBytesPerSecondWithConfig(bytes, appStore.byteDecimals)
 const formatUptime = (seconds: number) => formatUptimeWithFormat(seconds, appStore.uptimeFormat)
 
-// 动态生成 grid 样式，使用配置的列宽度
+// 动态生成 grid 样式，使用配置的列宽度和间距
 const gridStyle = computed(() => {
   const visibleColumns = columns.value
   const columnWidths = appStore.listColumnWidths
+  const columnGap = appStore.listColumnGap
   const templateColumns = visibleColumns.map(col => columnWidths[col] || 'auto')
   return {
     gridTemplateColumns: templateColumns.join(' '),
+    gap: columnGap,
   }
 })
 
@@ -265,9 +274,9 @@ function getTrafficUsed(node: NodeData): number {
             <div class="traffic-cell">
               <!-- 有流量限制时显示进度条版式 -->
               <template v-if="showTrafficProgress(node)">
-                <NTooltip>
+                <NTooltip :trigger="isTouchDevice ? 'click' : 'hover'">
                   <template #trigger>
-                    <div class="flex flex-col gap-0.5 w-full cursor-help">
+                    <div class="flex flex-col gap-0.5 w-full" :class="{ 'cursor-help': !isTouchDevice }" @click.stop>
                       <div class="text-xs flex gap-1 items-center">
                         <NText>{{ getTrafficUsedPercentage(node).toFixed(1) }}%</NText>
                         <NText :depth="3">
@@ -352,7 +361,6 @@ function getTrafficUsed(node: NodeData): number {
 .node-list-item {
   display: grid;
   align-items: center;
-  gap: 12px;
 }
 
 .node-list-header {
@@ -425,11 +433,6 @@ function getTrafficUsed(node: NodeData): number {
 
 .node-list--relaxed .node-list-header {
   padding: 12px 16px;
-  gap: 24px;
-}
-
-.node-list--relaxed .node-list-item {
-  gap: 24px;
 }
 
 .node-list--relaxed .traffic-cell {
