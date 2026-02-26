@@ -178,6 +178,15 @@ const useAppStore = defineStore('app', () => {
     }
   })
 
+  // 计算属性：List 视图列间距配置
+  const listColumnGap = computed<string>(() => {
+    const settings = publicSettings.value?.theme_settings
+    if (settings && typeof settings.listColumnGap === 'string' && settings.listColumnGap.trim()) {
+      return settings.listColumnGap.trim()
+    }
+    return '12px'
+  })
+
   // 计算属性：List 视图宽松样式
   const listRelaxedStyle = computed<boolean>(() => {
     const settings = publicSettings.value?.theme_settings
@@ -329,6 +338,7 @@ const useAppStore = defineStore('app', () => {
     listViewColumns,
     hideSingleGroupTab,
     listColumnWidths,
+    listColumnGap,
     listRelaxedStyle,
     uptimeFormat,
     byteDecimals,
