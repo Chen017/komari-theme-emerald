@@ -48,7 +48,14 @@
       { "key": "alertEnabled", "name": "启用公告", "type": "switch", "default": false, "help": "在首页显示自定义公告" },
       { "key": "alertType", "name": "公告类型", "type": "select", "default": "info", "options": "default,info,success,warning,error", "help": "公告的显示类型" },
       { "key": "alertTitle", "name": "公告标题", "type": "string", "default": "", "help": "公告的标题内容" },
-      { "key": "alertContent", "name": "公告内容", "type": "string", "default": "", "help": "公告的详细内容" }
+      { "key": "alertContent", "name": "公告内容", "type": "string", "default": "", "help": "公告的详细内容" },
+      { "name": "备案设置", "type": "title" },
+      { "key": "icpEnabled", "name": "显示备案号", "type": "switch", "default": false, "help": "在页脚显示网站备案号" },
+      { "key": "icpNumber", "name": "备案号", "type": "string", "default": "", "help": "网站备案号（如：京ICP备12345678号）" },
+      { "key": "icpUrl", "name": "备案跳转链接", "type": "string", "default": "https://beian.miit.gov.cn/", "help": "点击备案号跳转的链接地址" },
+      { "key": "policeEnabled", "name": "显示公安备案", "type": "switch", "default": false, "help": "在页脚显示公安备案信息" },
+      { "key": "policeNumber", "name": "公安备案号", "type": "string", "default": "", "help": "公安备案号（如：京公网安备 11010502000000号）" },
+      { "key": "policeUrl", "name": "公安备案跳转链接", "type": "string", "default": "", "help": "点击公安备案号跳转的链接地址，留空则不跳转" }
     ]
   }
 }

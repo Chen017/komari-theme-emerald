@@ -42,50 +42,94 @@ const containerStyle = computed(() => {
     marginInline: 'auto',
   }
 })
+
+// 是否显示备案信息
+const showIcp = computed(() => appStore.icpEnabled && appStore.icpNumber)
+const showPolice = computed(() => appStore.policeEnabled && appStore.policeNumber)
 </script>
 
 <template>
   <footer class="footer">
     <NLayoutFooter class="footer__content">
       <div class="footer__inner" :style="containerStyle">
-        <!-- Komari Monitor 信息 -->
-        <div class="footer__item">
-          <NText :depth="3" class="text-sm">
-            Powered by
-          </NText>
-          <a
-            href="https://github.com/komari-monitor/komari"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="footer__link"
-          >
-            <NText type="primary" class="text-sm font-medium">
-              Komari Monitor
+        <!-- 主信息区域 -->
+        <div class="footer__main">
+          <!-- Komari Monitor 信息 -->
+          <div class="footer__item">
+            <NText :depth="3" class="text-sm">
+              Powered by
             </NText>
-          </a>
-          <NText v-if="formattedServerVersion" :depth="3" class="text-xs font-mono ml-1">
-            v{{ formattedServerVersion }}
-          </NText>
+            <a
+              href="https://github.com/komari-monitor/komari"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="footer__link"
+            >
+              <NText type="primary" class="text-sm font-medium">
+                Komari Monitor
+              </NText>
+            </a>
+            <NText v-if="formattedServerVersion" :depth="3" class="text-xs font-mono ml-1">
+              v{{ formattedServerVersion }}
+            </NText>
+          </div>
+
+          <!-- 主题信息 -->
+          <div class="footer__item">
+            <NText :depth="3" class="text-sm">
+              Theme by
+            </NText>
+            <a
+              href="https://github.com/lyimoexiao/komari-theme-naive"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="footer__link"
+            >
+              <NText type="primary" class="text-sm font-medium">
+                Komari Naive
+              </NText>
+            </a>
+            <NText :depth="3" class="text-xs font-mono ml-1">
+              v{{ buildVersion }} ({{ buildGitHash }})
+            </NText>
+          </div>
         </div>
 
-        <!-- 主题信息 -->
-        <div class="footer__item">
-          <NText :depth="3" class="text-sm">
-            Theme by
-          </NText>
+        <!-- 备案信息区域 -->
+        <div v-if="showIcp || showPolice" class="footer__filing">
+          <!-- ICP 备案 -->
           <a
-            href="https://github.com/lyimoexiao/komari-theme-naive"
+            v-if="showIcp"
+            :href="appStore.icpUrl"
             target="_blank"
             rel="noopener noreferrer"
-            class="footer__link"
+            class="footer__filing-link"
           >
-            <NText type="primary" class="text-sm font-medium">
-              Komari Naive
+            <NText :depth="3" class="text-xs">
+              {{ appStore.icpNumber }}
             </NText>
           </a>
-          <NText :depth="3" class="text-xs font-mono ml-1">
-            v{{ buildVersion }} ({{ buildGitHash }})
-          </NText>
+
+          <!-- 公安备案 -->
+          <template v-if="showPolice">
+            <span v-if="showIcp" class="footer__filing-divider">
+              <NText :depth="3" class="text-xs">|</NText>
+            </span>
+            <a
+              v-if="appStore.policeUrl"
+              :href="appStore.policeUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="footer__filing-link"
+            >
+              <NText :depth="3" class="text-xs">
+                {{ appStore.policeNumber }}
+              </NText>
+            </a>
+            <NText v-else :depth="3" class="text-xs">
+              {{ appStore.policeNumber }}
+            </NText>
+          </template>
         </div>
       </div>
     </NLayoutFooter>
@@ -103,13 +147,25 @@ const containerStyle = computed(() => {
   &__inner {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.75rem;
     width: 100%;
 
     @media (min-width: 640px) {
       flex-direction: row;
       justify-content: space-between;
       align-items: center;
+      gap: 1rem;
+    }
+  }
+
+  &__main {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+
+    @media (min-width: 640px) {
+      flex-direction: row;
+      gap: 1.5rem;
     }
   }
 
@@ -127,6 +183,30 @@ const containerStyle = computed(() => {
     &:hover {
       opacity: 0.8;
     }
+  }
+
+  &__filing {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+
+    @media (min-width: 640px) {
+      flex-shrink: 0;
+    }
+  }
+
+  &__filing-link {
+    text-decoration: none;
+    transition: opacity 0.2s ease;
+
+    &:hover {
+      opacity: 0.7;
+    }
+  }
+
+  &__filing-divider {
+    opacity: 0.5;
   }
 }
 </style>

@@ -345,6 +345,56 @@ const useAppStore = defineStore('app', () => {
     return ''
   })
 
+  // 计算属性：ICP 备案配置
+  const icpEnabled = computed<boolean>(() => {
+    const settings = publicSettings.value?.theme_settings
+    if (settings && typeof settings.icpEnabled === 'boolean') {
+      return settings.icpEnabled
+    }
+    return false
+  })
+
+  const icpNumber = computed<string>(() => {
+    const settings = publicSettings.value?.theme_settings
+    if (settings && typeof settings.icpNumber === 'string') {
+      return settings.icpNumber
+    }
+    return ''
+  })
+
+  const icpUrl = computed<string>(() => {
+    const settings = publicSettings.value?.theme_settings
+    if (settings && typeof settings.icpUrl === 'string' && settings.icpUrl.trim()) {
+      return settings.icpUrl.trim()
+    }
+    return 'https://beian.miit.gov.cn/'
+  })
+
+  // 计算属性：公安备案配置
+  const policeEnabled = computed<boolean>(() => {
+    const settings = publicSettings.value?.theme_settings
+    if (settings && typeof settings.policeEnabled === 'boolean') {
+      return settings.policeEnabled
+    }
+    return false
+  })
+
+  const policeNumber = computed<string>(() => {
+    const settings = publicSettings.value?.theme_settings
+    if (settings && typeof settings.policeNumber === 'string') {
+      return settings.policeNumber
+    }
+    return ''
+  })
+
+  const policeUrl = computed<string>(() => {
+    const settings = publicSettings.value?.theme_settings
+    if (settings && typeof settings.policeUrl === 'string' && settings.policeUrl.trim()) {
+      return settings.policeUrl.trim()
+    }
+    return ''
+  })
+
   // 当 publicSettings 加载后，如果 localStorage 没有保存过视图模式，使用默认值
   watch(publicSettings, (settings) => {
     if (settings && storedViewMode.value === null) {
@@ -419,6 +469,12 @@ const useAppStore = defineStore('app', () => {
     alertType,
     alertTitle,
     alertContent,
+    icpEnabled,
+    icpNumber,
+    icpUrl,
+    policeEnabled,
+    policeNumber,
+    policeUrl,
     isLoggedIn,
     userInfo,
     publicSettings,
