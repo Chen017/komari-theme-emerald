@@ -292,7 +292,7 @@ const columnTitles: Record<string, string> = {
 
             <!-- 运行时间 -->
             <div v-else-if="col === 'uptime'" class="node-list-item__uptime" :style="getColumnStyle('uptime')">
-              <NText :depth="3" class="text-xs font-tcloud-number">
+              <NText :depth="3" class="text-xs" :style="{ fontFamily: appStore.numberFontFamily }">
                 {{ formatUptime(node.uptime ?? 0) }}
               </NText>
             </div>
@@ -312,7 +312,7 @@ const columnTitles: Record<string, string> = {
             <!-- CPU -->
             <div v-else-if="col === 'cpu'" class="node-list-item__cpu" :style="getColumnStyle('cpu')">
               <div class="flex flex-col gap-0.5">
-                <div class="text-xs flex gap-1 items-center font-tcloud-number">
+                <div class="text-xs flex gap-1 items-center" :style="{ fontFamily: appStore.numberFontFamily }">
                   <NText>{{ (node.cpu ?? 0).toFixed(1) }}%</NText>
                   <NText :depth="3">
                     ({{ node.load.toFixed(2) ?? 0 }}, {{ node.load5.toFixed(2) ?? 0 }}, {{ node.load15.toFixed(2) ?? 0 }})
@@ -325,7 +325,7 @@ const columnTitles: Record<string, string> = {
             <!-- 内存 -->
             <div v-else-if="col === 'mem'" class="node-list-item__mem" :style="getColumnStyle('mem')">
               <div class="flex flex-col gap-0.5">
-                <div class="text-xs flex gap-1 items-center font-tcloud-number">
+                <div class="text-xs flex gap-1 items-center" :style="{ fontFamily: appStore.numberFontFamily }">
                   <NText>{{ ((node.ram ?? 0) / (node.mem_total || 1) * 100).toFixed(1) }}%</NText>
                   <NText :depth="3">
                     ({{ formatBytes(node.ram ?? 0) }}/{{ formatBytes(node.mem_total ?? 0) }})
@@ -338,7 +338,7 @@ const columnTitles: Record<string, string> = {
             <!-- 硬盘 -->
             <div v-else-if="col === 'disk'" class="node-list-item__disk" :style="getColumnStyle('disk')">
               <div class="flex flex-col gap-0.5">
-                <div class="text-xs flex gap-1 items-center font-tcloud-number">
+                <div class="text-xs flex gap-1 items-center" :style="{ fontFamily: appStore.numberFontFamily }">
                   <NText>{{ ((node.disk ?? 0) / (node.disk_total || 1) * 100).toFixed(1) }}%</NText>
                   <NText :depth="3">
                     ({{ formatBytes(node.disk ?? 0) }}/{{ formatBytes(node.disk_total ?? 0) }})
@@ -356,7 +356,7 @@ const columnTitles: Record<string, string> = {
                   <NTooltip :trigger="isTouchDevice ? 'click' : 'hover'">
                     <template #trigger>
                       <div class="flex flex-col gap-0.5 w-full" :class="{ 'cursor-help': !isTouchDevice }" @click.stop>
-                        <div class="text-xs flex gap-1 items-center font-tcloud-number">
+                        <div class="text-xs flex gap-1 items-center" :style="{ fontFamily: appStore.numberFontFamily }">
                           <NText>{{ getTrafficUsedPercentage(node).toFixed(1) }}%</NText>
                           <NText :depth="3">
                             ({{ formatBytes(getTrafficUsed(node)) }}/{{ formatBytes(node.traffic_limit) }})
@@ -372,7 +372,7 @@ const columnTitles: Record<string, string> = {
                         />
                       </div>
                     </template>
-                    <div class="text-xs flex flex-col gap-1 font-tcloud-number">
+                    <div class="text-xs flex flex-col gap-1" :style="{ fontFamily: appStore.numberFontFamily }">
                       <span><span :style="{ color: themeVars.successColor }">↑{{ formatBytesPerSecond(node.net_out ?? 0) }}</span> <span style="opacity: 0.6;">({{ formatBytes(node.net_total_up ?? 0) }})</span></span>
                       <span><span :style="{ color: themeVars.infoColor }">↓{{ formatBytesPerSecond(node.net_in ?? 0) }}</span> <span style="opacity: 0.6;">({{ formatBytes(node.net_total_down ?? 0) }})</span></span>
                     </div>
@@ -380,7 +380,7 @@ const columnTitles: Record<string, string> = {
                 </template>
                 <!-- 无流量限制时保持现有版式 -->
                 <template v-else>
-                  <div class="text-xs flex flex-col gap-1 font-tcloud-number">
+                  <div class="text-xs flex flex-col gap-1" :style="{ fontFamily: appStore.numberFontFamily }">
                     <NText>
                       <span :style="{ color: themeVars.successColor }">↑{{ formatBytesPerSecond(node.net_out ?? 0) }}</span> <NText :depth="3">
                         ({{ formatBytes(node.net_total_up ?? 0) }})

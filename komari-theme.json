@@ -22,6 +22,7 @@
       { "key": "borderRadius", "name": "圆角大小", "type": "string", "default": "3px", "help": "全局圆角大小（如 3px、0.5rem）" },
       { "key": "cardProgressLayout", "name": "卡片进度条布局", "type": "select", "default": "2col", "options": "1col,2col", "help": "节点卡片中进度条的布局方式：1col 为一行一列，2col 为一行两列" },
       { "key": "fontFamily", "name": "字体", "type": "string", "default": "\"MiSans VF\", sans-serif", "help": "全局字体设置，多个字体用逗号分隔" },
+      { "key": "numberFontFamily", "name": "数字字体", "type": "string", "default": "\"TCloud Number VF\", \"MiSans VF\", sans-serif", "help": "数字显示专用字体，用于数值展示（如 CPU、内存、流量等）" },
       { "name": "亮色模式主题", "type": "title" },
       { "key": "lightPrimaryColor", "name": "主色调", "type": "string", "default": "#18a058", "help": "亮色模式主色调" },
       { "key": "lightPrimaryColorHover", "name": "主色调悬停色", "type": "string", "default": "#36ad6a", "help": "亮色模式按钮悬停颜色" },

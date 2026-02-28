@@ -2,8 +2,10 @@
 import { useNow } from '@vueuse/core'
 import { NCard, NText } from 'naive-ui'
 import { computed } from 'vue'
+import { useAppStore } from '@/stores/app'
 import { useNodesStore } from '@/stores/nodes'
 
+const appStore = useAppStore()
 const nodesStore = useNodesStore()
 
 // 使用 VueUse 的 useNow 自动管理定时器，每秒更新
@@ -72,7 +74,7 @@ const onlineNodeCount = computed(() => nodesStore.nodes.filter(node => node.onli
 <template>
   <div class="general-info p-4 flex flex-wrap gap-4">
     <NCard hoverable class="flex-1 min-h-32 min-w-48" content-class="flex flex-col justify-between h-full">
-      <div class="font-tcloud-number">
+      <div :style="{ fontFamily: appStore.numberFontFamily }">
         <NText class="text-2xl font-bold m-0">
           {{ currentTime }}
         </NText>
@@ -83,7 +85,7 @@ const onlineNodeCount = computed(() => nodesStore.nodes.filter(node => node.onli
       </NText>
     </NCard>
     <NCard hoverable class="flex-1 min-h-32 min-w-48" content-class="flex flex-col justify-between h-full">
-      <div class="font-tcloud-number">
+      <div :style="{ fontFamily: appStore.numberFontFamily }">
         <NText class="text-2xl font-bold m-0">
           {{ onlineNodeCount }}
         </NText>
@@ -97,7 +99,7 @@ const onlineNodeCount = computed(() => nodesStore.nodes.filter(node => node.onli
       </NText>
     </NCard>
     <NCard hoverable class="flex-1 min-h-32 min-w-48" content-class="flex flex-col justify-between h-full">
-      <div class="font-tcloud-number">
+      <div :style="{ fontFamily: appStore.numberFontFamily }">
         <NText class="text-2xl font-bold m-0">
           {{ onlineRegionCount }}
         </NText>
@@ -108,7 +110,7 @@ const onlineNodeCount = computed(() => nodesStore.nodes.filter(node => node.onli
       </NText>
     </NCard>
     <NCard hoverable class="flex-1 min-h-32 min-w-48" content-class="flex flex-col justify-between h-full">
-      <div class="font-tcloud-number">
+      <div :style="{ fontFamily: appStore.numberFontFamily }">
         <div class="traffic-item text-xl flex flex-row gap-2 items-center">
           <div class="i-icon-park-outline-upload" />
           <div class="traffic-item-value font-bold">
@@ -128,7 +130,7 @@ const onlineNodeCount = computed(() => nodesStore.nodes.filter(node => node.onli
       </NText>
     </NCard>
     <NCard hoverable class="flex-1 min-h-32 min-w-48" content-class="flex flex-col justify-between h-full">
-      <div class="font-tcloud-number">
+      <div :style="{ fontFamily: appStore.numberFontFamily }">
         <div class="traffic-item text-xl flex flex-row gap-2 items-center">
           <div class="i-icon-park-outline-up" />
           <div class="traffic-item-value font-bold">

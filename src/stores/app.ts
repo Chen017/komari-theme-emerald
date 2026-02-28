@@ -126,6 +126,15 @@ const useAppStore = defineStore('app', () => {
     return '2col'
   })
 
+  // 计算属性：数字字体配置
+  const numberFontFamily = computed<string>(() => {
+    const settings = publicSettings.value?.theme_settings
+    if (settings && typeof settings.numberFontFamily === 'string' && settings.numberFontFamily.trim()) {
+      return settings.numberFontFamily.trim()
+    }
+    return '"TCloud Number VF", "MiSans VF", sans-serif'
+  })
+
   // 计算属性：List 视图显示列配置
   const listViewColumns = computed<ListViewColumn[]>(() => {
     const settings = publicSettings.value?.theme_settings
@@ -472,6 +481,7 @@ const useAppStore = defineStore('app', () => {
     fullWidth,
     maxPageWidth,
     cardProgressLayout,
+    numberFontFamily,
     listViewColumns,
     hideSingleGroupTab,
     listColumnWidths,
