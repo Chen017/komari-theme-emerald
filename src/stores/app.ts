@@ -49,6 +49,9 @@ const useAppStore = defineStore('app', () => {
   const connectionError = ref<boolean>(false)
   const requireLogin = ref<boolean>(false)
 
+  // 首页滚动位置记忆
+  const homeScrollPosition = ref<number>(0)
+
   // 使用 null 表示未设置，等待主题配置加载后决定
   const storedViewMode = useStorageAsync<NodeViewMode | null>('nodeViewMode', null, localStorage)
 
@@ -480,6 +483,7 @@ const useAppStore = defineStore('app', () => {
     publicSettings,
     connectionError,
     requireLogin,
+    homeScrollPosition,
     updateThemeMode,
     updateLang,
     setUserInfo,

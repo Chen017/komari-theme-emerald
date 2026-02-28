@@ -58,7 +58,9 @@ tryOnUnmounted(() => {
             leave-to-class="opacity-0 -translate-x-4 blur-sm"
             mode="out-in"
           >
-            <component :is="Component" />
+            <KeepAlive :include="['HomeView']">
+              <component :is="Component" />
+            </KeepAlive>
           </Transition>
         </RouterView>
       </div>

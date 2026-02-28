@@ -1,11 +1,16 @@
 <script setup lang="ts">
-import { useDebounceFn } from '@vueuse/core'
+import { useDebounceFn, useScroll } from '@vueuse/core'
 import { NAlert, NDivider, NEmpty, NInput, NRadioButton, NRadioGroup, NTabPane, NTabs } from 'naive-ui'
-import { computed, defineAsyncComponent, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, defineOptions, onActivated, onDeactivated, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useNodesStore } from '@/stores/nodes'
 import { isRegionMatch } from '@/utils/regionHelper'
+
+// 定义组件名称，用于 KeepAlive 匹配
+defineOptions({
+  name: 'HomeView',
+})
 
 // 异步组件：按需加载，减少首屏体积
 const NodeCard = defineAsyncComponent(() => import('@/components/NodeCard.vue'))
@@ -16,6 +21,24 @@ const appStore = useAppStore()
 const nodesStore = useNodesStore()
 
 const router = useRouter()
+
+// 使用 VueUse 的 useScroll 监听滚动
+const { y } = useScroll(window, { behavior: 'smooth' })
+
+// 组件激活时恢复滚动位置
+onActivated(() => {
+  if (appStore.homeScrollPosition > 0) {
+    // 使用 nextTick 确保 DOM 已渲染
+    setTimeout(() => {
+      window.scrollTo({ top: appStore.homeScrollPosition, behavior: 'instant' })
+    }, 0)
+  }
+})
+
+// 组件失活时保存滚动位置
+onDeactivated(() => {
+  appStore.homeScrollPosition = y.value
+})
 
 const searchText = ref('')
 // 防抖后的搜索文本
