@@ -1,4 +1,4 @@
-<h3 align="center"> Komari Theme Naive </h3>
+<h3 align="center"> Komari Naive </h3>
 <p align="center">基于 Vue 3 + Vite + Naive UI 构建的 Komari Monitor 主题
 </p>
 <a href="https://github.com/lyimoexiao/komari-theme-naive">
