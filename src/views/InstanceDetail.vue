@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { NButton, NCard, NDivider, NEmpty, NIcon, NTabPane, NTabs, NTag, NText } from 'naive-ui'
-import { computed, defineAsyncComponent, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useNodesStore } from '@/stores/nodes'
@@ -17,6 +17,11 @@ const router = useRouter()
 
 const appStore = useAppStore()
 const nodesStore = useNodesStore()
+
+// 进入详情页时滚动到顶部
+onMounted(() => {
+  window.scrollTo({ top: 0, behavior: 'instant' })
+})
 
 // 格式化函数
 const formatBytes = (bytes: number) => formatBytesWithConfig(bytes, appStore.byteDecimals)
