@@ -70,8 +70,6 @@ const trafficUsedPercentage = computed(() => {
   return Math.min((used / props.node.traffic_limit) * 100, 100)
 })
 
-const trafficStatus = computed(() => getStatus(trafficUsedPercentage.value))
-
 // 已用流量（用于显示）
 const trafficUsed = computed(() => {
   const { net_total_up = 0, net_total_down = 0, traffic_limit_type } = props.node
@@ -210,20 +208,12 @@ const trafficUsed = computed(() => {
                 </template>
               </NText>
             </div>
-            <!-- sum 类型使用双颜色进度条 -->
+            <!-- 统一使用 TrafficProgress 组件，自动根据类型选择颜色 -->
             <TrafficProgress
-              v-if="props.node.traffic_limit_type === 'sum' || !showTrafficProgress"
               :upload="props.node.net_total_up ?? 0"
               :download="props.node.net_total_down ?? 0"
               :traffic-limit="props.node.traffic_limit"
-              :traffic-limit-type="showTrafficProgress ? 'sum' : 'sum'"
-            />
-            <!-- 其他类型使用单色进度条 -->
-            <NProgress
-              v-else
-              :show-indicator="false"
-              :percentage="trafficUsedPercentage"
-              :status="trafficStatus"
+              :traffic-limit-type="props.node.traffic_limit_type || 'sum'"
             />
             <NText :depth="3" class="text-xs">
               <template v-if="showTrafficProgress">

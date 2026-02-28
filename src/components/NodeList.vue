@@ -318,22 +318,13 @@ function getTrafficUsed(node: NodeData): number {
                           ({{ formatBytes(getTrafficUsed(node)) }}/{{ formatBytes(node.traffic_limit) }})
                         </NText>
                       </div>
-                      <!-- sum 类型使用双颜色进度条 -->
+                      <!-- 统一使用 TrafficProgress 组件，自动根据类型选择颜色 -->
                       <TrafficProgress
-                        v-if="node.traffic_limit_type === 'sum'"
                         :upload="node.net_total_up ?? 0"
                         :download="node.net_total_down ?? 0"
                         :traffic-limit="node.traffic_limit"
-                        traffic-limit-type="sum"
+                        :traffic-limit-type="node.traffic_limit_type || 'sum'"
                         height="4px"
-                      />
-                      <!-- 其他类型使用单色进度条 -->
-                      <NProgress
-                        v-else
-                        :show-indicator="false"
-                        :percentage="getTrafficUsedPercentage(node)"
-                        :status="getStatus(getTrafficUsedPercentage(node))"
-                        :height="4"
                       />
                     </div>
                   </template>

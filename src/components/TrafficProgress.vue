@@ -89,32 +89,35 @@ const progressHeight = computed(() => {
   return typeof props.height === 'number' ? `${props.height}px` : props.height
 })
 
-// 根据百分比获取状态
-function getStatus(percentage: number): 'success' | 'warning' | 'error' | 'default' {
-  if (percentage >= 90)
-    return 'error'
-  if (percentage >= 70)
-    return 'warning'
-  return 'default'
-}
-
-const status = computed(() => getStatus(totalPercentage.value))
-
 // 颜色计算：优先使用传入的颜色，否则使用主题变量
 const resolvedUploadColor = computed(() => props.uploadColor || themeVars.value.successColor)
 const resolvedDownloadColor = computed(() => props.downloadColor || themeVars.value.infoColor)
 
-// 单色模式下的颜色
+// 单色模式下的颜色：根据流量类型自动选择
 const resolvedSingleColor = computed(() => {
+  // 如果指定了单色，优先使用
   if (props.singleColor)
     return props.singleColor
-  const statusColors: Record<string, string> = {
-    default: themeVars.value.primaryColor,
-    success: themeVars.value.successColor,
-    warning: themeVars.value.warningColor,
-    error: themeVars.value.errorColor,
+
+  // 根据流量类型选择颜色
+  switch (props.trafficLimitType) {
+    case 'up':
+      // up 类型使用上传颜色
+      return resolvedUploadColor.value
+    case 'down':
+      // down 类型使用下载颜色
+      return resolvedDownloadColor.value
+    case 'min':
+      // min 类型使用较小值对应的颜色
+      return props.upload <= props.download ? resolvedUploadColor.value : resolvedDownloadColor.value
+    case 'max':
+      // max 类型使用较大值对应的颜色
+      return props.upload >= props.download ? resolvedUploadColor.value : resolvedDownloadColor.value
+    case 'sum':
+    default:
+      // sum 类型走双颜色模式，这里作为 fallback
+      return resolvedUploadColor.value
   }
-  return statusColors[status.value] || themeVars.value.primaryColor
 })
 
 // Rail 背景颜色
@@ -148,7 +151,7 @@ const railColor = computed(() => themeVars.value.progressRailColor)
       <div
         class="traffic-progress__fill traffic-progress__fill--last"
         :style="{
-          maxWidth: `${totalPercentage}%`,
+          width: `${totalPercentage}%`,
           backgroundColor: resolvedSingleColor,
         }"
       />
