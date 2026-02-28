@@ -8,6 +8,7 @@ import { useAppStore } from '@/stores/app'
 import { formatBytesPerSecondWithConfig, formatBytesWithConfig, formatUptimeWithFormat, getStatus } from '@/utils/helper'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
 import { getRegionCode, getRegionDisplayName } from '@/utils/regionHelper'
+import { formatPriceWithCycle, getDaysUntilExpired, getExpireStatus, parseTags } from '@/utils/tagHelper'
 
 const props = defineProps<{
   nodes: NodeData[]
@@ -35,7 +36,6 @@ const selectedNode = ref<NodeData | null>(null)
 
 // 列可见性计算
 const columns = computed(() => appStore.listViewColumns)
-const showColumn = (col: string) => columns.value.includes(col as typeof columns.value[number])
 
 // 格式化函数
 const formatBytes = (bytes: number) => formatBytesWithConfig(bytes, appStore.byteDecimals)
@@ -156,6 +156,72 @@ function getTrafficUsed(node: NodeData): number {
       return net_total_up + net_total_down
   }
 }
+
+// 根据过期状态获取颜色
+function getExpireBadgeColor(status: string): string {
+  switch (status) {
+    case 'expired':
+    case 'critical':
+      return '#E54D2E' // 红色
+    case 'warning':
+      return '#F97316' // 橙色
+    case 'long_term':
+      return '#8D8D8D' // 灰色
+    case 'normal':
+    default:
+      return '#30A46C' // 绿色
+  }
+}
+
+// 计算节点的标签列表（返回颜色）
+function getNodeTags(node: NodeData): Array<{ text: string, color: string }> {
+  const tags: Array<{ text: string, color: string }> = []
+  const lang = appStore.lang
+
+  // 前两个标签：剩余天数和价格（price > 0 时显示）
+  if (node.price !== 0) {
+    // 剩余天数标签
+    const days = getDaysUntilExpired(node.expired_at)
+    const status = getExpireStatus(node.expired_at)
+    const color = getExpireBadgeColor(status)
+
+    if (status === 'expired') {
+      tags.push({ text: lang === 'zh-CN' ? '已过期' : 'Expired', color })
+    }
+    else if (status === 'long_term') {
+      tags.push({ text: lang === 'zh-CN' ? '长期' : 'Long-term', color })
+    }
+    else {
+      tags.push({ text: lang === 'zh-CN' ? `剩余 ${days} 天` : `${days} days left`, color })
+    }
+
+    // 价格标签
+    const priceText = formatPriceWithCycle(node.price, node.billing_cycle, node.currency, lang)
+    tags.push({ text: priceText, color: '#0090FF' }) // 蓝色
+  }
+
+  // 后续标签：从 tags 字段解析
+  const customTags = parseTags(node.tags)
+  for (const tag of customTags) {
+    tags.push({ text: tag.text, color: tag.hex })
+  }
+
+  return tags
+}
+
+// 列标题映射
+const columnTitles: Record<string, string> = {
+  status: '状态',
+  region: '地区',
+  name: '节点',
+  tags: '标签',
+  uptime: '运行时间',
+  os: '系统',
+  cpu: 'CPU',
+  mem: '内存',
+  disk: '硬盘',
+  traffic: '流量',
+}
 </script>
 
 <template>
@@ -163,194 +229,173 @@ function getTrafficUsed(node: NodeData): number {
     <NList hoverable clickable bordered class="min-w-fit w-full">
       <template #header>
         <div class="node-list-header" :style="gridStyle">
-          <div v-if="showColumn('status')" class="node-list-header__status" :style="getColumnStyle('status')">
-            <NText :depth="3" class="text-xs">
-              状态
-            </NText>
-          </div>
-          <div v-if="showColumn('region')" class="node-list-header__region" :style="getColumnStyle('region')">
-            <NText :depth="3" class="text-xs">
-              地区
-            </NText>
-          </div>
-          <div v-if="showColumn('name')" class="node-list-header__name" :style="getColumnStyle('name')">
-            <NText :depth="3" class="text-xs">
-              节点
-            </NText>
-          </div>
-          <div v-if="showColumn('uptime')" class="node-list-header__uptime" :style="getColumnStyle('uptime')">
-            <NText :depth="3" class="text-xs">
-              运行时间
-            </NText>
-          </div>
-          <div v-if="showColumn('os')" class="node-list-header__os" :style="getColumnStyle('os')">
-            <NText :depth="3" class="text-xs">
-              系统
-            </NText>
-          </div>
-          <div v-if="showColumn('cpu')" class="node-list-header__cpu" :style="getColumnStyle('cpu')">
-            <NText :depth="3" class="text-xs">
-              CPU
-            </NText>
-          </div>
-          <div v-if="showColumn('mem')" class="node-list-header__mem" :style="getColumnStyle('mem')">
-            <NText :depth="3" class="text-xs">
-              内存
-            </NText>
-          </div>
-          <div v-if="showColumn('disk')" class="node-list-header__disk" :style="getColumnStyle('disk')">
-            <NText :depth="3" class="text-xs">
-              硬盘
-            </NText>
-          </div>
-          <div v-if="showColumn('traffic')" class="node-list-header__traffic" :style="getColumnStyle('traffic')">
-            <NText :depth="3" class="text-xs">
-              流量
-            </NText>
-          </div>
+          <template v-for="col in columns" :key="col">
+            <div :class="`node-list-header__${col}`" :style="getColumnStyle(col)">
+              <NText :depth="3" class="text-xs">
+                {{ columnTitles[col] }}
+              </NText>
+            </div>
+          </template>
         </div>
       </template>
       <NListItem v-for="node in props.nodes" :key="node.uuid" :class="{ 'opacity-50 pointer-events-none': !node.online }" :style="rowHeightStyle" @click="handleClick(node)">
         <div class="node-list-item" :style="gridStyle">
-          <!-- 在线状态指示器 -->
-          <div v-if="showColumn('status')" class="node-list-item__status" :style="getColumnStyle('status')">
-            <div class="flex gap-1 items-center">
-              <NTooltip v-if="appStore.showPingChartButton">
-                <template #trigger>
-                  <NButton
-                    quaternary
-                    circle
-                    size="tiny"
-                    class="p-1!"
-                    @click.stop="openPingChart(node)"
-                  >
-                    <template #icon>
-                      <div class="i-icon-park-outline-area-map text-sm" />
-                    </template>
-                  </NButton>
-                </template>
-                查看延迟图表
-              </NTooltip>
-              <NBadge :type="node.online ? 'success' : 'error'" :value="node.online ? '在线' : '离线'" />
+          <template v-for="col in columns" :key="col">
+            <!-- 在线状态指示器 -->
+            <div v-if="col === 'status'" class="node-list-item__status" :style="getColumnStyle('status')">
+              <div class="flex gap-1 items-center">
+                <NTooltip v-if="appStore.showPingChartButton">
+                  <template #trigger>
+                    <NButton
+                      quaternary
+                      circle
+                      size="tiny"
+                      class="p-1!"
+                      @click.stop="openPingChart(node)"
+                    >
+                      <template #icon>
+                        <div class="i-icon-park-outline-area-map text-sm" />
+                      </template>
+                    </NButton>
+                  </template>
+                  查看延迟图表
+                </NTooltip>
+                <NBadge :type="node.online ? 'success' : 'error'" :value="node.online ? '在线' : '离线'" />
+              </div>
             </div>
-          </div>
 
-          <!-- 国旗 -->
-          <div v-if="showColumn('region')" class="node-list-item__region" :style="getColumnStyle('region')">
-            <NIcon size="20">
-              <img :src="getFlagSrc(node.region)" :alt="getRegionDisplayName(node.region)" class="rounded-sm">
-            </NIcon>
-          </div>
-
-          <!-- 节点名称 -->
-          <div v-if="showColumn('name')" class="node-list-item__name" :style="getColumnStyle('name')">
-            <NText class="text-sm font-semibold">
-              {{ node.name }}
-            </NText>
-          </div>
-
-          <!-- 运行时间 -->
-          <div v-if="showColumn('uptime')" class="node-list-item__uptime" :style="getColumnStyle('uptime')">
-            <NText :depth="3" class="text-xs">
-              {{ formatUptime(node.uptime ?? 0) }}
-            </NText>
-          </div>
-
-          <!-- 操作系统 -->
-          <div v-if="showColumn('os')" class="node-list-item__os" :style="getColumnStyle('os')">
-            <div class="flex gap-1 items-center">
-              <NIcon size="16">
-                <img :src="getOSImage(node.os)" :alt="getOSName(node.os)">
+            <!-- 国旗 -->
+            <div v-else-if="col === 'region'" class="node-list-item__region" :style="getColumnStyle('region')">
+              <NIcon size="20">
+                <img :src="getFlagSrc(node.region)" :alt="getRegionDisplayName(node.region)" class="rounded-sm">
               </NIcon>
-              <NText :depth="3" class="text-xs">
-                {{ getOSName(node.os) }}
+            </div>
+
+            <!-- 节点名称 -->
+            <div v-else-if="col === 'name'" class="node-list-item__name" :style="getColumnStyle('name')">
+              <NText class="text-sm font-semibold">
+                {{ node.name }}
               </NText>
             </div>
-          </div>
 
-          <!-- CPU -->
-          <div v-if="showColumn('cpu')" class="node-list-item__cpu" :style="getColumnStyle('cpu')">
-            <div class="flex flex-col gap-0.5">
-              <div class="text-xs flex gap-1 items-center">
-                <NText>{{ (node.cpu ?? 0).toFixed(1) }}%</NText>
+            <!-- 标签 -->
+            <div v-else-if="col === 'tags'" class="node-list-item__tags" :style="getColumnStyle('tags')">
+              <div class="flex flex-wrap gap-1 items-center">
+                <NBadge
+                  v-for="(tag, index) in getNodeTags(node)"
+                  :key="index"
+                  :color="tag.color"
+                  :value="tag.text"
+                />
               </div>
-              <NProgress :show-indicator="false" :percentage="node.cpu ?? 0" :status="getStatus(node.cpu ?? 0)" :height="4" />
             </div>
-          </div>
 
-          <!-- 内存 -->
-          <div v-if="showColumn('mem')" class="node-list-item__mem" :style="getColumnStyle('mem')">
-            <div class="flex flex-col gap-0.5">
-              <div class="text-xs flex gap-1 items-center">
-                <NText>{{ ((node.ram ?? 0) / (node.mem_total || 1) * 100).toFixed(1) }}%</NText>
-                <NText :depth="3">
-                  ({{ formatBytes(node.ram ?? 0) }}/{{ formatBytes(node.mem_total ?? 0) }})
+            <!-- 运行时间 -->
+            <div v-else-if="col === 'uptime'" class="node-list-item__uptime" :style="getColumnStyle('uptime')">
+              <NText :depth="3" class="text-xs font-tcloud-number">
+                {{ formatUptime(node.uptime ?? 0) }}
+              </NText>
+            </div>
+
+            <!-- 操作系统 -->
+            <div v-else-if="col === 'os'" class="node-list-item__os" :style="getColumnStyle('os')">
+              <div class="flex gap-1 items-center">
+                <NIcon size="16">
+                  <img :src="getOSImage(node.os)" :alt="getOSName(node.os)">
+                </NIcon>
+                <NText :depth="3" class="text-xs">
+                  {{ getOSName(node.os) }}
                 </NText>
               </div>
-              <NProgress :show-indicator="false" :percentage="(node.ram ?? 0) / (node.mem_total || 1) * 100" :status="getStatus((node.ram ?? 0) / (node.mem_total || 1) * 100)" :height="4" />
             </div>
-          </div>
 
-          <!-- 硬盘 -->
-          <div v-if="showColumn('disk')" class="node-list-item__disk" :style="getColumnStyle('disk')">
-            <div class="flex flex-col gap-0.5">
-              <div class="text-xs flex gap-1 items-center">
-                <NText>{{ ((node.disk ?? 0) / (node.disk_total || 1) * 100).toFixed(1) }}%</NText>
-                <NText :depth="3">
-                  ({{ formatBytes(node.disk ?? 0) }}/{{ formatBytes(node.disk_total ?? 0) }})
-                </NText>
-              </div>
-              <NProgress :show-indicator="false" :percentage="(node.disk ?? 0) / (node.disk_total || 1) * 100" :status="getStatus((node.disk ?? 0) / (node.disk_total || 1) * 100)" :height="4" />
-            </div>
-          </div>
-
-          <!-- 流量 -->
-          <div v-if="showColumn('traffic')" class="node-list-item__traffic" :style="getColumnStyle('traffic')">
-            <div class="traffic-cell">
-              <!-- 有流量限制时显示进度条版式 -->
-              <template v-if="showTrafficProgress(node)">
-                <NTooltip :trigger="isTouchDevice ? 'click' : 'hover'">
-                  <template #trigger>
-                    <div class="flex flex-col gap-0.5 w-full" :class="{ 'cursor-help': !isTouchDevice }" @click.stop>
-                      <div class="text-xs flex gap-1 items-center">
-                        <NText>{{ getTrafficUsedPercentage(node).toFixed(1) }}%</NText>
-                        <NText :depth="3">
-                          ({{ formatBytes(getTrafficUsed(node)) }}/{{ formatBytes(node.traffic_limit) }})
-                        </NText>
-                      </div>
-                      <!-- 统一使用 TrafficProgress 组件，自动根据类型选择颜色 -->
-                      <TrafficProgress
-                        :upload="node.net_total_up ?? 0"
-                        :download="node.net_total_down ?? 0"
-                        :traffic-limit="node.traffic_limit"
-                        :traffic-limit-type="(node.traffic_limit_type || 'sum')"
-                        height="4px"
-                      />
-                    </div>
-                  </template>
-                  <div class="text-xs flex flex-col gap-1">
-                    <span><span :style="{ color: themeVars.successColor }">↑{{ formatBytesPerSecond(node.net_out ?? 0) }}</span> <span style="opacity: 0.6;">({{ formatBytes(node.net_total_up ?? 0) }})</span></span>
-                    <span><span :style="{ color: themeVars.infoColor }">↓{{ formatBytesPerSecond(node.net_in ?? 0) }}</span> <span style="opacity: 0.6;">({{ formatBytes(node.net_total_down ?? 0) }})</span></span>
-                  </div>
-                </NTooltip>
-              </template>
-              <!-- 无流量限制时保持现有版式 -->
-              <template v-else>
-                <div class="text-xs flex flex-col gap-1">
-                  <NText>
-                    <span :style="{ color: themeVars.successColor }">↑{{ formatBytesPerSecond(node.net_out ?? 0) }}</span> <NText :depth="3">
-                      ({{ formatBytes(node.net_total_up ?? 0) }})
-                    </NText>
-                  </NText>
-                  <NText>
-                    <span :style="{ color: themeVars.infoColor }">↓{{ formatBytesPerSecond(node.net_in ?? 0) }}</span><NText :depth="3">
-                      ({{ formatBytes(node.net_total_down ?? 0) }})
-                    </NText>
+            <!-- CPU -->
+            <div v-else-if="col === 'cpu'" class="node-list-item__cpu" :style="getColumnStyle('cpu')">
+              <div class="flex flex-col gap-0.5">
+                <div class="text-xs flex gap-1 items-center font-tcloud-number">
+                  <NText>{{ (node.cpu ?? 0).toFixed(1) }}%</NText>
+                  <NText :depth="3">
+                    ({{ node.load.toFixed(2) ?? 0 }}, {{ node.load5.toFixed(2) ?? 0 }}, {{ node.load15.toFixed(2) ?? 0 }})
                   </NText>
                 </div>
-              </template>
+                <NProgress :show-indicator="false" :percentage="node.cpu ?? 0" :status="getStatus(node.cpu ?? 0)" :height="4" />
+              </div>
             </div>
-          </div>
+
+            <!-- 内存 -->
+            <div v-else-if="col === 'mem'" class="node-list-item__mem" :style="getColumnStyle('mem')">
+              <div class="flex flex-col gap-0.5">
+                <div class="text-xs flex gap-1 items-center font-tcloud-number">
+                  <NText>{{ ((node.ram ?? 0) / (node.mem_total || 1) * 100).toFixed(1) }}%</NText>
+                  <NText :depth="3">
+                    ({{ formatBytes(node.ram ?? 0) }}/{{ formatBytes(node.mem_total ?? 0) }})
+                  </NText>
+                </div>
+                <NProgress :show-indicator="false" :percentage="(node.ram ?? 0) / (node.mem_total || 1) * 100" :status="getStatus((node.ram ?? 0) / (node.mem_total || 1) * 100)" :height="4" />
+              </div>
+            </div>
+
+            <!-- 硬盘 -->
+            <div v-else-if="col === 'disk'" class="node-list-item__disk" :style="getColumnStyle('disk')">
+              <div class="flex flex-col gap-0.5">
+                <div class="text-xs flex gap-1 items-center font-tcloud-number">
+                  <NText>{{ ((node.disk ?? 0) / (node.disk_total || 1) * 100).toFixed(1) }}%</NText>
+                  <NText :depth="3">
+                    ({{ formatBytes(node.disk ?? 0) }}/{{ formatBytes(node.disk_total ?? 0) }})
+                  </NText>
+                </div>
+                <NProgress :show-indicator="false" :percentage="(node.disk ?? 0) / (node.disk_total || 1) * 100" :status="getStatus((node.disk ?? 0) / (node.disk_total || 1) * 100)" :height="4" />
+              </div>
+            </div>
+
+            <!-- 流量 -->
+            <div v-else-if="col === 'traffic'" class="node-list-item__traffic" :style="getColumnStyle('traffic')">
+              <div class="traffic-cell">
+                <!-- 有流量限制时显示进度条版式 -->
+                <template v-if="showTrafficProgress(node)">
+                  <NTooltip :trigger="isTouchDevice ? 'click' : 'hover'">
+                    <template #trigger>
+                      <div class="flex flex-col gap-0.5 w-full" :class="{ 'cursor-help': !isTouchDevice }" @click.stop>
+                        <div class="text-xs flex gap-1 items-center font-tcloud-number">
+                          <NText>{{ getTrafficUsedPercentage(node).toFixed(1) }}%</NText>
+                          <NText :depth="3">
+                            ({{ formatBytes(getTrafficUsed(node)) }}/{{ formatBytes(node.traffic_limit) }})
+                          </NText>
+                        </div>
+                        <!-- 统一使用 TrafficProgress 组件，自动根据类型选择颜色 -->
+                        <TrafficProgress
+                          :upload="node.net_total_up ?? 0"
+                          :download="node.net_total_down ?? 0"
+                          :traffic-limit="node.traffic_limit"
+                          :traffic-limit-type="(node.traffic_limit_type || 'sum')"
+                          height="4px"
+                        />
+                      </div>
+                    </template>
+                    <div class="text-xs flex flex-col gap-1 font-tcloud-number">
+                      <span><span :style="{ color: themeVars.successColor }">↑{{ formatBytesPerSecond(node.net_out ?? 0) }}</span> <span style="opacity: 0.6;">({{ formatBytes(node.net_total_up ?? 0) }})</span></span>
+                      <span><span :style="{ color: themeVars.infoColor }">↓{{ formatBytesPerSecond(node.net_in ?? 0) }}</span> <span style="opacity: 0.6;">({{ formatBytes(node.net_total_down ?? 0) }})</span></span>
+                    </div>
+                  </NTooltip>
+                </template>
+                <!-- 无流量限制时保持现有版式 -->
+                <template v-else>
+                  <div class="text-xs flex flex-col gap-1 font-tcloud-number">
+                    <NText>
+                      <span :style="{ color: themeVars.successColor }">↑{{ formatBytesPerSecond(node.net_out ?? 0) }}</span> <NText :depth="3">
+                        ({{ formatBytes(node.net_total_up ?? 0) }})
+                      </NText>
+                    </NText>
+                    <NText>
+                      <span :style="{ color: themeVars.infoColor }">↓{{ formatBytesPerSecond(node.net_in ?? 0) }}</span><NText :depth="3">
+                        ({{ formatBytes(node.net_total_down ?? 0) }})
+                      </NText>
+                    </NText>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
         </div>
       </NListItem>
     </NList>
@@ -442,6 +487,11 @@ function getTrafficUsed(node: NodeData): number {
 
 .node-list-header__traffic,
 .node-list-item__traffic {
+  min-width: 0;
+}
+
+.node-list-header__tags,
+.node-list-item__tags {
   min-width: 0;
 }
 

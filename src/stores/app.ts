@@ -11,7 +11,7 @@ type RpcTransportMode = 'websocket' | 'http'
 type AlertType = 'default' | 'info' | 'success' | 'warning' | 'error'
 
 /** 默认的 List 视图列配置 */
-const DEFAULT_LIST_VIEW_COLUMNS = ['status', 'region', 'name', 'uptime', 'os', 'cpu', 'mem', 'disk', 'traffic'] as const
+const DEFAULT_LIST_VIEW_COLUMNS = ['status', 'region', 'name', 'tags', 'uptime', 'os', 'cpu', 'mem', 'disk', 'traffic'] as const
 type ListViewColumn = typeof DEFAULT_LIST_VIEW_COLUMNS[number]
 
 /** 默认的 List 视图列宽度配置 */
@@ -19,6 +19,7 @@ const DEFAULT_LIST_COLUMN_WIDTHS: Record<string, string> = {
   status: '76px',
   region: '32px',
   name: 'minmax(200px, 1fr)',
+  tags: '200px',
   uptime: 'minmax(180px, 0.6fr)',
   os: '120px',
   cpu: '180px',
@@ -111,6 +112,18 @@ const useAppStore = defineStore('app', () => {
       return settings.maxPageWidth.trim()
     }
     return '1800px'
+  })
+
+  // 计算属性：卡片进度条布局配置
+  const cardProgressLayout = computed<'1col' | '2col'>(() => {
+    const settings = publicSettings.value?.theme_settings
+    if (settings && typeof settings.cardProgressLayout === 'string') {
+      const layout = settings.cardProgressLayout
+      if (layout === '1col' || layout === '2col') {
+        return layout
+      }
+    }
+    return '2col'
   })
 
   // 计算属性：List 视图显示列配置
@@ -458,6 +471,7 @@ const useAppStore = defineStore('app', () => {
     showLoginButton,
     fullWidth,
     maxPageWidth,
+    cardProgressLayout,
     listViewColumns,
     hideSingleGroupTab,
     listColumnWidths,

@@ -8,6 +8,7 @@ import { useAppStore } from '@/stores/app'
 import { formatBytesPerSecondWithConfig, formatBytesWithConfig, formatUptimeWithFormat, getStatus } from '@/utils/helper'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
 import { getRegionCode, getRegionDisplayName } from '@/utils/regionHelper'
+import { formatPriceWithCycle, getDaysUntilExpired, getExpireStatus, getExpireStatusHexColor, parseTags } from '@/utils/tagHelper'
 
 const props = defineProps<{
   node: NodeData
@@ -87,6 +88,42 @@ const trafficUsed = computed(() => {
       return net_total_up + net_total_down
   }
 })
+
+// 计算节点的价格相关标签（剩余天数 + 价格）
+const priceTags = computed(() => {
+  const tags: Array<{ text: string, color: string }> = []
+  const lang = appStore.lang
+  const node = props.node
+
+  // price > 0 时显示
+  if (node.price !== 0) {
+    // 剩余天数标签
+    const days = getDaysUntilExpired(node.expired_at)
+    const status = getExpireStatus(node.expired_at)
+    const color = getExpireStatusHexColor(status)
+
+    if (status === 'expired') {
+      tags.push({ text: lang === 'zh-CN' ? '已过期' : 'Expired', color })
+    }
+    else if (status === 'long_term') {
+      tags.push({ text: lang === 'zh-CN' ? '长期' : 'Long-term', color })
+    }
+    else {
+      tags.push({ text: lang === 'zh-CN' ? `剩余 ${days} 天` : `${days} days left`, color })
+    }
+
+    // 价格标签
+    const priceText = formatPriceWithCycle(node.price, node.billing_cycle, node.currency, lang)
+    tags.push({ text: priceText, color: themeVars.value.infoColor }) // purple
+  }
+
+  return tags
+})
+
+// 计算节点的自定义标签
+const customTags = computed(() => {
+  return parseTags(props.node.tags).map(tag => ({ text: tag.text, color: tag.hex }))
+})
 </script>
 
 <template>
@@ -99,11 +136,22 @@ const trafficUsed = computed(() => {
       @click="emit('click')"
     >
       <template #header>
-        <div class="flex gap-2 items-center">
-          <NIcon>
+        <div class="flex gap-2 min-w-0 items-center">
+          <NIcon class="shrink-0">
             <img :src="`/images/flags/${getRegionCode(props.node.region)}.svg`" :alt="getRegionDisplayName(props.node.region)">
           </NIcon>
-          <NEllipsis class="text-lg font-bold m-0">
+          <!-- 自定义标签显示在节点名前 -->
+          <div v-if="customTags.length > 0" class="flex shrink-0 flex-wrap gap-1 items-center">
+            <NTag
+              v-for="(tag, index) in customTags"
+              :key="index"
+              size="small"
+              :color="{ color: `${tag.color}20`, textColor: tag.color, borderColor: `${tag.color}40` }"
+            >
+              {{ tag.text }}
+            </NTag>
+          </div>
+          <NEllipsis class="text-lg font-bold m-0 flex-1 min-w-0">
             {{ props.node.name }}
           </NEllipsis>
         </div>
@@ -132,117 +180,133 @@ const trafficUsed = computed(() => {
         </div>
       </template>
       <template #default>
-        <div class="flex flex-col gap-3">
+        <div class="flex flex-col gap-4">
           <!-- 操作系统 -->
           <div class="flex-between">
-            <NText :depth="3" class="">
+            <NText :depth="3" class="text-[13px]">
               操作系统
             </NText>
             <div class="flex gap-2 items-center">
               <NIcon>
                 <img :src="getOSImage(props.node.os)" :alt="getOSName(props.node.os)">
               </NIcon>
-              <NText class="">
+              <NText class="text-[13px]">
                 {{ getOSName(props.node.os) }} / {{ props.node.arch }}
               </NText>
             </div>
           </div>
 
-          <!-- CPU -->
-          <div class="flex-col gap-1">
-            <div class="flex-between">
-              <NText :depth="3" class="">
-                CPU
-              </NText>
-              <NText class="">
-                {{ (props.node.cpu ?? 0).toFixed(1) }}%
-              </NText>
-            </div>
-            <NProgress :show-indicator="false" :percentage="props.node.cpu ?? 0" :status="cpuStatus" />
-          </div>
-
-          <!-- 内存 -->
-          <div class="flex-col gap-1">
-            <div class="flex-between">
-              <NText :depth="3" class="">
-                内存
-              </NText>
-              <NText class="">
-                {{ memPercentage.toFixed(1) }}%
+          <!-- 进度条区域：支持一行一列或一行两列布局 -->
+          <div class="gap-x-6 gap-y-4 grid" :class="appStore.cardProgressLayout === '1col' ? 'grid-cols-1' : 'grid-cols-2'">
+            <!-- CPU -->
+            <div class="flex flex-col gap-1.5">
+              <div class="flex-between">
+                <NText :depth="3" class="text-[13px]">
+                  CPU
+                </NText>
+                <NText class="text-[13px]">
+                  {{ (props.node.cpu ?? 0).toFixed(1) }}%
+                </NText>
+              </div>
+              <NProgress :show-indicator="false" :percentage="props.node.cpu ?? 0" :status="cpuStatus" />
+              <NText :depth="3" class="text-[11px]">
+                {{ node.load.toFixed(2) ?? 0 }} | {{ node.load5.toFixed(2) ?? 0 }} | {{ node.load15.toFixed(2) ?? 0 }}
               </NText>
             </div>
-            <NProgress :show-indicator="false" :percentage="memPercentage" :status="memStatus" />
-            <NText :depth="3" class="text-xs">
-              {{ formatBytes(props.node.ram ?? 0) }} / {{ formatBytes(props.node.mem_total ?? 0) }}
-            </NText>
-          </div>
 
-          <!-- 硬盘 -->
-          <div class="flex-col gap-1">
-            <div class="flex-between">
-              <NText :depth="3" class="">
-                硬盘
-              </NText>
-              <NText class="">
-                {{ diskPercentage.toFixed(1) }}%
+            <!-- 内存 -->
+            <div class="flex flex-col gap-1.5">
+              <div class="flex-between">
+                <NText :depth="3" class="text-[13px]">
+                  内存
+                </NText>
+                <NText class="text-[13px]">
+                  {{ memPercentage.toFixed(1) }}%
+                </NText>
+              </div>
+              <NProgress :show-indicator="false" :percentage="memPercentage" :status="memStatus" />
+              <NText :depth="3" class="text-[11px]">
+                {{ formatBytes(props.node.ram ?? 0) }} / {{ formatBytes(props.node.mem_total ?? 0) }}
               </NText>
             </div>
-            <NProgress :show-indicator="false" :percentage="diskPercentage" :status="diskStatus" />
-            <NText :depth="3" class="text-xs">
-              {{ formatBytes(props.node.disk ?? 0) }} / {{ formatBytes(props.node.disk_total ?? 0) }}
-            </NText>
-          </div>
 
-          <!-- 流量进度条 -->
-          <div class="flex-col gap-1">
-            <div class="flex-between">
-              <NText :depth="3" class="">
-                流量
+            <!-- 硬盘 -->
+            <div class="flex flex-col gap-1.5">
+              <div class="flex-between">
+                <NText :depth="3" class="text-[13px]">
+                  硬盘
+                </NText>
+                <NText class="text-[13px]">
+                  {{ diskPercentage.toFixed(1) }}%
+                </NText>
+              </div>
+              <NProgress :show-indicator="false" :percentage="diskPercentage" :status="diskStatus" />
+              <NText :depth="3" class="text-[11px]">
+                {{ formatBytes(props.node.disk ?? 0) }} / {{ formatBytes(props.node.disk_total ?? 0) }}
               </NText>
-              <NText class="">
+            </div>
+
+            <!-- 流量进度条 -->
+            <div class="flex flex-col gap-1.5">
+              <div class="flex-between">
+                <NText :depth="3" class="text-[13px]">
+                  流量
+                </NText>
+                <NText class="text-[13px]">
+                  <template v-if="showTrafficProgress">
+                    {{ trafficUsedPercentage.toFixed(1) }}%
+                  </template>
+                  <template v-else>
+                    ∞
+                  </template>
+                </NText>
+              </div>
+              <!-- 统一使用 TrafficProgress 组件，自动根据类型选择颜色 -->
+              <TrafficProgress
+                :upload="props.node.net_total_up ?? 0"
+                :download="props.node.net_total_down ?? 0"
+                :traffic-limit="props.node.traffic_limit"
+                :traffic-limit-type="(props.node.traffic_limit_type || 'sum')"
+              />
+              <NText :depth="3" class="text-[11px]">
                 <template v-if="showTrafficProgress">
-                  {{ trafficUsedPercentage.toFixed(1) }}%
+                  {{ formatBytes(trafficUsed) }} / {{ formatBytes(props.node.traffic_limit) }}（<span :style="{ color: themeVars.successColor }">↑ {{ formatBytes(props.node.net_total_up ?? 0) }}</span> ｜ <span :style="{ color: themeVars.infoColor }">↓ {{ formatBytes(props.node.net_total_down ?? 0) }}</span>）
                 </template>
                 <template v-else>
-                  ∞
+                  <span :style="{ color: themeVars.successColor }">↑ {{ formatBytes(props.node.net_total_up ?? 0) }}</span> ｜ <span :style="{ color: themeVars.infoColor }">↓ {{ formatBytes(props.node.net_total_down ?? 0) }}</span>
                 </template>
               </NText>
             </div>
-            <!-- 统一使用 TrafficProgress 组件，自动根据类型选择颜色 -->
-            <TrafficProgress
-              :upload="props.node.net_total_up ?? 0"
-              :download="props.node.net_total_down ?? 0"
-              :traffic-limit="props.node.traffic_limit"
-              :traffic-limit-type="(props.node.traffic_limit_type || 'sum')"
-            />
-            <NText :depth="3" class="text-xs">
-              <template v-if="showTrafficProgress">
-                {{ formatBytes(trafficUsed) }} / {{ formatBytes(props.node.traffic_limit) }}（<span :style="{ color: themeVars.successColor }">↑ {{ formatBytes(props.node.net_total_up ?? 0) }}</span> ｜ <span :style="{ color: themeVars.infoColor }">↓ {{ formatBytes(props.node.net_total_down ?? 0) }}</span>）
-              </template>
-              <template v-else>
-                <span :style="{ color: themeVars.successColor }">↑ {{ formatBytes(props.node.net_total_up ?? 0) }}</span> ｜ <span :style="{ color: themeVars.infoColor }">↓ {{ formatBytes(props.node.net_total_down ?? 0) }}</span>
-              </template>
-            </NText>
           </div>
 
           <!-- 网络速率 -->
           <div class="flex-between">
-            <NText :depth="3" class="">
+            <NText :depth="3" class="text-[13px]">
               网络速率
             </NText>
-            <NText class="">
+            <NText class="text-[13px]">
               <span :style="{ color: themeVars.successColor }">↑ {{ formatBytesPerSecond(props.node.net_out ?? 0) }}</span> ｜ <span :style="{ color: themeVars.infoColor }">↓ {{ formatBytesPerSecond(props.node.net_in ?? 0) }}</span>
             </NText>
           </div>
 
           <!-- 运行时间 -->
           <div class="flex-between">
-            <NText :depth="3" class="">
+            <NText :depth="3" class="text-[13px]">
               运行时间
             </NText>
-            <NText class="">
-              {{ formatUptime(props.node.uptime ?? 0) }}
-            </NText>
+            <div class="flex gap-2 items-center">
+              <NTag
+                v-for="(tag, index) in priceTags"
+                :key="index"
+                size="small"
+                :color="{ color: `${tag.color}20`, textColor: tag.color, borderColor: `${tag.color}40` }"
+              >
+                {{ tag.text }}
+              </NTag>
+              <NText class="text-[13px]">
+                {{ formatUptime(props.node.uptime ?? 0) }}
+              </NText>
+            </div>
           </div>
         </div>
       </template>

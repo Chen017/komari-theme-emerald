@@ -20,6 +20,7 @@
       { "key": "fullWidth", "name": "占满屏幕宽度", "type": "switch", "default": false, "help": "启用后页面内容将占满整个屏幕宽度" },
       { "key": "maxPageWidth", "name": "最大页面宽度", "type": "string", "default": "1800px", "help": "页面内容的最大宽度（如 1800px、100rem）" },
       { "key": "borderRadius", "name": "圆角大小", "type": "string", "default": "3px", "help": "全局圆角大小（如 3px、0.5rem）" },
+      { "key": "cardProgressLayout", "name": "卡片进度条布局", "type": "select", "default": "2col", "options": "1col,2col", "help": "节点卡片中进度条的布局方式：1col 为一行一列，2col 为一行两列" },
       { "key": "fontFamily", "name": "字体", "type": "string", "default": "\"MiSans VF\", sans-serif", "help": "全局字体设置，多个字体用逗号分隔" },
       { "name": "亮色模式主题", "type": "title" },
       { "key": "lightPrimaryColor", "name": "主色调", "type": "string", "default": "#18a058", "help": "亮色模式主色调" },
