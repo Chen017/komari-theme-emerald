@@ -112,7 +112,7 @@ const trafficUsed = computed(() => {
       </template>
       <template #header-extra>
         <div class="flex gap-2 items-center">
-          <NTooltip>
+          <NTooltip v-if="appStore.showPingChartButton">
             <template #trigger>
               <NButton
                 quaternary

@@ -47,6 +47,7 @@ const useAppStore = defineStore('app', () => {
   const nodeSelectedGroup = useStorageAsync<string>('nodeSelectedGroup', 'all', localStorage)
   const isLoggedIn = ref<boolean>(false)
   const connectionError = ref<boolean>(false)
+  const requireLogin = ref<boolean>(false)
 
   // 使用 null 表示未设置，等待主题配置加载后决定
   const storedViewMode = useStorageAsync<NodeViewMode | null>('nodeViewMode', null, localStorage)
@@ -187,13 +188,52 @@ const useAppStore = defineStore('app', () => {
     return '12px'
   })
 
-  // 计算属性：List 视图宽松样式
-  const listRelaxedStyle = computed<boolean>(() => {
+  // 计算属性：List 视图列内边距配置
+  const listColumnPadding = computed<Record<string, string>>(() => {
     const settings = publicSettings.value?.theme_settings
-    if (settings && typeof settings.listRelaxedStyle === 'boolean') {
-      return settings.listRelaxedStyle
+    const defaultPadding: Record<string, string> = {}
+
+    if (!settings || typeof settings.listColumnPadding !== 'string') {
+      return defaultPadding
     }
-    return false
+
+    try {
+      const parsed = JSON.parse(settings.listColumnPadding)
+      if (typeof parsed !== 'object' || parsed === null) {
+        return defaultPadding
+      }
+
+      // 提取有效的内边距配置
+      const validPadding: Record<string, string> = {}
+      for (const col of DEFAULT_LIST_VIEW_COLUMNS) {
+        if (typeof parsed[col] === 'string' && parsed[col].trim()) {
+          validPadding[col] = parsed[col].trim()
+        }
+      }
+
+      return validPadding
+    }
+    catch {
+      return defaultPadding
+    }
+  })
+
+  // 计算属性：List 视图行高度配置
+  const listRowHeight = computed<string>(() => {
+    const settings = publicSettings.value?.theme_settings
+    if (settings && typeof settings.listRowHeight === 'string' && settings.listRowHeight.trim()) {
+      return settings.listRowHeight.trim()
+    }
+    return ''
+  })
+
+  // 计算属性：是否显示延迟图表按钮
+  const showPingChartButton = computed<boolean>(() => {
+    const settings = publicSettings.value?.theme_settings
+    if (settings && typeof settings.showPingChartButton === 'boolean') {
+      return settings.showPingChartButton
+    }
+    return true
   })
 
   // 计算属性：运行时间格式配置
@@ -339,7 +379,9 @@ const useAppStore = defineStore('app', () => {
     hideSingleGroupTab,
     listColumnWidths,
     listColumnGap,
-    listRelaxedStyle,
+    listColumnPadding,
+    listRowHeight,
+    showPingChartButton,
     uptimeFormat,
     byteDecimals,
     alertEnabled,
@@ -350,6 +392,7 @@ const useAppStore = defineStore('app', () => {
     userInfo,
     publicSettings,
     connectionError,
+    requireLogin,
     updateThemeMode,
     updateLang,
     setUserInfo,

@@ -142,12 +142,12 @@ function handleNodeClick(node: typeof nodesStore.nodes[number]) {
             <div class="i-icon-park-outline-search" />
           </template>
         </NInput>
-        <NRadioGroup v-model:value="appStore.nodeViewMode">
-          <NRadioButton value="card">
-            Card
+        <NRadioGroup v-model:value="appStore.nodeViewMode" class="view-selector">
+          <NRadioButton value="card" class="view-selector-item">
+            <div class="i-icon-park-outline-view-grid-card" />
           </NRadioButton>
-          <NRadioButton value="list">
-            List
+          <NRadioButton value="list" class="view-selector-item">
+            <div class="i-icon-park-outline-view-list" />
           </NRadioButton>
         </NRadioGroup>
       </div>
@@ -183,3 +183,14 @@ function handleNodeClick(node: typeof nodesStore.nodes[number]) {
     </div>
   </div>
 </template>
+
+<style scoped lang="scss">
+.view-selector :deep(.n-radio__label) {
+  width: 100%;
+  height: 100%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+</style>

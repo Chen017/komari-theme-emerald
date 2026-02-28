@@ -7,6 +7,14 @@ import { useAppStore } from '@/stores/app'
 import { ApiError, getSharedApi } from '@/utils/api'
 import { reconnectAfterLogin } from '@/utils/init'
 
+const props = defineProps<{
+  forceLogin?: boolean
+}>()
+
+const emit = defineEmits<{
+  loginSuccess: []
+}>()
+
 const appStore = useAppStore()
 const api = getSharedApi()
 
@@ -42,11 +50,18 @@ async function handleLogin() {
   try {
     await api.login(form.value.username, form.value.password)
 
-    // 登录成功，重新连接 WebSocket
-    await reconnectAfterLogin()
-
+    // 登录成功
     window.$message?.success('登录成功')
-    window.$modal?.destroyAll()
+
+    if (props.forceLogin) {
+      // 强制登录模式：触发事件让父组件处理后续流程
+      emit('loginSuccess')
+    }
+    else {
+      // 普通登录：重新连接 WebSocket
+      await reconnectAfterLogin()
+      window.$modal?.destroyAll()
+    }
   }
   catch (error) {
     // 检查是否需要 2FA 验证
@@ -77,11 +92,18 @@ async function handleOtpSubmit() {
   try {
     await api.login(form.value.username, form.value.password, code)
 
-    // 登录成功，重新连接 WebSocket
-    await reconnectAfterLogin()
-
+    // 登录成功
     window.$message?.success('登录成功')
-    window.$modal?.destroyAll()
+
+    if (props.forceLogin) {
+      // 强制登录模式：触发事件让父组件处理后续流程
+      emit('loginSuccess')
+    }
+    else {
+      // 普通登录：重新连接 WebSocket
+      await reconnectAfterLogin()
+      window.$modal?.destroyAll()
+    }
   }
   catch (error) {
     console.error('[LoginDialog] OTP error:', error)

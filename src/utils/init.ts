@@ -4,6 +4,8 @@
  */
 
 import type { Client, KomariRpc, NodeStatus } from '@/utils/rpc'
+import { h } from 'vue'
+import LoginDialog from '@/components/LoginDialog.vue'
 import { useAppStore } from '@/stores/app'
 import { useNodesStore } from '@/stores/nodes'
 import { getSharedApi } from '@/utils/api'
@@ -101,6 +103,7 @@ class InitManager {
 
   /**
    * 健康检查 - 测试后端服务是否正常
+   * 如果返回 401，说明是私有站点，需要强制登录
    */
   private async healthCheck(): Promise<void> {
     try {
@@ -110,9 +113,72 @@ class InitManager {
       }
     }
     catch (error) {
+      // 检查是否为 401 错误（私有站点需要登录）
+      if (error instanceof RpcError && error.code === 401) {
+        console.warn('[InitManager] Private site detected, requiring login')
+        this.appStore.requireLogin = true
+        this.showForceLoginModal()
+        return
+      }
       console.error('[InitManager] Health check failed:', error)
       this.appStore.connectionError = true
       throw new Error('Backend service unavailable')
+    }
+  }
+
+  /**
+   * 显示强制登录 Modal
+   * 用于私有站点，用户必须登录才能访问
+   */
+  private showForceLoginModal(): void {
+    // 解除加载状态
+    this.appStore.loading = false
+
+    window.$modal.create({
+      title: '登录',
+      preset: 'dialog',
+      showIcon: false,
+      closeOnEsc: false,
+      maskClosable: false,
+      closable: false,
+      autoFocus: true,
+      content: () => h(LoginDialog, {
+        forceLogin: true,
+        onLoginSuccess: () => {
+          // 登录成功后重新初始化
+          this.reinitAfterForceLogin()
+        },
+      }),
+    })
+  }
+
+  /**
+   * 强制登录成功后重新初始化
+   */
+  private async reinitAfterForceLogin(): Promise<void> {
+    // 重置登录要求状态
+    this.appStore.requireLogin = false
+
+    // 关闭登录 Modal
+    window.$modal?.destroyAll()
+
+    try {
+      // 重新执行初始化流程
+      await this.fetchPublicSettings()
+      await this.fetchUserInfo()
+      await this.fetchNodesData()
+
+      // 解除加载状态
+      this.appStore.loading = false
+
+      // 建立 WebSocket 连接并开始轮询
+      this.startWebSocketAndPolling()
+
+      this.isInitialized = true
+    }
+    catch (error) {
+      console.error('[InitManager] Re-initialization after login failed:', error)
+      this.appStore.connectionError = true
     }
   }
 

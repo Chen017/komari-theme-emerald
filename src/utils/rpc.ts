@@ -240,7 +240,7 @@ export class RpcClient {
       clearTimeout(timeoutId)
 
       if (!response.ok) {
-        throw new RpcError(-32000, `HTTP error: ${response.status}`)
+        throw new RpcError(response.status, `HTTP error: ${response.status}`)
       }
 
       const data: JsonRpcResponse<T> = await response.json()
