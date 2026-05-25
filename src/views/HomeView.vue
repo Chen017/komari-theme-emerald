@@ -102,8 +102,6 @@ function handleNodeClick(node: typeof nodesStore.nodes[number]) {
   router.push({ name: 'instance-detail', params: { id: node.uuid } })
 }
 
-const hasBackgroundBlur = computed(() => appStore.backgroundEnabled && appStore.cardBlurRadius > 0)
-
 const alertVariantMap: Record<string, 'default' | 'destructive'> = {
   default: 'default',
   info: 'default',
@@ -152,7 +150,7 @@ const alertVariant = computed(() => alertVariantMap[appStore.alertType] || 'defa
                 <Input
                   v-model="searchText"
                   placeholder="搜索节点名称、地区、系统"
-                  class="w-40 md:w-60 pl-8" :class="[hasBackgroundBlur && 'glass-input-enabled glass-card']"
+                  class="w-40 md:w-60 pl-8"
                 />
                 <Icon
                   icon="icon-park-outline:search"
@@ -188,7 +186,7 @@ const alertVariant = computed(() => alertVariantMap[appStore.alertType] || 'defa
               <Input
                 v-model="searchText"
                 placeholder="搜索节点名称、地区、系统"
-                class="w-40 md:w-60 pl-8" :class="[hasBackgroundBlur && 'glass-input-enabled glass-card']"
+                class="w-40 md:w-60 pl-8"
               />
               <Icon
                 icon="icon-park-outline:search"
@@ -218,13 +216,3 @@ const alertVariant = computed(() => alertVariantMap[appStore.alertType] || 'defa
     </div>
   </div>
 </template>
-
-<style scoped>
-.glass-input-enabled {
-  background-color: rgba(255, 255, 255, 0.7) !important;
-}
-
-html.dark .glass-input-enabled {
-  background-color: rgba(24, 24, 28, 0.85) !important;
-}
-</style>

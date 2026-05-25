@@ -30,15 +30,10 @@ const containerStyle = computed(() =>
 const showIcp = computed(() => appStore.icpEnabled && appStore.icpNumber)
 const showPolice = computed(() => appStore.policeEnabled && appStore.policeNumber)
 const showFiling = computed(() => showIcp.value || showPolice.value)
-
-const hasBackgroundBlur = computed(() => appStore.backgroundEnabled && appStore.backgroundBlur > 0)
 </script>
 
 <template>
-  <footer
-    class="px-4 py-4 w-full"
-    :class="[hasBackgroundBlur && 'glass-footer-enabled glass-card']"
-  >
+  <footer class="px-4 py-4 w-full">
     <div
       class="flex flex-col gap-3 w-full sm:flex-row sm:gap-4 sm:items-center sm:justify-between"
       :style="containerStyle"
@@ -52,7 +47,7 @@ const hasBackgroundBlur = computed(() => appStore.backgroundEnabled && appStore.
             rel="noopener noreferrer"
             class="transition-opacity hover:opacity-80"
           >
-            <span class="text-sm font-medium text-primary">Komari Monitor</span>
+            <span class="text-sm font-medium text-foreground">Komari Monitor</span>
           </a>
           <span v-if="formattedServerVersion" class="text-xs font-mono ml-1 text-muted-foreground">
             v{{ formattedServerVersion }}
@@ -66,7 +61,7 @@ const hasBackgroundBlur = computed(() => appStore.backgroundEnabled && appStore.
             rel="noopener noreferrer"
             class="transition-opacity hover:opacity-80"
           >
-            <span class="text-sm font-medium text-primary">Komari Naive</span>
+            <span class="text-sm font-medium text-foreground">Komari Naive</span>
           </a>
           <span class="text-xs font-mono ml-1 text-muted-foreground">
             v{{ buildVersion }} ({{ buildGitHash }})
@@ -101,13 +96,3 @@ const hasBackgroundBlur = computed(() => appStore.backgroundEnabled && appStore.
     </div>
   </footer>
 </template>
-
-<style scoped>
-.glass-footer-enabled {
-  background-color: rgba(255, 255, 255, 0.7) !important;
-}
-
-html.dark .glass-footer-enabled {
-  background-color: rgba(24, 24, 28, 0.85) !important;
-}
-</style>

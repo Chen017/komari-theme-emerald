@@ -24,34 +24,40 @@ useDark({
 const themeSettings = computed(() => appStore.publicSettings?.theme_settings as Record<string, unknown> | undefined)
 
 const primaryColor = computed(() => isDark.value
-  ? (themeSettings.value?.darkPrimaryColor as string) || '#63e2b6'
-  : (themeSettings.value?.lightPrimaryColor as string) || '#18a058',
+  ? (themeSettings.value?.darkPrimaryColor as string) || ''
+  : (themeSettings.value?.lightPrimaryColor as string) || '',
 )
 const primaryColorHover = computed(() => isDark.value
-  ? (themeSettings.value?.darkPrimaryColorHover as string) || '#7fe7c4'
-  : (themeSettings.value?.lightPrimaryColorHover as string) || '#36ad6a',
+  ? (themeSettings.value?.darkPrimaryColorHover as string) || ''
+  : (themeSettings.value?.lightPrimaryColorHover as string) || '',
 )
 const primaryColorPressed = computed(() => isDark.value
-  ? (themeSettings.value?.darkPrimaryColorPressed as string) || '#5acea7'
-  : (themeSettings.value?.lightPrimaryColorPressed as string) || '#0c7a43',
+  ? (themeSettings.value?.darkPrimaryColorPressed as string) || ''
+  : (themeSettings.value?.lightPrimaryColorPressed as string) || '',
 )
-const borderRadius = computed(() => (themeSettings.value?.borderRadius as string) || '3px')
-const fontFamily = computed(() => (themeSettings.value?.fontFamily as string) || '"MiSans VF", system-ui, sans-serif')
-const numberFontFamily = computed(() => (themeSettings.value?.numberFontFamily as string) || '"TCloud Number VF", "MiSans VF", system-ui, sans-serif')
+const borderRadius = computed(() => (themeSettings.value?.borderRadius as string) || '')
+const fontFamily = computed(() => (themeSettings.value?.fontFamily as string) || '')
+const numberFontFamily = computed(() => (themeSettings.value?.numberFontFamily as string) || '')
 
 watch(
   [primaryColor, primaryColorHover, primaryColorPressed, borderRadius, fontFamily, numberFontFamily],
   ([primary, hover, pressed, radius, font, numFont]) => {
     const root = document.documentElement
-    root.style.setProperty('--primary', primary)
-    root.style.setProperty('--primary-hover', hover)
-    root.style.setProperty('--primary-active', pressed)
-    root.style.setProperty('--primary-color', primary)
-    root.style.setProperty('--primary-color-hover', hover)
-    root.style.setProperty('--primary-color-pressed', pressed)
-    root.style.setProperty('--radius', radius)
-    root.style.setProperty('--font-sans', font)
-    root.style.setProperty('--font-number', numFont)
+    const apply = (name: string, value: string) => {
+      if (value)
+        root.style.setProperty(name, value)
+      else
+        root.style.removeProperty(name)
+    }
+    apply('--primary', primary)
+    apply('--primary-hover', hover)
+    apply('--primary-active', pressed)
+    apply('--primary-color', primary)
+    apply('--primary-color-hover', hover)
+    apply('--primary-color-pressed', pressed)
+    apply('--radius', radius)
+    apply('--font-sans', font)
+    apply('--font-number', numFont)
   },
   { immediate: true },
 )
@@ -68,16 +74,13 @@ watch(
 )
 
 watch(
-  [() => appStore.backgroundEnabled, isDark],
-  ([enabled, dark]) => {
+  () => appStore.backgroundEnabled,
+  (enabled) => {
     const body = document.body
-    if (enabled) {
+    if (enabled)
       body.style.setProperty('background-color', 'transparent', 'important')
-    }
-    else {
+    else
       body.style.removeProperty('background-color')
-      body.style.backgroundColor = dark ? 'rgb(16, 16, 20)' : '#fff'
-    }
   },
   { immediate: true },
 )

@@ -67,7 +67,7 @@ const hasCustomColor = computed(() => !!props.color)
     :class="cn(
       'inline-flex items-center gap-1 whitespace-nowrap font-medium leading-none',
       bordered ? 'border' : 'border border-transparent',
-      round ? 'rounded-full' : 'rounded',
+      round ? 'rounded-full' : 'rounded-md',
       sizeClass,
       !hasCustomColor && typeClass,
       props.class,

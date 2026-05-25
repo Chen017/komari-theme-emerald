@@ -140,8 +140,6 @@ const rowHeightStyle = computed(() => {
   return height ? { height, minHeight: height } : {}
 })
 
-const hasBackgroundBlur = computed(() => appStore.backgroundEnabled && appStore.cardBlurRadius > 0)
-
 function getFlagSrc(region: string): string {
   return `/images/flags/${getRegionCode(region)}.svg`
 }
@@ -251,11 +249,7 @@ function makeTagColor(hex: string) {
   <div class="node-list-wrapper">
     <TooltipProvider :delay-duration="200">
       <div
-        class="min-w-fit w-full rounded-md border bg-card"
-        :class="[
-          appStore.lightCardContrast && !appStore.isDark && 'light-list-contrast',
-          hasBackgroundBlur && 'glass-list-enabled glass-card',
-        ]"
+        class="min-w-fit w-full rounded-lg border bg-card"
       >
         <!-- 表头 -->
         <div class="node-list-header" :style="gridStyle">
@@ -492,7 +486,7 @@ function makeTagColor(hex: string) {
 
 .node-list-header {
   padding: 8px 16px;
-  background-color: hsl(var(--muted) / 0.4);
+  background-color: var(--muted);
   border-radius: var(--radius);
   border-bottom: 1px solid var(--border);
 }
@@ -536,9 +530,7 @@ function makeTagColor(hex: string) {
 .node-offline-overlay__mask {
   align-self: stretch;
   height: 100%;
-  background-color: color-mix(in srgb, var(--card) 76%, transparent);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background-color: var(--card);
 }
 
 .node-offline-overlay__region,
@@ -619,18 +611,5 @@ function makeTagColor(hex: string) {
   display: flex;
   flex-direction: column;
   justify-content: center;
-}
-
-.light-list-contrast {
-  box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.08);
-  border-color: rgba(0, 0, 0, 0.12);
-}
-
-.glass-list-enabled {
-  background-color: rgba(255, 255, 255, 0.7) !important;
-}
-
-html.dark .glass-list-enabled {
-  background-color: rgba(24, 24, 28, 0.85) !important;
 }
 </style>

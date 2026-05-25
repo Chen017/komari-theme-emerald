@@ -35,8 +35,6 @@ const chartView = ref<'load' | 'ping'>('load')
 
 const data = computed(() => nodesStore.nodes.find(node => node.uuid === route.params.id))
 
-const hasBackgroundBlur = computed(() => appStore.backgroundEnabled && appStore.backgroundBlur > 0)
-
 interface InfoItem {
   label: string
   value: string | undefined
@@ -61,13 +59,6 @@ const storageInfo = computed<InfoItem[]>(() => [
   { label: '内存', value: formatBytes(data.value?.mem_total ?? 0), icon: 'icon-park-outline:memory' },
   { label: '内存交换', value: formatBytes(data.value?.swap_total ?? 0), icon: 'icon-park-outline:switch' },
   { label: '硬盘', value: formatBytes(data.value?.disk_total ?? 0), icon: 'icon-park-outline:hard-disk' },
-])
-
-const lightCardContrastEnabled = computed(() => appStore.lightCardContrast && !appStore.isDark)
-
-const cardClassExtras = computed(() => [
-  lightCardContrastEnabled.value && 'light-card-contrast',
-  hasBackgroundBlur.value && 'glass-card-enabled glass-card',
 ])
 </script>
 
@@ -104,7 +95,7 @@ const cardClassExtras = computed(() => [
       </div>
 
       <div class="p-4 gap-4 grid grid-cols-1 lg:grid-cols-2">
-        <CardX title="硬件信息" size="small" :class="cardClassExtras">
+        <CardX title="硬件信息" size="small">
           <div class="gap-4 grid grid-cols-1 sm:grid-cols-2">
             <div v-for="item in hardwareInfo" :key="item.label" class="flex flex-col gap-1">
               <div class="flex gap-1 items-center text-muted-foreground">
@@ -116,7 +107,7 @@ const cardClassExtras = computed(() => [
           </div>
         </CardX>
 
-        <CardX title="系统信息" size="small" :class="cardClassExtras">
+        <CardX title="系统信息" size="small">
           <div class="gap-4 grid grid-cols-1 sm:grid-cols-2">
             <div v-for="item in systemInfo" :key="item.label" class="flex flex-col gap-1">
               <div class="flex gap-1 items-center text-muted-foreground">
@@ -141,7 +132,7 @@ const cardClassExtras = computed(() => [
           </div>
         </CardX>
 
-        <CardX title="存储信息" size="small" :class="cardClassExtras">
+        <CardX title="存储信息" size="small">
           <div class="gap-4 grid grid-cols-1 sm:grid-cols-3">
             <div v-for="item in storageInfo" :key="item.label" class="flex flex-col gap-1">
               <div class="flex gap-1 items-center text-muted-foreground">
@@ -153,7 +144,7 @@ const cardClassExtras = computed(() => [
           </div>
         </CardX>
 
-        <CardX title="网络信息" size="small" :class="cardClassExtras">
+        <CardX title="网络信息" size="small">
           <div class="gap-4 grid grid-cols-1 sm:grid-cols-2">
             <div class="flex flex-col gap-1">
               <div class="flex gap-1 items-center text-muted-foreground">
@@ -204,31 +195,3 @@ const cardClassExtras = computed(() => [
     </template>
   </div>
 </template>
-
-<style scoped>
-.light-card-contrast {
-  background-color: rgba(250, 250, 252, 1) !important;
-  box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.08);
-  border-color: rgba(0, 0, 0, 0.12) !important;
-}
-
-.light-card-contrast:hover {
-  box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.12);
-}
-
-.glass-card-enabled {
-  background-color: rgba(255, 255, 255, 0.7) !important;
-}
-
-.glass-card-enabled:hover {
-  filter: brightness(0.95);
-}
-
-html.dark .glass-card-enabled {
-  background-color: rgba(24, 24, 28, 0.85) !important;
-}
-
-html.dark .glass-card-enabled:hover {
-  filter: brightness(1.1);
-}
-</style>

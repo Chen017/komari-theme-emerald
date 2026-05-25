@@ -37,14 +37,14 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
     :data-size="size"
     v-bind="forwarded"
     :class="cn(
-      'data-checked:bg-primary data-unchecked:bg-input focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 dark:data-unchecked:bg-input/80 shrink-0 rounded-xl border border-transparent focus-visible:ring-[3px] aria-invalid:ring-[3px] peer group/switch relative inline-flex transition-all outline-none after:absolute after:-inset-x-3 after:-inset-y-2 data-disabled:cursor-not-allowed data-disabled:opacity-50',
+      'data-checked:bg-primary data-unchecked:bg-input focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 dark:data-unchecked:bg-input/80 shrink-0 rounded-full border border-transparent shadow-xs focus-visible:ring-[3px] aria-invalid:ring-[3px] peer group/switch relative inline-flex transition-all outline-none after:absolute after:-inset-x-3 after:-inset-y-2 data-disabled:cursor-not-allowed data-disabled:opacity-50',
       TRACK_SIZE_CLASSES[size],
       props.class,
     )"
   >
     <SwitchThumb
       data-slot="switch-thumb"
-      class="bg-background dark:data-unchecked:bg-foreground dark:data-checked:bg-primary-foreground absolute left-px top-px block size-[var(--switch-thumb-size)] rounded-lg ring-0 pointer-events-none transition-transform data-checked:translate-x-[var(--switch-thumb-translate)] data-unchecked:translate-x-0"
+      class="bg-background dark:data-unchecked:bg-foreground dark:data-checked:bg-primary-foreground absolute left-px top-px block size-[var(--switch-thumb-size)] rounded-full ring-0 pointer-events-none transition-transform data-checked:translate-x-[var(--switch-thumb-translate)] data-unchecked:translate-x-0"
     >
       <slot name="thumb" v-bind="slotProps" />
     </SwitchThumb>

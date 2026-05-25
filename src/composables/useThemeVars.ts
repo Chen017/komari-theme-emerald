@@ -1,8 +1,7 @@
 import { computed } from 'vue'
 
 /**
- * 读取与 Naive UI useThemeVars() 对齐的颜色 token（基于当前 CSS 变量）。
- * 在重构后由 Tailwind v4 token 提供。
+ * 读取主题颜色 token（基于当前 CSS 变量）。
  */
 export function useThemeVars() {
   function read(name: string, fallback: string): string {
@@ -13,27 +12,27 @@ export function useThemeVars() {
   }
 
   return computed(() => ({
-    successColor: read('--success', '#18a058'),
-    successColorHover: read('--success', '#36ad6a'),
-    successColorPressed: read('--success', '#0c7a43'),
-    infoColor: read('--info', '#2080f0'),
-    infoColorHover: read('--info', '#4098fc'),
-    infoColorPressed: read('--info', '#1060c9'),
-    warningColor: read('--warning', '#f0a020'),
-    warningColorHover: read('--warning', '#fcb040'),
-    warningColorPressed: read('--warning', '#c97c10'),
-    errorColor: read('--destructive', '#d03050'),
-    errorColorHover: read('--destructive', '#de576d'),
-    errorColorPressed: read('--destructive', '#ab1f3f'),
-    primaryColor: read('--primary', '#18a058'),
-    primaryColorHover: read('--primary-hover', '#36ad6a'),
-    primaryColorPressed: read('--primary-active', '#0c7a43'),
-    textColor1: read('--foreground', '#000'),
-    textColor2: read('--foreground', '#333'),
-    textColor3: read('--muted-foreground', '#999'),
-    borderColor: read('--border', '#e5e7eb'),
-    bodyColor: read('--background', '#fff'),
-    cardColor: read('--card', '#fff'),
-    progressRailColor: read('--muted', '#e5e7eb'),
+    successColor: read('--success', 'oklch(0.696 0.17 162.48)'),
+    successColorHover: read('--success', 'oklch(0.696 0.17 162.48)'),
+    successColorPressed: read('--success', 'oklch(0.696 0.17 162.48)'),
+    infoColor: read('--info', 'oklch(0.6 0.118 230)'),
+    infoColorHover: read('--info', 'oklch(0.6 0.118 230)'),
+    infoColorPressed: read('--info', 'oklch(0.6 0.118 230)'),
+    warningColor: read('--warning', 'oklch(0.768 0.155 70)'),
+    warningColorHover: read('--warning', 'oklch(0.768 0.155 70)'),
+    warningColorPressed: read('--warning', 'oklch(0.768 0.155 70)'),
+    errorColor: read('--destructive', 'oklch(0.577 0.245 27.325)'),
+    errorColorHover: read('--destructive', 'oklch(0.577 0.245 27.325)'),
+    errorColorPressed: read('--destructive', 'oklch(0.577 0.245 27.325)'),
+    primaryColor: read('--primary', 'oklch(0.21 0.006 285.885)'),
+    primaryColorHover: read('--primary', 'oklch(0.21 0.006 285.885)'),
+    primaryColorPressed: read('--primary', 'oklch(0.21 0.006 285.885)'),
+    textColor1: read('--foreground', 'oklch(0.141 0.005 285.823)'),
+    textColor2: read('--foreground', 'oklch(0.141 0.005 285.823)'),
+    textColor3: read('--muted-foreground', 'oklch(0.552 0.016 285.938)'),
+    borderColor: read('--border', 'oklch(0.92 0.004 286.32)'),
+    bodyColor: read('--background', 'oklch(1 0 0)'),
+    cardColor: read('--card', 'oklch(1 0 0)'),
+    progressRailColor: read('--muted', 'oklch(0.967 0.001 286.375)'),
   }))
 }

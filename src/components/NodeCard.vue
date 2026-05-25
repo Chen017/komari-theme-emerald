@@ -96,12 +96,8 @@ const customTags = computed(() => parseTags(props.node.tags).map(t => ({ text: t
 const mergedTags = computed(() => [...customTags.value, ...priceTags.value])
 const shouldShowTagsInSeparateRow = computed(() => appStore.tagsInSeparateRow && mergedTags.value.length > 0)
 
-const hasBackgroundBlur = computed(() => appStore.backgroundEnabled && appStore.cardBlurRadius > 0)
-
 const cardClassExtras = computed(() => [
-  props.node.online ? 'hover:border-primary' : 'node-card--offline',
-  appStore.lightCardContrast && !appStore.isDark && 'light-card-contrast',
-  hasBackgroundBlur.value && 'glass-card-enabled glass-card',
+  props.node.online ? 'hover:border-foreground/30' : 'node-card--offline',
 ])
 
 function makeTagColor(hex: string) {
@@ -306,7 +302,6 @@ function makeTagColor(hex: string) {
                 <Tag
                   v-if="appStore.uptimeTagWrap"
                   size="small"
-                  :color="makeTagColor('#8b5cf6')"
                 >
                   {{ formatUptime(props.node.uptime ?? 0) }}
                 </Tag>
@@ -363,10 +358,7 @@ function makeTagColor(hex: string) {
   padding: 24px;
   pointer-events: none;
   border-radius: inherit;
-  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
-  background-color: color-mix(in srgb, var(--card) 76%, transparent);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background-color: var(--card);
   transition: opacity 200ms ease;
 }
 
@@ -389,7 +381,7 @@ function makeTagColor(hex: string) {
 
 .has-tags {
   position: absolute;
-  backdrop-filter: blur(8px);
+  background-color: var(--card);
   padding: 12px 22px 19px;
   border-radius: 10px;
   left: 1px;
@@ -408,33 +400,6 @@ function makeTagColor(hex: string) {
 
 .node-card:has(.has-tags):hover .flex-between:last-child {
   opacity: 0.3;
-}
-
-.light-card-contrast {
-  background-color: rgba(250, 250, 252, 1) !important;
-  box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.08);
-  border-color: rgba(0, 0, 0, 0.12) !important;
-}
-
-.light-card-contrast:hover {
-  box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.12);
-  border-color: var(--primary) !important;
-}
-
-.glass-card-enabled {
-  background-color: rgba(255, 255, 255, 0.7) !important;
-}
-
-.glass-card-enabled:hover {
-  filter: brightness(0.95);
-}
-
-html.dark .glass-card-enabled {
-  background-color: rgba(24, 24, 28, 0.85) !important;
-}
-
-html.dark .glass-card-enabled:hover {
-  filter: brightness(1.1);
 }
 
 .online-badge {

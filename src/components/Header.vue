@@ -73,7 +73,7 @@ const sitename = computed(() => appStore.publicSettings?.sitename || 'Komari Mon
 <template>
   <div
     class="transition-all duration-200 top-0 sticky z-10"
-    :class="isScrolled ? 'glass-card shadow-sm' : 'bg-transparent'"
+    :class="isScrolled ? 'bg-background border-b' : 'bg-transparent'"
   >
     <div class="px-4 flex-between h-16" :style="containerStyle">
       <div class="flex items-center gap-3 cursor-pointer" @click="router.push('/')">

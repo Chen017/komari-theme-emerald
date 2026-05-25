@@ -38,18 +38,13 @@ const formattedTrafficDown = computed(() => formatBytesSplit(totalTraffic.value.
 const formattedSpeedUp = computed(() => formatBytesPerSecondSplit(totalSpeed.value.up, appStore.byteDecimals))
 const formattedSpeedDown = computed(() => formatBytesPerSecondSplit(totalSpeed.value.down, appStore.byteDecimals))
 
-const hasBackgroundBlur = computed(() => appStore.backgroundEnabled && appStore.cardBlurRadius > 0)
-
 const numberFontStyle = computed(() => ({ fontFamily: appStore.numberFontFamily }))
 </script>
 
 <template>
-  <div
-    class="general-info p-4 flex flex-col gap-2 sm:p-4 sm:gap-4 lg:grid lg:grid-cols-5"
-    :class="{ 'light-general-contrast': appStore.lightCardContrast && !appStore.isDark }"
-  >
+  <div class="general-info p-4 flex flex-col gap-2 sm:p-4 sm:gap-4 lg:grid lg:grid-cols-5">
     <!-- 当前时间 -->
-    <CardX hoverable class="sm:min-h-32" :class="[hasBackgroundBlur && 'glass-card-enabled glass-card']" content-class="h-full">
+    <CardX hoverable class="sm:min-h-32" content-class="h-full">
       <div class="flex gap-2 items-center justify-between sm:hidden" :style="numberFontStyle">
         <span class="text-xs flex shrink-0 gap-1 items-center text-muted-foreground">
           <Icon icon="icon-park-outline:time" :width="14" :height="14" />
@@ -69,7 +64,7 @@ const numberFontStyle = computed(() => ({ fontFamily: appStore.numberFontFamily 
     </CardX>
 
     <!-- 在线节点 -->
-    <CardX hoverable class="sm:min-h-32" :class="[hasBackgroundBlur && 'glass-card-enabled glass-card']" content-class="h-full">
+    <CardX hoverable class="sm:min-h-32" content-class="h-full">
       <div class="flex gap-2 items-center justify-between sm:hidden" :style="numberFontStyle">
         <span class="text-xs flex shrink-0 gap-1 items-center text-muted-foreground">
           <Icon icon="icon-park-outline:heartbeat" :width="14" :height="14" />
@@ -95,7 +90,7 @@ const numberFontStyle = computed(() => ({ fontFamily: appStore.numberFontFamily 
     </CardX>
 
     <!-- 点亮区域 -->
-    <CardX hoverable class="sm:min-h-32" :class="[hasBackgroundBlur && 'glass-card-enabled glass-card']" content-class="h-full">
+    <CardX hoverable class="sm:min-h-32" content-class="h-full">
       <div class="flex gap-2 items-center justify-between sm:hidden" :style="numberFontStyle">
         <span class="text-xs flex shrink-0 gap-1 items-center text-muted-foreground">
           <Icon icon="icon-park-outline:world" :width="14" :height="14" />
@@ -115,7 +110,7 @@ const numberFontStyle = computed(() => ({ fontFamily: appStore.numberFontFamily 
     </CardX>
 
     <!-- 流量总览 -->
-    <CardX hoverable class="sm:min-h-32" :class="[hasBackgroundBlur && 'glass-card-enabled glass-card']" content-class="h-full">
+    <CardX hoverable class="sm:min-h-32" content-class="h-full">
       <div class="flex gap-2 items-center justify-between sm:hidden" :style="numberFontStyle">
         <span class="text-xs flex shrink-0 gap-1 items-center text-muted-foreground">
           <Icon icon="icon-park-outline:transfer-data" :width="14" :height="14" />
@@ -155,7 +150,7 @@ const numberFontStyle = computed(() => ({ fontFamily: appStore.numberFontFamily 
     </CardX>
 
     <!-- 网络速率 -->
-    <CardX hoverable class="sm:min-h-32" :class="[hasBackgroundBlur && 'glass-card-enabled glass-card']" content-class="h-full">
+    <CardX hoverable class="sm:min-h-32" content-class="h-full">
       <div class="flex gap-2 items-center justify-between sm:hidden" :style="numberFontStyle">
         <span class="text-xs flex shrink-0 gap-1 items-center text-muted-foreground">
           <Icon icon="icon-park-outline:lightning" :width="14" :height="14" />
@@ -195,27 +190,3 @@ const numberFontStyle = computed(() => ({ fontFamily: appStore.numberFontFamily 
     </CardX>
   </div>
 </template>
-
-<style scoped>
-.light-general-contrast :deep(> div) {
-  background-color: rgba(250, 250, 252, 1) !important;
-  box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.08);
-  border-color: rgba(0, 0, 0, 0.12);
-}
-
-.glass-card-enabled {
-  background-color: rgba(255, 255, 255, 0.7) !important;
-}
-
-.glass-card-enabled:hover {
-  filter: brightness(0.95);
-}
-
-html.dark .glass-card-enabled {
-  background-color: rgba(24, 24, 28, 0.85) !important;
-}
-
-html.dark .glass-card-enabled:hover {
-  filter: brightness(1.1);
-}
-</style>

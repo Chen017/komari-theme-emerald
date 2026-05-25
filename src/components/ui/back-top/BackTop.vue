@@ -46,7 +46,7 @@ onUnmounted(() => {
   >
     <button
       v-show="show"
-      class="fixed bottom-8 right-8 z-[9999] size-10 rounded-full glass-card shadow-md flex items-center justify-center text-foreground hover:text-primary transition-colors"
+      class="fixed bottom-8 right-8 z-[9999] size-10 rounded-full bg-background border shadow-sm flex items-center justify-center text-foreground hover:bg-accent transition-colors"
       aria-label="返回顶部"
       @click="scrollToTop"
     >

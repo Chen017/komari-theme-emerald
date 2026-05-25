@@ -82,7 +82,7 @@ const baseTooltipConfig = computed(() => ({
     fontSize: 13,
     lineHeight: 20,
   },
-  extraCssText: 'box-shadow: none; backdrop-filter: blur(8px);',
+  extraCssText: 'box-shadow: none;',
   axisPointer: {
     type: 'cross' as const,
     crossStyle: {
@@ -821,26 +821,7 @@ watch(isRealtime, (realtime) => {
   }
 }, { immediate: true })
 
-// 是否启用模糊背景
-const hasBackgroundBlur = computed(() => appStore.backgroundEnabled && appStore.backgroundBlur > 0)
-
-// 计算模糊半径类
-const blurClass = computed(() => {
-  if (!hasBackgroundBlur.value)
-    return ''
-  const radius = appStore.cardBlurRadius
-  if (radius <= 8)
-    return 'glass-8'
-  if (radius <= 12)
-    return 'glass-12'
-  if (radius <= 16)
-    return 'glass-16'
-  if (radius <= 20)
-    return 'glass-20'
-  return `glass-${radius}`
-})
-
-// ==================== 生命周期 ====================
+// 生命周期 ====================
 
 watch(selectedView, () => {
   isInitialLoad.value = true // 切换视图时重置首次加载状态
@@ -885,7 +866,7 @@ onMounted(() => {
       <!-- 图表网格 -->
       <div v-else class="gap-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
         <!-- CPU 卡片 -->
-        <CardX size="small" class="chart-card" :class="[{ 'glass-card-enabled': hasBackgroundBlur }, blurClass]">
+        <CardX size="small" class="chart-card">
           <template #header>
             <div class="flex items-center justify-between">
               <span class="text-base font-bold">CPU</span>
@@ -902,7 +883,7 @@ onMounted(() => {
         </CardX>
 
         <!-- 内存卡片 -->
-        <CardX size="small" class="chart-card" :class="[{ 'glass-card-enabled': hasBackgroundBlur }, blurClass]">
+        <CardX size="small" class="chart-card">
           <template #header>
             <div class="flex items-center justify-between">
               <span class="text-base font-bold">内存</span>
@@ -927,7 +908,7 @@ onMounted(() => {
         </CardX>
 
         <!-- 磁盘卡片 -->
-        <CardX size="small" class="chart-card" :class="[{ 'glass-card-enabled': hasBackgroundBlur }, blurClass]">
+        <CardX size="small" class="chart-card">
           <template #header>
             <div class="flex items-center justify-between">
               <span class="text-base font-bold">磁盘</span>
@@ -952,7 +933,7 @@ onMounted(() => {
         </CardX>
 
         <!-- 网络卡片 -->
-        <CardX size="small" class="chart-card" :class="[{ 'glass-card-enabled': hasBackgroundBlur }, blurClass]">
+        <CardX size="small" class="chart-card">
           <template #header>
             <div class="flex items-center justify-between">
               <span class="text-base font-bold">网络</span>
@@ -979,7 +960,7 @@ onMounted(() => {
         </CardX>
 
         <!-- 连接数卡片 -->
-        <CardX size="small" class="chart-card" :class="[{ 'glass-card-enabled': hasBackgroundBlur }, blurClass]">
+        <CardX size="small" class="chart-card">
           <template #header>
             <div class="flex items-center justify-between">
               <span class="text-base font-bold">连接</span>
@@ -998,7 +979,7 @@ onMounted(() => {
         </CardX>
 
         <!-- 进程卡片 -->
-        <CardX size="small" class="chart-card" :class="[{ 'glass-card-enabled': hasBackgroundBlur }, blurClass]">
+        <CardX size="small" class="chart-card">
           <template #header>
             <div class="flex items-center justify-between">
               <span class="text-base font-bold">进程</span>
@@ -1020,21 +1001,5 @@ onMounted(() => {
 .chart-card :deep([data-slot='card-content']),
 .chart-card > div:last-child {
   padding: 8px;
-}
-
-.glass-card-enabled {
-  background-color: rgba(255, 255, 255, 0.7) !important;
-}
-
-.glass-card-enabled:hover {
-  filter: brightness(0.95);
-}
-
-html.dark .glass-card-enabled {
-  background-color: rgba(24, 24, 28, 0.85) !important;
-}
-
-html.dark .glass-card-enabled:hover {
-  filter: brightness(1.1);
 }
 </style>
