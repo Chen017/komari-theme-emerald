@@ -45,7 +45,7 @@ onUnmounted(() => {
       leave-from-class="opacity-100 backdrop-blur-sm" leave-to-class="opacity-0 backdrop-blur-0">
       <LoadingCover v-if="appStore.loading" />
     </Transition>
-    <div class="fixed inset-0 -z-10 mx-0 max-w-none overflow-hidden zoom-200 bg-slate-200/50 dark:bg-slate-900/50">
+    <div class="fixed inset-0 -z-10 mx-0 max-w-none overflow-hidden zoom-200 bg-slate-50 dark:bg-slate-900/50">
       <div class="absolute top-0 left-1/2 -ml-152 h-100 w-325 dark:mask-[linear-gradient(white,transparent)]">
         <div
           class="absolute inset-0 bg-linear-to-r from-emerald-500 to-lime-300 mask-[radial-gradient(farthest-side_at_top,white,transparent)] opacity-40 dark:from-emerald-500/30 dark:to-lime-300/30 dark:opacity-100">
@@ -65,10 +65,6 @@ onUnmounted(() => {
             </svg>
           </svg>
         </div>
-        <svg viewBox="0 0 1113 440" aria-hidden="true"
-          class="absolute top-0 left-1/2 -ml-76 w-278.25 fill-white blur-[26px] dark:hidden">
-          <path d="M.016 439.5s-9.5-300 434-300S882.516 20 882.516 20V0h230.004v439.5H.016Z" />
-        </svg>
       </div>
     </div>
     <Header />

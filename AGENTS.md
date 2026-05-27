@@ -7,7 +7,7 @@ Repo guide for `komari-theme-emerald`.
 - Generated: Wed May 27 2026, Asia/Shanghai
 - Branch: `master`
 - App: Vue 3 + Vite + reka-ui + Tailwind CSS v4 theme for Komari Monitor
-- Package manager: `pnpm` (>= 10)
+- Package manager: `bun` (>= 1.2)
 - Theme manifest: `komari-theme.json`
 
 ## What this repo is
@@ -26,30 +26,30 @@ Repo guide for `komari-theme-emerald`.
 - `docs/preview.png` release preview image
 - `komari-theme.json` theme manifest consumed by the zip build
 - `vite.config.ts` build, chunking, zip packaging
-- `package.json` root commands
-- `pnpm-workspace.yaml` workspace and catalog config
+- `package.json` root commands and pinned dependency versions
+- `bun.lock` resolved lockfile (managed by bun)
 
 ## Root commands
 
 Run from repo root only.
 
 ```bash
-pnpm dev
-pnpm build
-pnpm preview
-pnpm lint
+bun run dev
+bun run build
+bun run preview
+bun run lint
 ```
 
 Notes:
 
-- `pnpm build` runs type check plus production build
-- `pnpm lint` runs oxlint and eslint with `--fix`
+- `bun run build` runs type check plus production build
+- `bun run lint` runs oxlint and eslint with `--fix`
 - There is no test suite in this repository
-- Do not invent `pnpm test` or Vitest commands here
+- Do not invent `bun test` or Vitest commands here
 
 ## Build and release contract
 
-`pnpm build` must preserve the Komari packaging flow defined in `vite.config.ts`.
+`bun run build` must preserve the Komari packaging flow defined in `vite.config.ts`.
 
 Expected output:
 
@@ -75,8 +75,8 @@ Source of truth: `.github/workflows/build-ci.yml`
 
 CI does only:
 
-1. `pnpm install`
-2. `pnpm build`
+1. `bun install --frozen-lockfile`
+2. `bun run build`
 
 CI does not run tests, because there is no test suite.
 
@@ -98,8 +98,8 @@ Contributor density, useful for triage:
 
 ## Conventions seen in this repo
 
-- Use `pnpm`, not npm or yarn
-- Dependency versions are pinned via the pnpm workspace catalog in `pnpm-workspace.yaml`; `package.json` references `catalog:`
+- Use `bun`, not pnpm/npm/yarn
+- Dependency versions are declared directly in `package.json`; add new ones with `bun add` / `bun add -d`
 - Keep root guidance focused on build, packaging, manifest, and repo structure
 - Preserve the `@` alias to `src` defined in `vite.config.ts`
 - Treat `komari-theme.json` as release input, not optional metadata

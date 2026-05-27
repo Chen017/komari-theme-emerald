@@ -41,4 +41,4 @@ __screenshots__/
 *.timestamp-*-*.mjs
 
 # Theme build output
-komari-theme-naive-build-*.zip
+komari-theme-*.zip

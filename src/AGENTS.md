@@ -77,6 +77,6 @@ When you need a new piece of UI:
 ## Validation
 
 - Validate source-tree changes with:
-  - `pnpm lint`
-  - `pnpm build`
+  - `bun run lint`
+  - `bun run build`
 - There is no test suite. Do not invent one.

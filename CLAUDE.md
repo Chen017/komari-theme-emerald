@@ -8,20 +8,20 @@ A Komari Monitor theme called **Komari Emerald**, built with Vue 3 + Vite. The r
 
 ## Commands
 
-Use `pnpm` (the lockfile and `engines` field pin pnpm 10 + Node 20.19/22.12+). Run from repo root.
+Use `bun` (the `engines` field pins bun >= 1.2 + Node 20.19/22.12+; `packageManager` is `bun`). Run from repo root.
 
 ```bash
-pnpm dev          # Vite dev server, proxies /api to https://tz.osid.cn
-pnpm build        # type-check (vue-tsc --build) + vite build + zip packaging
-pnpm preview      # preview production build
-pnpm lint         # oxlint --fix then eslint --fix --cache
+bun run dev       # Vite dev server, proxies /api to https://tz.osid.cn
+bun run build     # type-check (vue-tsc --build) + vite build + zip packaging
+bun run preview   # preview production build
+bun run lint      # oxlint --fix then eslint --fix --cache
 ```
 
-There is **no test suite**. Do not invent `pnpm test` / Vitest commands. CI ([.github/workflows/build-ci.yml](.github/workflows/build-ci.yml)) only runs `pnpm install && pnpm build` and uploads `komari-theme-emerald-build*.zip`.
+There is **no test suite**. Do not invent `bun test` / Vitest commands. CI ([.github/workflows/build-ci.yml](.github/workflows/build-ci.yml)) only runs `bun install --frozen-lockfile && bun run build` and uploads `komari-theme-emerald-build*.zip`.
 
 ## Build & release contract
 
-`pnpm build` must preserve the Komari packaging flow defined by the `komariThemeZip` plugin in [vite.config.ts](vite.config.ts). After a successful build, the repo root must contain:
+`bun run build` must preserve the Komari packaging flow defined by the `komariThemeZip` plugin in [vite.config.ts](vite.config.ts). After a successful build, the repo root must contain:
 
 - `dist/`
 - `komari-theme-emerald-build-<short-sha>.zip` (commit hash from `git rev-parse --short HEAD`)
@@ -88,8 +88,8 @@ Renaming, moving, or removing files under `public/images/` is a **code change**:
 
 - Composition API with `<script setup lang="ts">`.
 - `@/` alias → `src/` (defined in [vite.config.ts](vite.config.ts) and tsconfig).
-- Lint stack: oxlint + ESLint (`@antfu/eslint-config`) with `eslint-plugin-oxlint` to dedupe rules. Run `pnpm lint` before committing.
-- Dependency versions are managed via the pnpm workspace catalog in [pnpm-workspace.yaml](pnpm-workspace.yaml) — `package.json` references `catalog:` rather than version numbers. Add new deps to the catalog.
+- Lint stack: oxlint + ESLint (`@antfu/eslint-config`) with `eslint-plugin-oxlint` to dedupe rules. Run `bun run lint` before committing.
+- Dependency versions are declared directly in [package.json](package.json) (no workspace catalog). Add new deps with `bun add` / `bun add -d`.
 
 ## Repo-grounded anti-patterns
 

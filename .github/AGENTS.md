@@ -13,10 +13,10 @@ Keep these behaviors intact unless the repository requirements clearly change:
 - Trigger on `push` to `master`
 - Trigger on `pull_request` targeting `master`
 - Run on `ubuntu-latest`
-- Install pnpm with version `10`
+- Set up Bun via `oven-sh/setup-bun`
 - Set up Node.js `24`
-- Run `pnpm install`
-- Run `pnpm build`
+- Run `bun install --frozen-lockfile`
+- Run `bun run build`
 - Upload artifacts matching `komari-theme-emerald-build*.zip`
 
 ## CI editing expectations
@@ -54,7 +54,7 @@ Do not add fields that ask for unrelated infrastructure details or generic proje
 
 Before changing `.github/` files, check that:
 
-- CI still builds the theme with pnpm 10 and Node 24
+- CI still builds the theme with bun (>= 1.2) and Node 24
 - workflow triggers still target `master` pushes and pull requests
 - artifact uploads still use `komari-theme-emerald-build*.zip`
 - issue templates still reflect real configuration and reporting paths for this theme
