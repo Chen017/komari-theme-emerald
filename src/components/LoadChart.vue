@@ -871,7 +871,7 @@ onMounted(() => {
             <div class="flex items-center justify-between">
               <span class="text-base font-bold">CPU</span>
               <div v-if="latestStatus?.cpu != null" class="text-sm flex gap-0.5 items-baseline">
-                <span :style="{ fontFamily: appStore.numberFontFamily, color: 'hsl(var(--foreground))' }">{{ latestStatus.cpu.toFixed(1) }}</span>
+                <span class="font-number" style="color: hsl(var(--foreground))">{{ latestStatus.cpu.toFixed(1) }}</span>
                 <span style="color: hsl(var(--muted-foreground))">%</span>
               </div>
               <span v-else style="color: hsl(var(--muted-foreground))">-</span>
@@ -889,13 +889,13 @@ onMounted(() => {
               <span class="text-base font-bold">内存</span>
               <div class="text-sm flex gap-1 items-baseline">
                 <template v-if="latestStatus?.ram != null">
-                  <span :style="{ fontFamily: appStore.numberFontFamily, color: 'hsl(var(--foreground))' }">{{ formatBytesSplit(latestStatus.ram, appStore.byteDecimals).value }}</span>
+                  <span class="font-number" style="color: hsl(var(--foreground))">{{ formatBytesSplit(latestStatus.ram, appStore.byteDecimals).value }}</span>
                   <span style="color: hsl(var(--muted-foreground))">{{ formatBytesSplit(latestStatus.ram, appStore.byteDecimals).unit }}</span>
                 </template>
                 <span v-else style="color: hsl(var(--muted-foreground))">-</span>
                 <span style="color: hsl(var(--muted-foreground))">/</span>
                 <template v-if="nodeInfo?.mem_total">
-                  <span :style="{ fontFamily: appStore.numberFontFamily, color: 'hsl(var(--muted-foreground))' }">{{ formatBytesSplit(nodeInfo.mem_total, appStore.byteDecimals).value }}</span>
+                  <span class="font-number" style="color: hsl(var(--muted-foreground))">{{ formatBytesSplit(nodeInfo.mem_total, appStore.byteDecimals).value }}</span>
                   <span style="color: hsl(var(--muted-foreground))">{{ formatBytesSplit(nodeInfo.mem_total, appStore.byteDecimals).unit }}</span>
                 </template>
                 <span v-else style="color: hsl(var(--muted-foreground))">-</span>
@@ -914,13 +914,13 @@ onMounted(() => {
               <span class="text-base font-bold">磁盘</span>
               <div class="text-sm flex gap-1 items-baseline">
                 <template v-if="latestStatus?.disk != null">
-                  <span :style="{ fontFamily: appStore.numberFontFamily, color: 'hsl(var(--foreground))' }">{{ formatBytesSplit(latestStatus.disk, appStore.byteDecimals).value }}</span>
+                  <span class="font-number" style="color: hsl(var(--foreground))">{{ formatBytesSplit(latestStatus.disk, appStore.byteDecimals).value }}</span>
                   <span style="color: hsl(var(--muted-foreground))">{{ formatBytesSplit(latestStatus.disk, appStore.byteDecimals).unit }}</span>
                 </template>
                 <span v-else style="color: hsl(var(--muted-foreground))">-</span>
                 <span style="color: hsl(var(--muted-foreground))">/</span>
                 <template v-if="nodeInfo?.disk_total">
-                  <span :style="{ fontFamily: appStore.numberFontFamily, color: 'hsl(var(--muted-foreground))' }">{{ formatBytesSplit(nodeInfo.disk_total, appStore.byteDecimals).value }}</span>
+                  <span class="font-number" style="color: hsl(var(--muted-foreground))">{{ formatBytesSplit(nodeInfo.disk_total, appStore.byteDecimals).value }}</span>
                   <span style="color: hsl(var(--muted-foreground))">{{ formatBytesSplit(nodeInfo.disk_total, appStore.byteDecimals).unit }}</span>
                 </template>
                 <span v-else style="color: hsl(var(--muted-foreground))">-</span>
@@ -940,14 +940,14 @@ onMounted(() => {
               <div class="text-sm flex gap-1 items-baseline">
                 <span style="color: hsl(var(--muted-foreground))">↑</span>
                 <template v-if="latestStatus?.net_out != null">
-                  <span :style="{ fontFamily: appStore.numberFontFamily, color: 'hsl(var(--foreground))' }">{{ formatBytesSplit(latestStatus.net_out, appStore.byteDecimals).value }}</span>
+                  <span class="font-number" style="color: hsl(var(--foreground))">{{ formatBytesSplit(latestStatus.net_out, appStore.byteDecimals).value }}</span>
                   <span style="color: hsl(var(--muted-foreground))">{{ formatBytesSplit(latestStatus.net_out, appStore.byteDecimals).unit }}/s</span>
                 </template>
                 <span v-else style="color: hsl(var(--muted-foreground))">-</span>
                 <span style="color: hsl(var(--muted-foreground))">｜</span>
                 <span style="color: hsl(var(--muted-foreground))">↓</span>
                 <template v-if="latestStatus?.net_in != null">
-                  <span :style="{ fontFamily: appStore.numberFontFamily, color: 'hsl(var(--foreground))' }">{{ formatBytesSplit(latestStatus.net_in, appStore.byteDecimals).value }}</span>
+                  <span class="font-number" style="color: hsl(var(--foreground))">{{ formatBytesSplit(latestStatus.net_in, appStore.byteDecimals).value }}</span>
                   <span style="color: hsl(var(--muted-foreground))">{{ formatBytesSplit(latestStatus.net_in, appStore.byteDecimals).unit }}/s</span>
                 </template>
                 <span v-else style="color: hsl(var(--muted-foreground))">-</span>
@@ -966,10 +966,10 @@ onMounted(() => {
               <span class="text-base font-bold">连接</span>
               <div class="text-sm flex gap-1 items-baseline">
                 <span style="color: hsl(var(--muted-foreground))">TCP:</span>
-                <span :style="{ fontFamily: appStore.numberFontFamily, color: 'hsl(var(--foreground))' }">{{ latestStatus?.connections ?? '-' }}</span>
+                <span class="font-number" style="color: hsl(var(--foreground))">{{ latestStatus?.connections ?? '-' }}</span>
                 <span style="color: hsl(var(--muted-foreground))">｜</span>
                 <span style="color: hsl(var(--muted-foreground))">UDP:</span>
-                <span :style="{ fontFamily: appStore.numberFontFamily, color: 'hsl(var(--foreground))' }">{{ latestStatus?.connections_udp ?? '-' }}</span>
+                <span class="font-number" style="color: hsl(var(--foreground))">{{ latestStatus?.connections_udp ?? '-' }}</span>
               </div>
             </div>
           </template>
@@ -983,7 +983,7 @@ onMounted(() => {
           <template #header>
             <div class="flex items-center justify-between">
               <span class="text-base font-bold">进程</span>
-              <span class="text-sm" :style="{ fontFamily: appStore.numberFontFamily, color: 'hsl(var(--foreground))' }">
+              <span class="text-sm font-number" style="color: hsl(var(--foreground))">
                 {{ latestStatus?.process ?? '-' }}
               </span>
             </div>

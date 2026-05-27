@@ -1,11 +1,8 @@
 <script setup lang="ts">
 import type { NodeData } from '@/stores/nodes'
-import { Icon } from '@iconify/vue'
 import { computed, ref } from 'vue'
 import PingChart from '@/components/PingChart.vue'
 import TrafficProgress from '@/components/TrafficProgress.vue'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { ProgressThin } from '@/components/ui/progress-thin'
 import { Tag } from '@/components/ui/tag'
@@ -87,14 +84,13 @@ const columns = computed(() => appStore.listViewColumns)
 
 const formatBytes = (bytes: number) => formatBytesWithConfig(bytes, appStore.byteDecimals)
 const formatBytesPerSecond = (bytes: number) => formatBytesPerSecondWithConfig(bytes, appStore.byteDecimals)
-const formatUptime = (seconds: number) => formatUptimeWithFormat(seconds, appStore.uptimeFormat)
+const formatUptime = (seconds: number) => formatUptimeWithFormat(seconds, 'minute')
 
 const gridStyle = computed(() => {
   const visibleColumns = columns.value
   const columnWidths = appStore.listColumnWidths
-  const columnGap = appStore.listColumnGap
   const templateColumns = visibleColumns.map(col => columnWidths[col] || 'auto')
-  return { gridTemplateColumns: templateColumns.join(' '), gap: columnGap }
+  return { gridTemplateColumns: templateColumns.join(' '), gap: '12px' }
 })
 
 const offlineOverlayContentStyle = computed(() => {
@@ -119,25 +115,6 @@ const offlineOverlayRegionStyle = computed(() => {
   if (regionIndex === -1)
     return null
   return { gridColumn: `${regionIndex + 1} / span 1` }
-})
-
-function getColumnPadding(col: string): Record<string, string> {
-  const padding = appStore.listColumnPadding[col]
-  return padding ? { padding } : {}
-}
-
-function getColumnMargin(col: string): Record<string, string> {
-  const margin = appStore.listColumnMargin[col]
-  return margin ? { margin } : {}
-}
-
-function getColumnStyle(col: string): Record<string, string> {
-  return { ...getColumnPadding(col), ...getColumnMargin(col) }
-}
-
-const rowHeightStyle = computed(() => {
-  const height = appStore.listRowHeight
-  return height ? { height, minHeight: height } : {}
 })
 
 function getFlagSrc(region: string): string {
@@ -228,11 +205,11 @@ function getNodeTags(node: NodeData): Array<{ text: string, color: string }> {
 
 const columnTitles: Record<string, string> = {
   status: '状态',
+  os: '系统',
   region: '地区',
   name: '节点',
   tags: '标签',
   uptime: '运行时间',
-  os: '系统',
   cpu: 'CPU',
   mem: '内存',
   disk: '硬盘',
@@ -248,18 +225,14 @@ function makeTagColor(hex: string) {
 <template>
   <div class="node-list-wrapper">
     <TooltipProvider :delay-duration="200">
-      <div
-        class="min-w-fit w-full rounded-lg border bg-card"
-      >
+      <div class="min-w-fit w-full rounded-lg backdrop-blur-sm bg-background/10">
         <!-- 表头 -->
-        <div class="node-list-header" :style="gridStyle">
+        <div
+          class="grid p-2.5 bg-background/60 rounded-t-lg gap-3"
+          :style="{ gridTemplateColumns: '40px 40px 40px 180px minmax(200px, 1fr) 100px 160px 160px 160px 160px 100px' }"
+        >
           <template v-for="col in columns" :key="col">
-            <div
-              :class="`node-list-header__${col}`"
-              :style="getColumnStyle(col)"
-              class="sortable-header"
-              @click="handleSort(col)"
-            >
+            <div class="cursor-pointer" :class="[['status', 'os', 'region'].includes(col) ? 'text-center' : 'text-left']" @click="handleSort(col)">
               <span class="text-xs text-muted-foreground">
                 {{ columnTitles[col] }}{{ sortKey === col ? (sortDir === 1 ? ' ↑' : ' ↓') : '' }}
               </span>
@@ -269,149 +242,122 @@ function makeTagColor(hex: string) {
 
         <!-- 行 -->
         <div
-          v-for="node in sortedNodes"
-          :key="node.uuid"
-          class="node-list-row cursor-pointer hover:bg-accent/40 transition-colors"
-          :class="{ 'node-list-row--offline': !node.online }"
-          :style="rowHeightStyle"
-          @click="handleClick(node)"
+          v-for="node in sortedNodes" :key="node.uuid"
+          class="flex flex-col relative h-16 justify-center p-2.5 cursor-pointer hover:bg-background/60 transition-colors"
+          :class="{ 'node-list-row--offline': !node.online }" @click="handleClick(node)"
         >
-          <div class="node-list-item" :style="gridStyle">
+          <div
+            class="grid gap-3 items-center"
+            :style="{ gridTemplateColumns: '40px 40px 40px 180px minmax(200px, 1fr) 100px 160px 160px 160px 160px 100px' }"
+          >
             <template v-for="col in columns" :key="col">
               <!-- 在线状态指示器 -->
-              <div v-if="col === 'status'" class="node-list-item__status" :style="getColumnStyle('status')">
-                <div class="flex gap-1 items-center">
-                  <TooltipX v-if="appStore.showPingChartButton">
-                    <template #trigger>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        class="p-1"
-                        @click.stop="openPingChart(node)"
-                      >
-                        <Icon icon="icon-park-outline:area-map" :width="14" :height="14" />
-                      </Button>
-                    </template>
-                    查看延迟图表
-                  </TooltipX>
-                  <Tag v-if="appStore.listStatusStyle === 'tag'" :type="node.online ? 'success' : 'error'" size="small">
-                    {{ node.online ? '在线' : '离线' }}
-                  </Tag>
-                  <Badge v-else :variant="node.online ? 'default' : 'destructive'">
-                    {{ node.online ? '在线' : '离线' }}
-                  </Badge>
+              <div v-if="col === 'status'" class="node-list-item__status">
+                <div class="size-2 rounded-full relative" :class="[node.online ? 'bg-success' : 'bg-error']">
+                  <div v-if="node.online" class="animate-ping absolute inset-0 rounded-full bg-success opacity-50" />
                 </div>
               </div>
 
               <!-- 国旗 -->
-              <div v-else-if="col === 'region'" class="node-list-item__region" :style="getColumnStyle('region')">
-                <img
-                  :src="getFlagSrc(node.region)"
-                  :alt="getRegionDisplayName(node.region)"
-                  class="size-5 rounded-sm"
-                >
+              <div v-else-if="col === 'region'" class="node-list-item__region">
+                <img :src="getFlagSrc(node.region)" :alt="getRegionDisplayName(node.region)" class="size-5 rounded-sm">
               </div>
 
               <!-- 节点名称 -->
-              <div v-else-if="col === 'name'" class="node-list-item__name" :style="getColumnStyle('name')">
+              <div v-else-if="col === 'name'" class="node-list-item__name">
                 <span class="text-sm font-semibold">{{ node.name }}</span>
               </div>
 
               <!-- 标签 -->
-              <div v-else-if="col === 'tags'" class="node-list-item__tags" :style="getColumnStyle('tags')">
+              <div v-else-if="col === 'tags'" class="node-list-item__tags">
                 <div class="flex flex-wrap gap-1 items-center">
-                  <template v-if="appStore.listTagsStyle === 'tag'">
+                  <div>
                     <Tag
-                      v-for="(tag, index) in getNodeTags(node)"
-                      :key="index"
-                      :color="makeTagColor(tag.color)"
+                      v-for="(tag, index) in getNodeTags(node)" :key="index" :color="makeTagColor(tag.color)"
                       size="small"
                     >
                       {{ tag.text }}
                     </Tag>
-                  </template>
-                  <template v-else>
-                    <Badge
-                      v-for="(tag, index) in getNodeTags(node)"
-                      :key="index"
-                      :style="{ backgroundColor: tag.color, color: '#fff' }"
-                    >
-                      {{ tag.text }}
-                    </Badge>
-                  </template>
+                  </div>
                 </div>
               </div>
 
               <!-- 运行时间 -->
-              <div v-else-if="col === 'uptime'" class="node-list-item__uptime" :style="getColumnStyle('uptime')">
-                <span class="text-xs text-muted-foreground" :style="{ fontFamily: appStore.numberFontFamily }">
+              <div v-else-if="col === 'uptime'" class="node-list-item__uptime flex justify-start">
+                <span class="text-xs text-muted-foreground truncate font-number">
                   {{ formatUptime(node.uptime ?? 0) }}
                 </span>
               </div>
 
               <!-- 操作系统 -->
-              <div v-else-if="col === 'os'" class="node-list-item__os" :style="getColumnStyle('os')">
-                <div class="flex gap-1 items-center">
-                  <img :src="getOSImage(node.os)" :alt="getOSName(node.os)" class="size-4">
-                  <span class="text-xs text-muted-foreground">{{ getOSName(node.os) }}</span>
-                </div>
+              <div v-else-if="col === 'os'" class="node-list-item__os flex justify-center">
+                <img :src="getOSImage(node.os)" :alt="getOSName(node.os)" class="size-4">
               </div>
 
               <!-- CPU -->
-              <div v-else-if="col === 'cpu'" class="node-list-item__cpu" :style="getColumnStyle('cpu')">
+              <div v-else-if="col === 'cpu'" class="node-list-item__cpu">
                 <div class="flex flex-col gap-0.5">
-                  <div class="text-[11px] flex gap-1 items-center" :style="{ fontFamily: appStore.numberFontFamily }">
+                  <div class="text-[11px] flex gap-1 items-center font-number">
                     <span>{{ (node.cpu ?? 0).toFixed(1) }}%</span>
                     <div class="flex-1" />
-                    <span class="text-muted-foreground">{{ node.load.toFixed(2) ?? 0 }}, {{ node.load5.toFixed(2) ?? 0 }}, {{ node.load15.toFixed(2) ?? 0 }}</span>
+                    <span class="text-muted-foreground truncate">{{ node.load.toFixed(2) ?? 0 }}, {{
+                      node.load5.toFixed(2) ?? 0
+                    }}, {{
+                      node.load15.toFixed(2) ?? 0 }}</span>
                   </div>
                   <ProgressThin :percentage="node.cpu ?? 0" :status="getStatus(node.cpu ?? 0)" :height="4" />
                 </div>
               </div>
 
               <!-- 内存 -->
-              <div v-else-if="col === 'mem'" class="node-list-item__mem" :style="getColumnStyle('mem')">
+              <div v-else-if="col === 'mem'" class="node-list-item__mem">
                 <div class="flex flex-col gap-0.5">
-                  <div class="text-[11px] flex gap-1 items-center" :style="{ fontFamily: appStore.numberFontFamily }">
+                  <div class="text-[11px] flex gap-1 items-center font-number">
                     <span>{{ ((node.ram ?? 0) / (node.mem_total || 1) * 100).toFixed(1) }}%</span>
                     <div class="flex-1" />
-                    <span class="text-muted-foreground">{{ formatBytes(node.ram ?? 0) }} / {{ formatBytes(node.mem_total ?? 0) }}</span>
+                    <span class="text-muted-foreground">{{ formatBytes(node.ram ?? 0) }} / {{ formatBytes(node.mem_total
+                      ?? 0)
+                    }}</span>
                   </div>
-                  <ProgressThin :percentage="(node.ram ?? 0) / (node.mem_total || 1) * 100" :status="getStatus((node.ram ?? 0) / (node.mem_total || 1) * 100)" :height="4" />
+                  <ProgressThin
+                    :percentage="(node.ram ?? 0) / (node.mem_total || 1) * 100"
+                    :status="getStatus((node.ram ?? 0) / (node.mem_total || 1) * 100)" :height="4"
+                  />
                 </div>
               </div>
 
               <!-- 硬盘 -->
-              <div v-else-if="col === 'disk'" class="node-list-item__disk" :style="getColumnStyle('disk')">
+              <div v-else-if="col === 'disk'" class="node-list-item__disk">
                 <div class="flex flex-col gap-0.5">
-                  <div class="text-[11px] flex gap-1 items-center" :style="{ fontFamily: appStore.numberFontFamily }">
+                  <div class="text-[11px] flex gap-1 items-center font-number">
                     <span>{{ ((node.disk ?? 0) / (node.disk_total || 1) * 100).toFixed(1) }}%</span>
                     <div class="flex-1" />
-                    <span class="text-muted-foreground">{{ formatBytes(node.disk ?? 0) }} / {{ formatBytes(node.disk_total ?? 0) }}</span>
+                    <span class="text-muted-foreground">{{ formatBytes(node.disk ?? 0) }} / {{
+                      formatBytes(node.disk_total ?? 0)
+                    }}</span>
                   </div>
-                  <ProgressThin :percentage="(node.disk ?? 0) / (node.disk_total || 1) * 100" :status="getStatus((node.disk ?? 0) / (node.disk_total || 1) * 100)" :height="4" />
+                  <ProgressThin
+                    :percentage="(node.disk ?? 0) / (node.disk_total || 1) * 100"
+                    :status="getStatus((node.disk ?? 0) / (node.disk_total || 1) * 100)" :height="4"
+                  />
                 </div>
               </div>
 
               <!-- 速率 -->
-              <div v-else-if="col === 'rate'" class="node-list-item__rate" :style="getColumnStyle('rate')">
-                <div class="text-[11px] flex flex-col gap-1" :style="{ fontFamily: appStore.numberFontFamily }">
+              <div v-else-if="col === 'rate'" class="node-list-item__rate">
+                <div class="text-[11px] flex flex-col gap-1 font-number">
                   <span :style="{ color: themeVars.successColor }">↑{{ formatBytesPerSecond(node.net_out ?? 0) }}</span>
                   <span :style="{ color: themeVars.infoColor }">↓{{ formatBytesPerSecond(node.net_in ?? 0) }}</span>
                 </div>
               </div>
 
               <!-- 流量 -->
-              <div v-else-if="col === 'traffic'" class="node-list-item__traffic" :style="getColumnStyle('traffic')">
+              <div v-else-if="col === 'traffic'" class="node-list-item__traffic">
                 <div class="traffic-cell">
                   <TooltipX :trigger="isTouchDevice ? 'click' : 'hover'">
                     <template #trigger>
-                      <div
-                        class="flex flex-col gap-0.5 w-full"
-                        :class="{ 'cursor-help': !isTouchDevice }"
-                        @click.stop
-                      >
-                        <div class="text-[11px] flex gap-1 items-center" :style="{ fontFamily: appStore.numberFontFamily }">
+                      <div class="flex flex-col gap-0.5 w-full" :class="{ 'cursor-help': !isTouchDevice }" @click.stop>
+                        <div class="text-[11px] flex gap-1 items-center font-number">
                           <span v-if="showTrafficProgress(node)">{{ getTrafficUsedPercentage(node).toFixed(1) }}%</span>
                           <div class="flex-1" />
                           <span class="text-muted-foreground">
@@ -421,17 +367,17 @@ function makeTagColor(hex: string) {
                           </span>
                         </div>
                         <TrafficProgress
-                          :upload="node.net_total_up ?? 0"
-                          :download="node.net_total_down ?? 0"
-                          :traffic-limit="node.traffic_limit"
-                          :traffic-limit-type="(node.traffic_limit_type || 'sum')"
+                          :upload="node.net_total_up ?? 0" :download="node.net_total_down ?? 0"
+                          :traffic-limit="node.traffic_limit" :traffic-limit-type="(node.traffic_limit_type || 'sum')"
                           height="4px"
                         />
                       </div>
                     </template>
-                    <div class="text-[11px] flex flex-col gap-1" :style="{ fontFamily: appStore.numberFontFamily }">
-                      <span><span :style="{ color: themeVars.successColor }">↑</span> {{ formatBytes(node.net_total_up ?? 0) }}</span>
-                      <span><span :style="{ color: themeVars.infoColor }">↓</span> {{ formatBytes(node.net_total_down ?? 0) }}</span>
+                    <div class="text-[11px] flex flex-col gap-1 font-number">
+                      <span><span :style="{ color: themeVars.successColor }">↑</span> {{ formatBytes(node.net_total_up
+                        ?? 0) }}</span>
+                      <span><span :style="{ color: themeVars.infoColor }">↓</span> {{ formatBytes(node.net_total_down
+                        ?? 0) }}</span>
                     </div>
                   </TooltipX>
                 </div>
@@ -442,16 +388,18 @@ function makeTagColor(hex: string) {
           <div v-if="!node.online" class="node-offline-overlay" aria-hidden="true">
             <div class="node-offline-overlay__grid" :style="gridStyle">
               <div class="node-offline-overlay__mask" :style="offlineOverlayMaskStyle" />
-              <div v-if="offlineOverlayRegionStyle" class="node-offline-overlay__region" :style="offlineOverlayRegionStyle">
+              <div
+                v-if="offlineOverlayRegionStyle" class="node-offline-overlay__region"
+                :style="offlineOverlayRegionStyle"
+              >
                 <img
-                  :src="getFlagSrc(node.region)"
-                  :alt="getRegionDisplayName(node.region)"
+                  :src="getFlagSrc(node.region)" :alt="getRegionDisplayName(node.region)"
                   class="size-4 rounded-sm shrink-0"
                 >
               </div>
               <div class="node-offline-overlay__content" :style="offlineOverlayContentStyle">
                 <span class="node-offline-overlay__name text-sm font-semibold truncate">{{ node.name }}</span>
-                <span class="node-offline-overlay__time text-xs text-muted-foreground" :style="{ fontFamily: appStore.numberFontFamily }">
+                <span class="node-offline-overlay__time text-xs text-muted-foreground font-number">
                   最后在线 {{ formatOfflineTime(node) }}
                 </span>
               </div>

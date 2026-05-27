@@ -29,7 +29,7 @@ onMounted(() => {
 
 const formatBytes = (bytes: number) => formatBytesWithConfig(bytes, appStore.byteDecimals)
 const formatBytesPerSecond = (bytes: number) => formatBytesPerSecondWithConfig(bytes, appStore.byteDecimals)
-const formatUptime = (seconds: number) => formatUptimeWithFormat(seconds, appStore.uptimeFormat)
+const formatUptime = (seconds: number) => formatUptimeWithFormat(seconds, 'day')
 
 const chartView = ref<'load' | 'ping'>('load')
 
@@ -123,7 +123,7 @@ const storageInfo = computed<InfoItem[]>(() => [
                 >
                 <span
                   class="text-sm break-all"
-                  :style="(item.label === '运行时间' || item.label === '最后上报') ? { fontFamily: appStore.numberFontFamily } : {}"
+                  :class="(item.label === '运行时间' || item.label === '最后上报') ? 'font-number' : ''"
                 >
                   {{ item.value }}
                 </span>
@@ -139,7 +139,7 @@ const storageInfo = computed<InfoItem[]>(() => [
                 <Icon v-if="item.icon" :icon="item.icon" :width="14" :height="14" />
                 <span class="text-sm">{{ item.label }}</span>
               </div>
-              <span class="text-sm" :style="{ fontFamily: appStore.numberFontFamily }">{{ item.value }}</span>
+              <span class="text-sm font-number">{{ item.value }}</span>
             </div>
           </div>
         </CardX>
@@ -151,7 +151,7 @@ const storageInfo = computed<InfoItem[]>(() => [
                 <Icon icon="icon-park-outline:transfer-data" :width="14" :height="14" />
                 <span class="text-sm">总流量</span>
               </div>
-              <span class="text-sm break-all" :style="{ fontFamily: appStore.numberFontFamily }">
+              <span class="text-sm break-all font-number">
                 ↑ {{ formatBytes(data?.net_total_up ?? 0) }}
                 <span class="p-1" />
                 ↓ {{ formatBytes(data?.net_total_down ?? 0) }}
@@ -162,7 +162,7 @@ const storageInfo = computed<InfoItem[]>(() => [
                 <Icon icon="icon-park-outline:dashboard-one" :width="14" :height="14" />
                 <span class="text-sm">网络速率</span>
               </div>
-              <span class="text-sm break-all" :style="{ fontFamily: appStore.numberFontFamily }">
+              <span class="text-sm break-all font-number">
                 ↑ {{ formatBytesPerSecond(data?.net_out ?? 0) }}
                 <span class="p-1" />
                 ↓ {{ formatBytesPerSecond(data?.net_in ?? 0) }}

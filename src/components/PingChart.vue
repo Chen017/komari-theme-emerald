@@ -576,55 +576,55 @@ onMounted(() => {
                       <div class="text-sm gap-x-4 gap-y-1.5 grid grid-cols-2">
                         <template v-if="task.min !== undefined">
                           <span style="color: hsl(var(--muted-foreground))">最小</span>
-                          <span class="font-medium" :style="{ fontFamily: appStore.numberFontFamily }">{{ Math.round(task.min) }} ms</span>
+                          <span class="font-medium font-number">{{ Math.round(task.min) }} ms</span>
                         </template>
                         <template v-if="task.max !== undefined">
                           <span style="color: hsl(var(--muted-foreground))">最大</span>
-                          <span class="font-medium" :style="{ fontFamily: appStore.numberFontFamily }">{{ Math.round(task.max) }} ms</span>
+                          <span class="font-medium font-number">{{ Math.round(task.max) }} ms</span>
                         </template>
                         <template v-if="task.avg !== undefined">
                           <span style="color: hsl(var(--muted-foreground))">平均</span>
-                          <span class="font-medium" :style="{ fontFamily: appStore.numberFontFamily }">{{ Math.round(task.avg) }} ms</span>
+                          <span class="font-medium font-number">{{ Math.round(task.avg) }} ms</span>
                         </template>
                         <template v-if="task.latest !== undefined">
                           <span style="color: hsl(var(--muted-foreground))">最新</span>
-                          <span class="font-medium" :style="{ fontFamily: appStore.numberFontFamily }">{{ Math.round(task.latest) }} ms</span>
+                          <span class="font-medium font-number">{{ Math.round(task.latest) }} ms</span>
                         </template>
                         <template v-if="task.p50 !== undefined">
                           <span style="color: hsl(var(--muted-foreground))">P50</span>
-                          <span class="font-medium" :style="{ fontFamily: appStore.numberFontFamily }">{{ Math.round(task.p50) }} ms</span>
+                          <span class="font-medium font-number">{{ Math.round(task.p50) }} ms</span>
                         </template>
                         <template v-if="task.p99 !== undefined">
                           <span style="color: hsl(var(--muted-foreground))">P99</span>
-                          <span class="font-medium" :style="{ fontFamily: appStore.numberFontFamily }">{{ Math.round(task.p99) }} ms</span>
+                          <span class="font-medium font-number">{{ Math.round(task.p99) }} ms</span>
                         </template>
                         <template v-if="task.p99_p50_ratio !== undefined">
                           <span style="color: hsl(var(--muted-foreground))">波动率</span>
-                          <span class="font-medium" :style="{ fontFamily: appStore.numberFontFamily }">{{ task.p99_p50_ratio.toFixed(2) }}</span>
+                          <span class="font-medium font-number">{{ task.p99_p50_ratio.toFixed(2) }}</span>
                         </template>
                         <template v-if="task.interval !== undefined">
                           <span style="color: hsl(var(--muted-foreground))">间隔</span>
-                          <span class="font-medium" :style="{ fontFamily: appStore.numberFontFamily }">{{ task.interval }}s</span>
+                          <span class="font-medium font-number">{{ task.interval }}s</span>
                         </template>
                         <template v-if="task.type">
                           <span style="color: hsl(var(--muted-foreground))">类型</span>
-                          <span class="font-medium" :style="{ fontFamily: appStore.numberFontFamily }">{{ task.type.toUpperCase() }}</span>
+                          <span class="font-medium font-number">{{ task.type.toUpperCase() }}</span>
                         </template>
                         <template v-if="task.total !== undefined">
                           <span style="color: hsl(var(--muted-foreground))">总数</span>
-                          <span class="font-medium" :style="{ fontFamily: appStore.numberFontFamily }">{{ task.total }}</span>
+                          <span class="font-medium font-number">{{ task.total }}</span>
                         </template>
                       </div>
                     </TooltipContent>
                   </Tooltip>
                 </div>
                 <div class="text-sm mt-1 flex gap-3 items-center" style="color: hsl(var(--muted-foreground))">
-                  <span class="font-medium" :style="{ fontFamily: appStore.numberFontFamily, color: 'hsl(var(--foreground))' }">{{ task.latestValue !== null ? `${Math.round(task.latestValue)} ms` : '-' }}</span>
+                  <span class="font-medium font-number" style="color: hsl(var(--foreground))">{{ task.latestValue !== null ? `${Math.round(task.latestValue)} ms` : '-' }}</span>
                   <span class="opacity-60">•</span>
-                  <span :style="{ fontFamily: appStore.numberFontFamily }">{{ task.loss.toFixed(1) }}% 丢包</span>
+                  <span class="font-number">{{ task.loss.toFixed(1) }}% 丢包</span>
                   <template v-if="task.p99_p50_ratio !== undefined">
                     <span class="opacity-60">•</span>
-                    <span :style="{ fontFamily: appStore.numberFontFamily }" title="波动率 p99/p50">{{ task.p99_p50_ratio.toFixed(1) }} 波动</span>
+                    <span class="font-number" title="波动率 p99/p50">{{ task.p99_p50_ratio.toFixed(1) }} 波动</span>
                   </template>
                 </div>
               </div>

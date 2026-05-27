@@ -15,7 +15,7 @@ const isDark = computed(() => {
 
 <template>
   <div
-    class="loading-cover flex h-screen w-screen items-center left-0 top-0 justify-center absolute z-20 backdrop-blur-sm"
+    class="loading-cover flex items-center inset-0 justify-center fixed z-20 backdrop-blur-sm "
     :class="isDark ? 'bg-black/50' : 'bg-white/80'"
   >
     <div class="flex flex-col items-center gap-3 text-foreground">

@@ -337,7 +337,7 @@ export function formatPriceWithCycle(
 ): string {
   const priceText = formatPrice(price, currency, lang)
   const cycleText = getBillingCycleText(billingCycle, lang)
-  return `${priceText}/${cycleText}`
+  return `${priceText} / ${cycleText}`
 }
 
 /**

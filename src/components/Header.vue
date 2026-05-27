@@ -15,12 +15,6 @@ const isScrolled = inject<ReturnType<typeof ref<boolean>>>('isScrolled', ref(fal
 
 const siteFavicon = ref('/favicon.ico')
 
-const containerStyle = computed(() => {
-  if (appStore.fullWidth)
-    return {}
-  return { maxWidth: appStore.maxPageWidth, marginInline: 'auto' }
-})
-
 const actionButtons = computed(() => {
   const buttons = [
     {
@@ -72,10 +66,10 @@ const sitename = computed(() => appStore.publicSettings?.sitename || 'Komari Mon
 
 <template>
   <div
-    class="transition-all duration-200 top-0 sticky z-10"
-    :class="isScrolled ? 'bg-background border-b' : 'bg-transparent'"
+    class="transition-all duration-200 top-0 sticky z-10 border-b border-transparent"
+    :class="isScrolled ? '!border-slate-500/10 backdrop-blur-lg' : 'bg-transparent'"
   >
-    <div class="px-4 flex-between h-16" :style="containerStyle">
+    <div class="px-4 flex-between h-14 max-w-[1280px] mx-auto">
       <div class="flex items-center gap-3 cursor-pointer" @click="router.push('/')">
         <Avatar class="size-8">
           <AvatarImage :src="siteFavicon" :alt="sitename" />
@@ -89,11 +83,7 @@ const sitename = computed(() => appStore.publicSettings?.sitename || 'Komari Mon
         <div class="flex items-center gap-2">
           <Tooltip v-for="button in actionButtons" :key="button.action">
             <TooltipTrigger as-child>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                @click="handleButtonClick(button.action)"
-              >
+              <Button variant="ghost" size="icon-sm" @click="handleButtonClick(button.action)">
                 <Icon :icon="button.icon" :width="18" :height="18" />
               </Button>
             </TooltipTrigger>

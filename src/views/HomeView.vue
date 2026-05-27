@@ -5,11 +5,11 @@ import { computed, defineAsyncComponent, nextTick, onActivated, onDeactivated, r
 import { useRouter } from 'vue-router'
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import { Empty } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useAppStore } from '@/stores/app'
 import { useNodesStore } from '@/stores/nodes'
 import { isRegionMatch } from '@/utils/regionHelper'
@@ -134,84 +134,66 @@ const alertVariant = computed(() => alertVariantMap[appStore.alertType] || 'defa
     </div>
 
     <NodeGeneralCards />
-    <Separator class="my-0" />
 
-    <div class="node-info p-4 flex flex-col gap-4">
+    <div class="node-info p-4 pt-0 flex flex-col gap-4 relative z-1 pointer-events-none">
       <div class="nodes">
-        <Tabs v-if="showGroupTabs" v-model="appStore.nodeSelectedGroup" class="w-full flex-col">
-          <div class="flex items-center justify-between gap-2 mb-4 flex-wrap">
-            <TabsList>
-              <TabsTrigger v-for="g in groups" :key="g.name" :value="g.name">
+        <Tabs v-model="appStore.nodeSelectedGroup" class="w-full flex-col gap-4">
+          <div class="flex items-center justify-between gap-2 flex-wrap">
+            <TabsList class="h-8 bg-background/50 backdrop-blur-xl pointer-events-auto">
+              <TabsTrigger
+                v-for="g in groups" :key="g.name" :value="g.name"
+                class="h-6.5 text-xs border-none data-[state=active]:text-primary shadow-none"
+              >
                 {{ g.tab }}
               </TabsTrigger>
             </TabsList>
-            <div class="search flex gap-2 items-center">
-              <div class="relative">
-                <Input
-                  v-model="searchText"
-                  placeholder="搜索节点名称、地区、系统"
-                  class="w-40 md:w-60 pl-8"
-                />
-                <Icon
-                  icon="icon-park-outline:search"
-                  :width="14"
-                  :height="14"
-                  class="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
-                />
+            <div class="search flex gap-2 items-center pointer-events-auto">
+              <Button
+                variant="outline" size="icon" aria-label="卡片视图"
+                class="w-8 h-8 border-none bg-transparent backdrop-blur-xs shadow-none hover:bg-background/60 rounded-lg"
+                :class="[appStore.nodeViewMode === 'card' ? '!text-primary !bg-background' : '']"
+                @click="appStore.nodeViewMode = 'card'"
+              >
+                <Icon icon="tabler:layout-grid" :width="14" :height="14" />
+              </Button>
+              <Button
+                variant="outline" size="icon" aria-label="列表视图"
+                class="w-8 h-8 border-none bg-transparent backdrop-blur-xs shadow-none hover:bg-background/60 rounded-lg"
+                :class="[appStore.nodeViewMode === 'list' ? '!text-primary !bg-background' : '']"
+                @click="appStore.nodeViewMode = 'list'"
+              >
+                <Icon icon="tabler:table" :width="14" :height="14" />
+              </Button>
+              <div class="relative z-1 w-8 h-8">
+                <div class="absolute top-0 right-0 ">
+                  <Input
+                    v-model="searchText" placeholder="搜索节点名称、地区、系统"
+                    class="transition-all placeholder:text-transparent border-none shadow-none w-8 h-8 bg-transparent backdrop-blur-xs rounded-lg hover:!bg-background/60 focus:!w-60 focus:!pl-7.5 focus:placeholder:!text-muted-foreground focus:!bg-background/80 focus:!ring-primary/10"
+                  />
+                  <Icon
+                    icon="tabler:search" :width="14" :height="14"
+                    class="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                  />
+                </div>
               </div>
-              <ToggleGroup v-model="appStore.nodeViewMode" type="single" variant="outline" size="sm">
-                <ToggleGroupItem value="card" aria-label="卡片视图" class="size-8 p-0">
-                  <Icon icon="icon-park-outline:view-grid-card" :width="14" :height="14" />
-                </ToggleGroupItem>
-                <ToggleGroupItem value="list" aria-label="列表视图" class="size-8 p-0">
-                  <Icon icon="icon-park-outline:view-list" :width="14" :height="14" />
-                </ToggleGroupItem>
-              </ToggleGroup>
             </div>
           </div>
-          <TabsContent v-for="g in groups" :key="g.name" :value="g.name">
-            <div v-if="nodeList.length !== 0 && appStore.nodeViewMode === 'card'" class="gap-4 grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(340px,1fr))]">
+          <TabsContent v-for="g in groups" :key="g.name" :value="g.name" class="pointer-events-auto">
+            <div
+              v-if="nodeList.length !== 0 && appStore.nodeViewMode === 'card'"
+              class="gap-4 grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(300px,1fr))]"
+            >
               <NodeCard v-for="node in nodeList" :key="node.uuid" :node="node" @click="handleNodeClick(node)" />
             </div>
-            <NodeList v-else-if="nodeList.length !== 0 && appStore.nodeViewMode === 'list'" :nodes="nodeList" @click="handleNodeClick" />
+            <NodeList
+              v-else-if="nodeList.length !== 0 && appStore.nodeViewMode === 'list'" :nodes="nodeList"
+              @click="handleNodeClick"
+            />
             <div v-else class="text-muted-foreground text-center py-8">
               <Empty description="暂无节点" />
             </div>
           </TabsContent>
         </Tabs>
-
-        <template v-else>
-          <div class="flex justify-end gap-2 mb-4">
-            <div class="relative">
-              <Input
-                v-model="searchText"
-                placeholder="搜索节点名称、地区、系统"
-                class="w-40 md:w-60 pl-8"
-              />
-              <Icon
-                icon="icon-park-outline:search"
-                :width="14"
-                :height="14"
-                class="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
-              />
-            </div>
-            <ToggleGroup v-model="appStore.nodeViewMode" type="single" variant="outline" size="sm">
-              <ToggleGroupItem value="card" aria-label="卡片视图" class="size-8 p-0">
-                <Icon icon="icon-park-outline:view-grid-card" :width="14" :height="14" />
-              </ToggleGroupItem>
-              <ToggleGroupItem value="list" aria-label="列表视图" class="size-8 p-0">
-                <Icon icon="icon-park-outline:view-list" :width="14" :height="14" />
-              </ToggleGroupItem>
-            </ToggleGroup>
-          </div>
-          <div v-if="nodeList.length !== 0 && appStore.nodeViewMode === 'card'" class="gap-4 grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(340px,1fr))]">
-            <NodeCard v-for="node in nodeList" :key="node.uuid" :node="node" @click="handleNodeClick(node)" />
-          </div>
-          <NodeList v-else-if="nodeList.length !== 0 && appStore.nodeViewMode === 'list'" :nodes="nodeList" @click="handleNodeClick" />
-          <div v-else class="text-muted-foreground text-center py-8">
-            <Empty description="暂无节点" />
-          </div>
-        </template>
       </div>
     </div>
   </div>

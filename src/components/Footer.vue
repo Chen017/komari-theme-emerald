@@ -23,10 +23,6 @@ onMounted(async () => {
 
 const formattedServerVersion = computed(() => serverVersion.value?.version ?? null)
 
-const containerStyle = computed(() =>
-  appStore.fullWidth ? {} : { maxWidth: appStore.maxPageWidth, marginInline: 'auto' },
-)
-
 const showIcp = computed(() => appStore.icpEnabled && appStore.icpNumber)
 const showPolice = computed(() => appStore.policeEnabled && appStore.policeNumber)
 const showFiling = computed(() => showIcp.value || showPolice.value)
@@ -35,8 +31,7 @@ const showFiling = computed(() => showIcp.value || showPolice.value)
 <template>
   <footer class="px-4 py-4 w-full">
     <div
-      class="flex flex-col gap-3 w-full sm:flex-row sm:gap-4 sm:items-center sm:justify-between"
-      :style="containerStyle"
+      class="flex flex-col gap-3 w-full sm:flex-row sm:gap-4 sm:items-center sm:justify-between max-w-[1280px] mx-auto"
     >
       <div class="flex flex-col gap-2 sm:flex-row sm:gap-6">
         <div class="flex flex-wrap gap-1 items-center">
