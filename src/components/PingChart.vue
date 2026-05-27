@@ -364,7 +364,7 @@ const baseTooltipConfig = computed(() => ({
     fontSize: 12,
     lineHeight: 20,
   },
-  extraCssText: 'backdrop-filter: blur(4px);z-index:9;box-shadow:0 0 10px ' + chartThemeColors.value.tooltipShadow,
+  extraCssText: `backdrop-filter: blur(4px);z-index:9;box-shadow:0 0 10px ${chartThemeColors.value.tooltipShadow}`,
   axisPointer: {
     type: 'cross' as const,
     crossStyle: {
@@ -550,7 +550,7 @@ onMounted(() => {
                 <div class="flex gap-2 items-center">
                   <div class="rounded h-4 w-1" :style="{ backgroundColor: task.color }" />
                   <span class="text-sm font-semibold truncate">{{ task.name }}</span>
-                  <div class="flex-1"></div>
+                  <div class="flex-1" />
                   <Tooltip>
                     <TooltipTrigger as-child>
                       <span class="text-sm opacity-50 cursor-help transition-opacity hover:opacity-100 inline-flex"
@@ -624,7 +624,9 @@ onMounted(() => {
         <div class="flex flex-wrap gap-4 items-center py-2 justify-between">
           <TooltipProvider>
             <div class="flex gap-2 items-center">
-              <Button :variant="cutPeak ? 'default' : 'outline'" size="sm" @click="cutPeak = !cutPeak">平滑峰值</Button>
+              <Button :variant="cutPeak ? 'default' : 'outline'" size="sm" @click="cutPeak = !cutPeak">
+                平滑峰值
+              </Button>
               <Tooltip>
                 <TooltipTrigger as-child>
                   <span

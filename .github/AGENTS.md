@@ -2,7 +2,7 @@
 
 ## Scope
 
-This file guides changes under `.github/` for `komari-theme-naive`. Keep edits focused on the existing CI workflow and the issue templates. Do not add general source-code rules here.
+This file guides changes under `.github/` for `komari-theme-emerald`. Keep edits focused on the existing CI workflow and the issue templates. Do not add general source-code rules here.
 
 ## CI workflow rules
 
@@ -17,11 +17,11 @@ Keep these behaviors intact unless the repository requirements clearly change:
 - Set up Node.js `24`
 - Run `pnpm install`
 - Run `pnpm build`
-- Upload artifacts matching `komari-theme-naive-build*.zip`
+- Upload artifacts matching `komari-theme-emerald-build*.zip`
 
 ## CI editing expectations
 
-Preserve the current artifact naming pattern exactly. Downstream usage and release downloads expect `komari-theme-naive-build*.zip`.
+Preserve the current artifact naming pattern exactly. Downstream usage and release downloads expect `komari-theme-emerald-build*.zip`.
 
 Keep the workflow simple and repo-specific. Avoid adding matrix jobs, extra operating systems, extra package managers, release automation, or unrelated checks unless the repo actually needs them.
 
@@ -38,7 +38,7 @@ Issue templates live in `.github/ISSUE_TEMPLATE/` and currently cover:
 - `config_help.yml`
 - `config.yml`
 
-When editing templates, keep them aligned with the theme's real support needs. The forms should help users report theme bugs, request theme improvements, and ask configuration questions that match actual Komari Theme Naive options and behavior.
+When editing templates, keep them aligned with the theme's real support needs. The forms should help users report theme bugs, request theme improvements, and ask configuration questions that match actual Komari Theme Emerald options and behavior.
 
 Preserve fields that help diagnose theme-specific problems, such as:
 
@@ -56,6 +56,6 @@ Before changing `.github/` files, check that:
 
 - CI still builds the theme with pnpm 10 and Node 24
 - workflow triggers still target `master` pushes and pull requests
-- artifact uploads still use `komari-theme-naive-build*.zip`
+- artifact uploads still use `komari-theme-emerald-build*.zip`
 - issue templates still reflect real configuration and reporting paths for this theme
 - no extra GitHub workflow complexity has been introduced without a concrete repo need

@@ -2,9 +2,9 @@
 import type { NodeData } from '@/stores/nodes'
 import { Icon } from '@iconify/vue'
 import { computed } from 'vue'
+import { Badge } from '@/components/ui/badge'
 import { CardX } from '@/components/ui/card-x'
 import { ProgressThin } from '@/components/ui/progress-thin'
-import { Badge } from '@/components/ui/badge'
 import { useAppStore } from '@/stores/app'
 import { formatBytesPerSecondWithConfig, formatBytesWithConfig, formatDateTime, formatUptimeWithFormat, getStatus } from '@/utils/helper'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
@@ -81,11 +81,9 @@ const priceTags = computed(() => {
 })
 
 const customTags = computed(() => parseTags(props.node.tags).map(t => t.text))
-
 </script>
 
 <template>
-
   <CardX hoverable
     class="node-card w-full cursor-pointer bg-background/50 border-none shadow-[0_0_0_3px] shadow-transparent hover:bg-background hover:shadow-green-600/10 backdrop-blur-sm transition-all duration-200 rounded-md"
     :class="[!props.node.online && '!shadow-red-600/20']" @click="emit('click')">

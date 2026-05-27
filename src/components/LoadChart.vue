@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { RecordFormat } from '@/utils/recordHelper'
 import type { StatusRecord } from '@/utils/rpc'
+import { Icon } from '@iconify/vue'
 import { useIntervalFn } from '@vueuse/core'
 import dayjs from 'dayjs'
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
@@ -15,7 +16,6 @@ import { formatBytes, formatBytesSplit } from '@/utils/helper'
 import { fillMissingTimePoints } from '@/utils/recordHelper'
 import { getSharedRpc } from '@/utils/rpc'
 import '@/utils/echarts' // 共享 ECharts 配置
-import { Icon } from '@iconify/vue'
 
 const props = defineProps<{
   uuid: string

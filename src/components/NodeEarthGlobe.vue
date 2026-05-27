@@ -281,8 +281,8 @@ watch(
 
 function onPointerDown(e: PointerEvent) {
   isPointerDown.value = true
-  lastPointerX = e.clientX
-    ; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  lastPointerX = e.clientX;
+  (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
 }
 function onPointerMove(e: PointerEvent) {
   if (!isPointerDown.value)
@@ -292,8 +292,8 @@ function onPointerMove(e: PointerEvent) {
   targetPhi.value += delta / 200
 }
 function onPointerUp(e: PointerEvent) {
-  isPointerDown.value = false
-    ; (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
+  isPointerDown.value = false;
+  (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
 }
 
 const totalServers = computed(() => regionClusters.value.reduce((sum, c) => sum + c.servers, 0))

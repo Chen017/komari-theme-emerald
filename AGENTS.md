@@ -1,14 +1,13 @@
 # AGENTS.md
 
-Repo guide for `komari-theme-naive`.
+Repo guide for `komari-theme-emerald`.
 
 ## Snapshot
 
-- Generated: Fri Apr 03 2026, Asia/Shanghai
+- Generated: Wed May 27 2026, Asia/Shanghai
 - Branch: `master`
-- Commit: `30e2df1`
-- App: Vue 3 + Vite + Naive UI theme for Komari Monitor
-- Package manager: `pnpm`
+- App: Vue 3 + Vite + reka-ui + Tailwind CSS v4 theme for Komari Monitor
+- Package manager: `pnpm` (>= 10)
 - Theme manifest: `komari-theme.json`
 
 ## What this repo is
@@ -55,7 +54,7 @@ Notes:
 Expected output:
 
 - `dist/`
-- `komari-theme-naive-build-<sha>.zip`
+- `komari-theme-emerald-build-<sha>.zip`
 
 Zip contents:
 
@@ -100,12 +99,14 @@ Contributor density, useful for triage:
 ## Conventions seen in this repo
 
 - Use `pnpm`, not npm or yarn
+- Dependency versions are pinned via the pnpm workspace catalog in `pnpm-workspace.yaml`; `package.json` references `catalog:`
 - Keep root guidance focused on build, packaging, manifest, and repo structure
 - Preserve the `@` alias to `src` defined in `vite.config.ts`
 - Treat `komari-theme.json` as release input, not optional metadata
 - Treat `docs/preview.png` as release input, not just documentation art
-- Respect existing generated outputs and naming patterns, especially `komari-theme-naive-build-<sha>.zip`
+- Respect existing generated outputs and naming patterns, especially `komari-theme-emerald-build-<sha>.zip`
 - Root verification is lint plus build, not tests
+- UI is built on `reka-ui` + Tailwind CSS v4 (shadcn-vue style under `src/components/ui/`). Do **not** reintroduce Naive UI, UnoCSS, or SCSS — they have been removed.
 
 ## Repo grounded anti-patterns
 

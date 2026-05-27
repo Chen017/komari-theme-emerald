@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import type { NodeData } from '@/stores/nodes'
+import { Icon } from '@iconify/vue'
 import { computed, ref } from 'vue'
 import TrafficProgress from '@/components/TrafficProgress.vue'
+import { Badge } from '@/components/ui/badge'
 import { ProgressThin } from '@/components/ui/progress-thin'
-import { Icon } from '@iconify/vue'
-import { Badge } from "@/components/ui/badge"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAppStore } from '@/stores/app'
 import { formatBytesPerSecondWithConfig, formatBytesWithConfig, formatDateTime, formatUptimeWithFormat, getStatus } from '@/utils/helper'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
@@ -97,7 +97,7 @@ const formatUptime = (seconds: number) => formatUptimeWithFormat(seconds, 'minut
 const columnKeys = computed(() => columns.map(c => c.key))
 
 const gridStyle = computed(() => ({
-  gridTemplateColumns: columns.map(c => c.width).join(' ')
+  gridTemplateColumns: columns.map(c => c.width).join(' '),
 }))
 
 const offlineOverlayContentStyle = computed(() => {
@@ -203,7 +203,7 @@ function getCustomTags(node: NodeData): Array<string> {
       <div v-for="node in sortedNodes" :key="node.uuid"
         class="flex flex-col relative h-16 justify-center px-2 cursor-pointer bg-background/30 rounded-lg backdrop-blur-sm inset-shadow-[0_0_0_2px] inset-shadow-transparent hover:inset-shadow-green-600/20 hover:bg-background transition-all"
         :class="[!node.online && '!inset-shadow-red-600/10']" @click="handleClick(node)">
-        <div :class="['grid gap-2 items-center']" :style="gridStyle">
+        <div class="grid gap-2 items-center" :style="gridStyle">
           <template v-for="col in columns" :key="col.key">
             <!-- 在线状态指示器 -->
             <div v-if="col.key === 'status'" class="flex justify-center">
@@ -220,7 +220,9 @@ function getCustomTags(node: NodeData): Array<string> {
 
             <!-- 节点名称 -->
             <div v-else-if="col.key === 'name'" class="space-y-1" :class="[!node.online && 'blur-sm opacity-30']">
-              <div class="text-xs font-semibold truncate">{{ node.name }}</div>
+              <div class="text-xs font-semibold truncate">
+                {{ node.name }}
+              </div>
               <div v-if="getPriceTags(node).length > 0"
                 class="flex flex-row gap-3 text-[11px] text-muted-foreground/70 truncate">
                 <span v-for="(tag, index) in getPriceTags(node)" :key="index">
@@ -356,7 +358,9 @@ function getCustomTags(node: NodeData): Array<string> {
           aria-hidden="true">
           <div class="grid gap-2 items-center justify-center" :style="gridStyle">
             <div class="h-full space-y-1" :style="offlineOverlayContentStyle">
-              <div class="text-sm font-semibold truncate"><span class="text-red-500">离线</span> {{ node.name }}</div>
+              <div class="text-sm font-semibold truncate">
+                <span class="text-red-500">离线</span> {{ node.name }}
+              </div>
               <div class="text-xs text-muted-foreground font-number">
                 {{ formatOfflineTime(node) }}
               </div>

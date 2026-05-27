@@ -79,7 +79,9 @@ const formattedDiskTotal = computed(() => formatBytesSplit(totalDisk.value.total
               class="text-slate-500/20 group-hover:text-slate-500 transition-colors" />
           </div>
           <div class="flex items-baseline gap-1 min-w-0 font-number">
-            <span class="text-md md:text-2xl font-bold leading-none tracking-tight">{{ formattedMemoryUsed.value }}</span>
+            <span class="text-md md:text-2xl font-bold leading-none tracking-tight">
+              {{ formattedMemoryUsed.value }}
+            </span>
             <span class="text-[11px] md:text-xs font-medium text-muted-foreground truncate">
               {{ formattedMemoryUsed.unit }} / {{ formattedMemoryTotal.value }} {{ formattedMemoryTotal.unit }}
             </span>
@@ -114,7 +116,9 @@ const formattedDiskTotal = computed(() => formatBytesSplit(totalDisk.value.total
               class="text-slate-500/20 group-hover:text-slate-500 transition-colors" />
           </div>
           <div class="flex items-baseline gap-1 font-number">
-            <span class="text-md md:text-2xl font-bold leading-none tracking-tight">{{ formattedTrafficUp.value }}</span>
+            <span class="text-md md:text-2xl font-bold leading-none tracking-tight">
+              {{ formattedTrafficUp.value }}
+            </span>
             <span class="text-[11px] md:text-xs font-medium text-muted-foreground">{{ formattedTrafficUp.unit }}</span>
           </div>
         </div>
@@ -129,8 +133,12 @@ const formattedDiskTotal = computed(() => formatBytesSplit(totalDisk.value.total
               class="text-slate-500/20 group-hover:text-slate-500 transition-colors" />
           </div>
           <div class="flex items-baseline gap-1 font-number">
-            <span class="text-md md:text-2xl font-bold leading-none tracking-tight">{{ formattedTrafficDown.value }}</span>
-            <span class="text-[11px] md:text-xs font-medium text-muted-foreground">{{ formattedTrafficDown.unit }}</span>
+            <span class="text-md md:text-2xl font-bold leading-none tracking-tight">
+              {{ formattedTrafficDown.value }}
+            </span>
+            <span class="text-[11px] md:text-xs font-medium text-muted-foreground">
+              {{ formattedTrafficDown.unit }}
+            </span>
           </div>
         </div>
       </CardX>
@@ -160,7 +168,9 @@ const formattedDiskTotal = computed(() => formatBytesSplit(totalDisk.value.total
               class="text-slate-500/20 group-hover:text-slate-500 transition-colors" />
           </div>
           <div class="flex items-baseline gap-1 font-number">
-            <span class="text-md md:text-2xl font-bold leading-none tracking-tight">{{ formattedSpeedDown.value }}</span>
+            <span class="text-md md:text-2xl font-bold leading-none tracking-tight">
+              {{ formattedSpeedDown.value }}
+            </span>
             <span class="text-[11px] md:text-xs font-medium text-muted-foreground">{{ formattedSpeedDown.unit }}</span>
           </div>
         </div>

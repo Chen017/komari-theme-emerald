@@ -39,12 +39,12 @@ const showFiling = computed(() => showIcp.value || showPolice.value)
           <span class="font-medium text-foreground">Komari Monitor</span>
         </a>
       </div>
-      <div class="flex-1"></div>
+      <div class="flex-1" />
       <div class="flex flex-wrap gap-1 items-center">
         Theme by
-        <a href="https://github.com/lyimoexiao/komari-theme-naive" target="_blank" rel="noopener noreferrer"
+        <a href="https://github.com/Tokinx/komari-theme-emerald" target="_blank" rel="noopener noreferrer"
           class="transition-opacity hover:opacity-80" :title="String([buildVersion, buildGitHash])">
-          <span class="font-medium text-foreground">Komari Naive</span>
+          <span class="font-medium text-foreground">Komari Emerald</span>
         </a>
       </div>
     </div>
