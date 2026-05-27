@@ -109,10 +109,11 @@ class InitManager {
     }
     catch (error) {
       if (error instanceof RpcError && error.code === 401) {
-        console.warn('[InitManager] Private site detected, login UI is disabled in this theme')
+        console.warn('[InitManager] Private site detected, redirecting to /admin')
         this.appStore.updateLoginState(false)
-        this.appStore.connectionError = true
-        throw new Error('Private site requires login')
+        this.appStore.loading = false
+        location.href = '/admin'
+        return
       }
       console.error('[InitManager] Health check failed:', error)
       this.appStore.connectionError = true
