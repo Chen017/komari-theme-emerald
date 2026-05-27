@@ -121,15 +121,18 @@ function handleNodeClick(node: typeof nodesStore.nodes[number]) {
     <div class="node-info p-4 pt-0 flex flex-col gap-4 relative z-1 pointer-events-none">
       <div class="nodes">
         <Tabs v-model="appStore.nodeSelectedGroup" class="w-full flex-col gap-4">
-          <div class="flex items-center justify-between gap-2 flex-wrap">
-            <TabsList class="h-8 bg-background/50 backdrop-blur-xl pointer-events-auto rounded-md">
-              <TabsTrigger
-                v-for="g in groups" :key="g.name" :value="g.name"
-                class="h-6.5 text-xs border-none data-[state=active]:text-green-600 shadow-none rounded-sm"
-              >
-                {{ g.tab }}
-              </TabsTrigger>
-            </TabsList>
+          <div class="flex gap-2 items-center flex-nowrap">
+            <div class="overflow-x-auto rounded-sm">
+              <TabsList class="h-8 bg-background/50 backdrop-blur-xl pointer-events-auto rounded-md">
+                <TabsTrigger
+                  v-for="g in groups" :key="g.name" :value="g.name"
+                  class="h-6.5 text-xs border-none data-[state=active]:text-green-600 shadow-none rounded-sm"
+                >
+                  {{ g.tab }}
+                </TabsTrigger>
+              </TabsList>
+            </div>
+            <div class="flex-1"></div>
             <div class="search flex gap-2 items-center pointer-events-auto">
               <Button
                 variant="outline" size="icon" aria-label="卡片视图"
