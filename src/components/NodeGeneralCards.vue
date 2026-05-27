@@ -67,18 +67,18 @@ const formattedDiskTotal = computed(() => formatBytesSplit(totalDisk.value.total
   <div class="p-4 grid grid-cols-12 grid-rows-1 gap-2 h-58">
     <NodeEarthGlobe class="col-span-6 col-start-7" />
 
-    <div class="col-span-6 row-start-1 grid grid-cols-12 grid-rows-2 gap-2 rounded-xl h-50">
+    <div class="col-span-6 row-start-1 grid grid-cols-12 grid-rows-2 gap-2">
       <CardX
         hoverable
-        class="col-span-4 row-span-1 col-start-1 row-start-1 group h-full bg-background/60 border-none hover:bg-background transition-all"
+        class="col-span-4 row-span-1 col-start-1 row-start-1 group h-full bg-background/50 border-none hover:bg-background transition-all"
         content-class="h-full !p-3"
       >
         <div class="flex h-full flex-col justify-between gap-1">
-          <div class="flex items-center justify-between">
+          <div class="flex items-start justify-between">
             <span class="text-xs font-medium tracking-wider text-muted-foreground">内存用量</span>
             <Icon
-              icon="tabler:cpu" :width="14" :height="14"
-              class="text-sky-500/70 group-hover:text-sky-500 transition-colors"
+              icon="tabler:cash" :width="20" :height="20"
+              class="text-slate-500/20 group-hover:text-slate-500 transition-colors"
             />
           </div>
           <div class="flex items-baseline gap-1 min-w-0 font-number">
@@ -91,15 +91,15 @@ const formattedDiskTotal = computed(() => formatBytesSplit(totalDisk.value.total
       </CardX>
       <CardX
         hoverable
-        class="col-span-4 row-span-1 col-start-1 row-start-2 group h-full bg-background/60 border-none hover:bg-background transition-all"
+        class="col-span-4 row-span-1 col-start-1 row-start-2 group h-full bg-background/50 border-none hover:bg-background transition-all"
         content-class="h-full !p-3"
       >
         <div class="flex h-full flex-col justify-between gap-1">
-          <div class="flex items-center justify-between">
+          <div class="flex items-start justify-between">
             <span class="text-xs font-medium tracking-wider text-muted-foreground">硬盘用量</span>
             <Icon
-              icon="tabler:database" :width="14" :height="14"
-              class="text-sky-500/70 group-hover:text-sky-500 transition-colors"
+              icon="tabler:server-2" :width="20" :height="20"
+              class="text-slate-500/20 group-hover:text-slate-500 transition-colors"
             />
           </div>
           <div class="flex items-baseline gap-1 min-w-0 font-number">
@@ -113,15 +113,15 @@ const formattedDiskTotal = computed(() => formatBytesSplit(totalDisk.value.total
 
       <CardX
         hoverable
-        class="col-span-4 row-span-1 col-start-5 row-start-1 group bg-background/60 border-none hover:bg-background transition-all"
+        class="col-span-4 row-span-1 col-start-5 row-start-1 group bg-background/50 border-none hover:bg-background transition-all"
         content-class="h-full !p-3"
       >
         <div class="flex h-full flex-col justify-between gap-1">
-          <div class="flex items-center justify-between">
+          <div class="flex items-start justify-between">
             <span class="text-xs font-medium tracking-wider text-muted-foreground">累计上行</span>
             <Icon
-              icon="tabler:cloud-up" :width="14" :height="14"
-              class="text-emerald-500/70 group-hover:text-emerald-500 transition-colors"
+              icon="tabler:upload" :width="20" :height="20"
+              class="text-slate-500/20 group-hover:text-slate-500 transition-colors"
             />
           </div>
           <div class="flex items-baseline gap-1 font-number">
@@ -132,15 +132,15 @@ const formattedDiskTotal = computed(() => formatBytesSplit(totalDisk.value.total
       </CardX>
       <CardX
         hoverable
-        class="col-span-4 row-span-1 col-start-5 row-start-2 group bg-background/60 border-none hover:bg-background transition-all"
+        class="col-span-4 row-span-1 col-start-5 row-start-2 group bg-background/50 border-none hover:bg-background transition-all"
         content-class="h-full !p-3"
       >
         <div class="flex h-full flex-col justify-between gap-1">
-          <div class="flex items-center justify-between">
+          <div class="flex items-start justify-between">
             <span class="text-xs font-medium tracking-wider text-muted-foreground">累计下行</span>
             <Icon
-              icon="tabler:cloud-down" :width="14" :height="14"
-              class="text-sky-500/70 group-hover:text-sky-500 transition-colors"
+              icon="tabler:download" :width="20" :height="20"
+              class="text-slate-500/20 group-hover:text-slate-500 transition-colors"
             />
           </div>
           <div class="flex items-baseline gap-1 font-number">
@@ -152,15 +152,15 @@ const formattedDiskTotal = computed(() => formatBytesSplit(totalDisk.value.total
 
       <CardX
         hoverable
-        class="col-span-4 row-span-1 col-start-9 row-start-1 group bg-background/60 border-none hover:bg-background transition-all"
+        class="col-span-4 row-span-1 col-start-9 row-start-1 group bg-background/50 border-none hover:bg-background transition-all"
         content-class="h-full !p-3"
       >
         <div class="flex h-full flex-col justify-between gap-1">
-          <div class="flex items-center justify-between">
+          <div class="flex items-start justify-between">
             <span class="text-xs font-medium tracking-wider text-muted-foreground">实时上行</span>
             <Icon
-              icon="tabler:chevrons-up" :width="14" :height="14"
-              class="text-emerald-500/70 group-hover:text-emerald-500 transition-colors"
+              icon="tabler:chevrons-up" :width="20" :height="20"
+              class="text-slate-500/20 group-hover:text-slate-500 transition-colors"
             />
           </div>
           <div class="flex items-baseline gap-1 font-number">
@@ -171,15 +171,15 @@ const formattedDiskTotal = computed(() => formatBytesSplit(totalDisk.value.total
       </CardX>
       <CardX
         hoverable
-        class="col-span-4 row-span-1 col-start-9 row-start-2 group bg-background/60 border-none hover:bg-background transition-all"
+        class="col-span-4 row-span-1 col-start-9 row-start-2 group bg-background/50 border-none hover:bg-background transition-all"
         content-class="h-full !p-3"
       >
         <div class="flex h-full flex-col justify-between gap-1">
-          <div class="flex items-center justify-between">
+          <div class="flex items-start justify-between">
             <span class="text-xs font-medium tracking-wider text-muted-foreground">实时下行</span>
             <Icon
-              icon="tabler:chevrons-down" :width="14" :height="14"
-              class="text-sky-500/70 group-hover:text-sky-500 transition-colors"
+              icon="tabler:chevrons-down" :width="20" :height="20"
+              class="text-slate-500/20 group-hover:text-slate-500 transition-colors"
             />
           </div>
           <div class="flex items-baseline gap-1 font-number">

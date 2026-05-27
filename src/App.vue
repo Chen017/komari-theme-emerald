@@ -48,7 +48,7 @@ onUnmounted(() => {
     <div class="fixed inset-0 -z-10 mx-0 max-w-none overflow-hidden zoom-200 bg-slate-200/50 dark:bg-slate-900/50">
       <div class="absolute top-0 left-1/2 -ml-152 h-100 w-325 dark:mask-[linear-gradient(white,transparent)]">
         <div
-          class="absolute inset-0 bg-linear-to-r from-[#36b49f] to-[#DBFF75] mask-[radial-gradient(farthest-side_at_top,white,transparent)] opacity-40 dark:from-[#36b49f]/30 dark:to-[#DBFF75]/30 dark:opacity-100">
+          class="absolute inset-0 bg-linear-to-r from-emerald-500 to-lime-300 mask-[radial-gradient(farthest-side_at_top,white,transparent)] opacity-40 dark:from-emerald-500/30 dark:to-lime-300/30 dark:opacity-100">
           <svg aria-hidden="true"
             class="absolute inset-x-0 inset-y-[-50%] h-[200%] w-full skew-y-[-18deg] fill-black/40 stroke-black/50 mix-blend-overlay dark:fill-white/2.5 dark:stroke-white/5">
             <defs>

@@ -115,15 +115,15 @@ const alertVariant = computed(() => alertVariantMap[appStore.alertType] || 'defa
 
 <template>
   <div class="home-view">
-    <div v-if="appStore.connectionError" class="alert px-4 pb-2">
-      <Alert variant="destructive">
+    <div v-if="appStore.connectionError" class="alert px-4">
+      <Alert variant="destructive" class="border-none backdrop-blur-xs bg-red-400/10 rounded-md">
         <AlertTitle>RPC 服务错误</AlertTitle>
         <AlertDescription>连接服务器失败，请检查网络设置或刷新页面后再试。</AlertDescription>
       </Alert>
     </div>
 
-    <div v-if="appStore.alertEnabled && appStore.alertContent" class="alert px-4 pb-2">
-      <Alert :variant="alertVariant">
+    <div v-if="appStore.alertEnabled && appStore.alertContent" class="alert px-4">
+      <Alert :variant="alertVariant" class="border-none bg-background/60 backdrop-blur-xs rounded-md">
         <AlertTitle v-if="appStore.alertTitle">
           {{ appStore.alertTitle }}
         </AlertTitle>
@@ -139,56 +139,42 @@ const alertVariant = computed(() => alertVariantMap[appStore.alertType] || 'defa
       <div class="nodes">
         <Tabs v-model="appStore.nodeSelectedGroup" class="w-full flex-col gap-4">
           <div class="flex items-center justify-between gap-2 flex-wrap">
-            <TabsList class="h-8 bg-background/50 backdrop-blur-xl pointer-events-auto">
-              <TabsTrigger
-                v-for="g in groups" :key="g.name" :value="g.name"
-                class="h-6.5 text-xs border-none data-[state=active]:text-primary shadow-none"
-              >
+            <TabsList class="h-8 bg-background/50 backdrop-blur-xl pointer-events-auto rounded-md">
+              <TabsTrigger v-for="g in groups" :key="g.name" :value="g.name"
+                class="h-6.5 text-xs border-none data-[state=active]:text-green-600 shadow-none rounded-sm">
                 {{ g.tab }}
               </TabsTrigger>
             </TabsList>
             <div class="search flex gap-2 items-center pointer-events-auto">
-              <Button
-                variant="outline" size="icon" aria-label="卡片视图"
-                class="w-8 h-8 border-none bg-transparent backdrop-blur-xs shadow-none hover:bg-background/60 rounded-lg"
-                :class="[appStore.nodeViewMode === 'card' ? '!text-primary !bg-background' : '']"
-                @click="appStore.nodeViewMode = 'card'"
-              >
+              <Button variant="outline" size="icon" aria-label="卡片视图"
+                class="w-8 h-8 border-none  bg-background/50 backdrop-blur-xs shadow-none hover:bg-background/60 rounded-md"
+                :class="[appStore.nodeViewMode === 'card' ? '!text-green-600 !bg-background' : '']"
+                @click="appStore.nodeViewMode = 'card'">
                 <Icon icon="tabler:layout-grid" :width="14" :height="14" />
               </Button>
-              <Button
-                variant="outline" size="icon" aria-label="列表视图"
-                class="w-8 h-8 border-none bg-transparent backdrop-blur-xs shadow-none hover:bg-background/60 rounded-lg"
-                :class="[appStore.nodeViewMode === 'list' ? '!text-primary !bg-background' : '']"
-                @click="appStore.nodeViewMode = 'list'"
-              >
+              <Button variant="outline" size="icon" aria-label="列表视图"
+                class="w-8 h-8 border-none bg-background/50 backdrop-blur-xs shadow-none hover:bg-background/60 rounded-md"
+                :class="[appStore.nodeViewMode === 'list' ? '!text-green-600 !bg-background' : '']"
+                @click="appStore.nodeViewMode = 'list'">
                 <Icon icon="tabler:table" :width="14" :height="14" />
               </Button>
               <div class="relative z-1 w-8 h-8">
                 <div class="absolute top-0 right-0 ">
-                  <Input
-                    v-model="searchText" placeholder="搜索节点名称、地区、系统"
-                    class="transition-all placeholder:text-transparent border-none shadow-none w-8 h-8 bg-transparent backdrop-blur-xs rounded-lg hover:!bg-background/60 focus:!w-60 focus:!pl-7.5 focus:placeholder:!text-muted-foreground focus:!bg-background/80 focus:!ring-primary/10"
-                  />
-                  <Icon
-                    icon="tabler:search" :width="14" :height="14"
-                    class="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                  />
+                  <Input v-model="searchText" placeholder="搜索节点名称、地区、系统"
+                    class="transition-all placeholder:text-transparent border-none shadow-none w-8 h-8  bg-background/50 backdrop-blur-xs rounded-md hover:!bg-background/60 focus:!w-60 focus:!pl-7.5 focus:placeholder:!text-muted-foreground focus:!bg-background/80 focus:!ring-slate-500/10" />
+                  <Icon icon="tabler:search" :width="14" :height="14"
+                    class="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
               </div>
             </div>
           </div>
           <TabsContent v-for="g in groups" :key="g.name" :value="g.name" class="pointer-events-auto">
-            <div
-              v-if="nodeList.length !== 0 && appStore.nodeViewMode === 'card'"
-              class="gap-4 grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(300px,1fr))]"
-            >
+            <div v-if="nodeList.length !== 0 && appStore.nodeViewMode === 'card'"
+              class="gap-2 grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(300px,1fr))]">
               <NodeCard v-for="node in nodeList" :key="node.uuid" :node="node" @click="handleNodeClick(node)" />
             </div>
-            <NodeList
-              v-else-if="nodeList.length !== 0 && appStore.nodeViewMode === 'list'" :nodes="nodeList"
-              @click="handleNodeClick"
-            />
+            <NodeList v-else-if="nodeList.length !== 0 && appStore.nodeViewMode === 'list'" :nodes="nodeList"
+              @click="handleNodeClick" />
             <div v-else class="text-muted-foreground text-center py-8">
               <Empty description="暂无节点" />
             </div>
