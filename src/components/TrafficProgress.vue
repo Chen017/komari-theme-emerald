@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useThemeVars } from '@/composables/useThemeVars'
 import { formatBytes } from '@/utils/helper'
 
 export interface TrafficProgressProps {
@@ -22,8 +21,6 @@ const props = withDefaults(defineProps<TrafficProgressProps>(), {
   height: undefined,
   showIndicator: false,
 })
-
-const themeVars = useThemeVars()
 
 const showProgress = computed(() => props.trafficLimit > 0)
 
@@ -64,44 +61,19 @@ const progressHeight = computed(() => {
     return undefined
   return typeof props.height === 'number' ? `${props.height}px` : props.height
 })
-
-const resolvedUploadColor = computed(() => props.uploadColor || themeVars.value.successColor)
-const resolvedDownloadColor = computed(() => props.downloadColor || themeVars.value.infoColor)
-
-const resolvedSingleColor = computed(() => {
-  if (props.singleColor)
-    return props.singleColor
-  switch (props.trafficLimitType) {
-    case 'up': return resolvedUploadColor.value
-    case 'down': return resolvedDownloadColor.value
-    case 'min': return props.upload <= props.download ? resolvedUploadColor.value : resolvedDownloadColor.value
-    case 'max': return props.upload >= props.download ? resolvedUploadColor.value : resolvedDownloadColor.value
-    case 'sum':
-    default: return resolvedUploadColor.value
-  }
-})
-
-const railColor = computed(() => themeVars.value.progressRailColor)
 </script>
 
 <template>
   <div class="traffic-progress">
-    <div v-if="isDualColorMode" class="traffic-progress__rail" :style="{ height: progressHeight, backgroundColor: railColor }">
-      <div
-        class="traffic-progress__fill"
-        :style="{ width: `${uploadPercentage}%`, backgroundColor: resolvedUploadColor }"
-      />
-      <div
-        class="traffic-progress__fill traffic-progress__fill--last"
-        :style="{ width: `${downloadPercentage}%`, backgroundColor: resolvedDownloadColor }"
-      />
+    <div v-if="isDualColorMode" class="traffic-progress__rail bg-muted" :style="{ height: progressHeight }">
+      <div class="traffic-progress__fill bg-green-600" :style="{ width: `${uploadPercentage}%` }" />
+      <div class="traffic-progress__fill traffic-progress__fill--last bg-blue-600"
+        :style="{ width: `${downloadPercentage}%` }" />
     </div>
 
-    <div v-else class="traffic-progress__rail" :style="{ height: progressHeight, backgroundColor: railColor }">
-      <div
-        class="traffic-progress__fill traffic-progress__fill--last"
-        :style="{ width: `${totalPercentage}%`, backgroundColor: resolvedSingleColor }"
-      />
+    <div v-else class="traffic-progress__rail bg-muted" :style="{ height: progressHeight }">
+      <div class="traffic-progress__fill traffic-progress__fill--last bg-green-600"
+        :style="{ width: `${totalPercentage}%` }" />
     </div>
 
     <div v-if="showIndicator && showProgress" class="traffic-progress__indicator">

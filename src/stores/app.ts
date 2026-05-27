@@ -10,25 +10,6 @@ type NodeViewMode = 'card' | 'list'
 type RpcTransportMode = 'websocket' | 'http'
 type AlertType = 'default' | 'info' | 'success' | 'warning' | 'error'
 
-/** List 视图固定列配置 */
-const LIST_VIEW_COLUMNS = ['status', 'region', 'name', 'tags', 'uptime', 'os', 'cpu', 'mem', 'disk', 'traffic', 'rate'] as const
-type ListViewColumn = typeof LIST_VIEW_COLUMNS[number]
-
-/** List 视图固定列宽度配置 */
-const LIST_COLUMN_WIDTHS: Record<ListViewColumn, string> = {
-  status: '76px',
-  region: '32px',
-  name: 'minmax(200px, 1fr)',
-  tags: '200px',
-  uptime: 'minmax(180px, 0.6fr)',
-  os: '120px',
-  cpu: '180px',
-  mem: '180px',
-  disk: '180px',
-  traffic: '180px',
-  rate: '140px',
-}
-
 /** 固定的字节精度配置 */
 const BYTE_DECIMALS: ByteDecimalsConfig = {
   B: 0,
@@ -109,26 +90,11 @@ const useAppStore = defineStore('app', () => {
     return true
   })
 
-  // List 视图显示列（固定配置）
-  const listViewColumns: ListViewColumn[] = [...LIST_VIEW_COLUMNS]
-
   // 计算属性：单分组时是否隐藏 Tab
   const hideSingleGroupTab = computed<boolean>(() => {
     const settings = publicSettings.value?.theme_settings
     if (settings && typeof settings.hideSingleGroupTab === 'boolean') {
       return settings.hideSingleGroupTab
-    }
-    return true
-  })
-
-  // List 视图列宽度（固定配置）
-  const listColumnWidths: Record<string, string> = { ...LIST_COLUMN_WIDTHS }
-
-  // 计算属性：是否显示延迟图表按钮
-  const showPingChartButton = computed<boolean>(() => {
-    const settings = publicSettings.value?.theme_settings
-    if (settings && typeof settings.showPingChartButton === 'boolean') {
-      return settings.showPingChartButton
     }
     return true
   })
@@ -351,10 +317,7 @@ const useAppStore = defineStore('app', () => {
     defaultViewMode,
     rpcTransportMode,
     showLoginButton,
-    listViewColumns,
     hideSingleGroupTab,
-    listColumnWidths,
-    showPingChartButton,
     byteDecimals,
     alertEnabled,
     alertType,
