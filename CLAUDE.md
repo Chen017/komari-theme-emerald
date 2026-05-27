@@ -40,12 +40,11 @@ Manual chunks are configured in [vite.config.ts](vite.config.ts): `vue-vendor`, 
 
 ## UI stack (current — there is **no Naive UI** here)
 
-- **Components**: a local shadcn-vue-style library in [src/components/ui/](src/components/ui/) (alert, avatar, back-top, badge, button, card, card-x, dialog, empty, input, label, modal-x, pin-input, popover, progress, progress-thin, separator, skeleton, sonner, spinner, switch, tabs, tag, toggle, toggle-group, tooltip) built on `reka-ui` primitives. Variants typed with `class-variance-authority`; class composition via `cn()` in [src/lib/utils.ts](src/lib/utils.ts) (clsx + tailwind-merge).
+- **Components**: a local shadcn-vue-style library in [src/components/ui/](src/components/ui/) (alert, avatar, back-top, badge, button, card-x, empty, input, progress-thin, sonner, spinner, tabs, tooltip) built on `reka-ui` primitives. Variants typed with `class-variance-authority`; class composition via `cn()` in [src/lib/utils.ts](src/lib/utils.ts) (clsx + tailwind-merge).
 - **Styling**: Tailwind CSS v4 via `@tailwindcss/vite`, configured CSS-first in [src/styles/main.css](src/styles/main.css) with OKLCH design tokens and a `dark` variant. Animations from `tw-animate-css`. **No SCSS, no UnoCSS.**
 - **Dark mode**: driven by `useAppStore().themeMode` + `useDark()` from `@vueuse/core` (storage key `vueuse-color-scheme`); toggles a `.dark` class on `<html>`. Provider setup in [src/components/Provider.vue](src/components/Provider.vue).
 - **Toasts**: `vue-sonner` `<Toaster>` mounted in [src/App.vue](src/App.vue); exposed app-wide as `window.$message` via [src/utils/message.ts](src/utils/message.ts).
-- **Modals**: custom `ModalHost` from [src/components/ui/modal-x/](src/components/ui/modal-x/), registered in `App.vue` and exposed app-wide as `window.$modal` via [src/utils/modal.ts](src/utils/modal.ts).
-- **Globals**: only `window.$message` and `window.$modal` exist. There is **no** `$dialog`, `$notification`, or `$loadingBar`.
+- **Globals**: only `window.$message` exists. There is **no** `$dialog`, `$notification`, `$loadingBar`, or `$modal`.
 - **Icons**: `@iconify/vue` (`<Icon icon="..." />`, lazy CDN fetch — see [src/utils/iconify.ts](src/utils/iconify.ts)). Lucide icons are available via the `lucide:` prefix (e.g. `lucide:x`). **Do not** reintroduce `lucide-vue-next` or any other icon-as-component package.
 - **Other**: `cobe` powers the 3D globe in `NodeEarthGlobe`; `echarts` + `vue-echarts` for charts.
 
@@ -53,8 +52,8 @@ Manual chunks are configured in [vite.config.ts](vite.config.ts): `vue-vendor`, 
 
 ### App shell
 
-- [src/main.ts](src/main.ts) is bootstrap only — installs Pinia, router, global styles, sets `window.$message`/`window.$modal`, kicks off `setupIconify()`. Do not put feature logic here.
-- [src/App.vue](src/App.vue) owns the layout, registers the `ModalHost`, mounts the `<Toaster>` and `Provider`, runs `initApp()` / `destroyInitManager()` from [src/utils/init.ts](src/utils/init.ts), and `KeepAlive`s `HomeView`.
+- [src/main.ts](src/main.ts) is bootstrap only — installs Pinia, router, global styles, sets `window.$message`, kicks off `setupIconify()`. Do not put feature logic here.
+- [src/App.vue](src/App.vue) owns the layout, mounts the `<Toaster>` and `Provider`, runs `initApp()` / `destroyInitManager()` from [src/utils/init.ts](src/utils/init.ts), and `KeepAlive`s `HomeView`.
 - [src/router/index.ts](src/router/index.ts) defines exactly two lazy routes: `/` → `HomeView`, `/instance/:id` → `InstanceDetail`. There are no router guards.
 
 ### State (Pinia setup stores)
@@ -66,7 +65,7 @@ Manual chunks are configured in [vite.config.ts](vite.config.ts): `vue-vendor`, 
 ### Transport & startup
 
 - API/RPC live in [src/utils/api.ts](src/utils/api.ts) and [src/utils/rpc.ts](src/utils/rpc.ts) (notes in [src/utils/rpc.md](src/utils/rpc.md)).
-- Transport selection, login modal flow, polling, reconnects, and the websocket→http fallback all live in [src/utils/init.ts](src/utils/init.ts). Transport mode is user-configurable via `rpcTransportMode` in the theme manifest.
+- Transport selection, polling, reconnects, and the websocket→http fallback all live in [src/utils/init.ts](src/utils/init.ts). Transport mode is user-configurable via `rpcTransportMode` in the theme manifest.
 - Formatting/lookup helpers: `helper.ts`, `recordHelper.ts`, `regionHelper.ts`, `osImageHelper.ts`, `tagHelper.ts`. Reuse these — do not duplicate parsing/formatting in components.
 
 ### Views & components

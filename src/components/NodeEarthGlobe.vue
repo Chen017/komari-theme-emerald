@@ -312,22 +312,28 @@ function formatRate(bytesPerSec: number): string {
 
 <template>
   <div ref="containerRef" class="relative aspect-square w-full max-w-md mx-auto -translate-y-6 md:-translate-y-12">
-    <canvas ref="canvasRef"
+    <canvas
+      ref="canvasRef"
       class="earth-globe-canvas absolute inset-0 w-full h-full select-none touch-none cursor-grab active:cursor-grabbing"
-      @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp" @pointercancel="onPointerUp" />
+      @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp" @pointercancel="onPointerUp"
+    />
 
-    <div v-for="cluster in regionClusters" :key="`flag-${cluster.code}`" :ref="(el) => onFlagRef(el, cluster.code)"
+    <div
+      v-for="cluster in regionClusters" :key="`flag-${cluster.code}`" :ref="(el) => onFlagRef(el, cluster.code)"
       class="region-flag transition-opacity duration-300" :style="{
         opacity: `var(--cobe-visible-${markerId(cluster.code)}, 0)`,
-      }">
+      }"
+    >
       <img :src="`/images/flags/${cluster.code}.svg`" :alt="cluster.code" class="size-4 block">
     </div>
 
-    <div v-for="cluster in regionClusters" :key="cluster.code" :ref="(el) => onLabelRef(el, cluster.code)"
+    <div
+      v-for="cluster in regionClusters" :key="cluster.code" :ref="(el) => onLabelRef(el, cluster.code)"
       class="cdn-label bg-background/60 backdrop-blur-[2px] rounded transition-[opacity,filter] duration-500" :style="{
         opacity: `var(--cobe-visible-${markerId(cluster.code)}, 0)`,
         filter: `blur(calc((1 - var(--cobe-visible-${markerId(cluster.code)}, 0)) * 20px))`,
-      }">
+      }"
+    >
       <div class="p-0.5 px-1 text-xs zoom-80 items-start justify-center text-nowrap">
         <div class="text-green-600 flex flex-row items-center gap-0.5">
           <Icon icon="tabler:chevron-up" width="12" height="12" /> {{ formatRate(rateFor(cluster.code).up) }}
@@ -338,8 +344,10 @@ function formatRate(bytesPerSec: number): string {
       </div>
     </div>
 
-    <div v-if="totalServers > 0"
-      class="absolute top-6 md:top-12 left-0 text-[10px] text-muted-foreground pointer-events-none flex gap-2 items-center backdrop-blur-lg bg-background/60 rounded px-2 py-0.5">
+    <div
+      v-if="totalServers > 0"
+      class="absolute top-6 md:top-12 left-0 text-[10px] text-muted-foreground pointer-events-none flex gap-2 items-center backdrop-blur-lg bg-background/60 rounded px-2 py-0.5"
+    >
       <div v-if="onlineServers > 0" class="flex items-center gap-1">
         <span class="inline-block size-1.5 rounded-full bg-green-600 animate-pulse" />
         <span class="text-green-600">{{ onlineServers }}</span>

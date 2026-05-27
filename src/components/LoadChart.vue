@@ -123,7 +123,7 @@ const availableViews = computed(() => {
     }
   }
 
-  const maxPreset = presetViews[presetViews.length - 1]
+  const maxPreset = presetViews.at(-1)
   if (maxPreset && maxHours > maxPreset.hours) {
     const label = maxHours % 24 === 0
       ? `${Math.floor(maxHours / 24)} 天`
@@ -297,7 +297,7 @@ const latestStatus = computed(() => {
   const data = remoteData.value
   if (!data.length)
     return null
-  return data[data.length - 1]
+  return data.at(-1) ?? null
 })
 
 // ==================== 工具函数 ====================
@@ -844,8 +844,10 @@ onMounted(() => {
   <div class="flex flex-col gap-4">
     <!-- 时间选择器 -->
     <div class="flex flex-wrap gap-2 justify-center">
-      <Button v-for="view in availableViews" :key="view.label"
-        :variant="selectedView === view.label ? 'default' : 'outline'" size="sm" @click="selectedView = view.label">
+      <Button
+        v-for="view in availableViews" :key="view.label"
+        :variant="selectedView === view.label ? 'default' : 'outline'" size="sm" @click="selectedView = view.label"
+      >
         {{ view.label }}
       </Button>
     </div>

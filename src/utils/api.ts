@@ -4,6 +4,9 @@
  * @see https://www.komari.wiki/dev/api.html
  */
 
+const HTTP_PROTOCOL_REGEX = /^http/
+const HTTPS_PROTOCOL_REGEX = /^https/
+
 // ==================== 类型定义 ====================
 
 /** API 响应基础结构 */
@@ -176,13 +179,6 @@ export interface PingRecordsResponse {
   count: number
   records: PingRecord[]
   tasks: PingTask[]
-}
-
-/** 登录请求 */
-export interface LoginRequest {
-  'username': string
-  'password': string
-  '2fa_code'?: string
 }
 
 /** API 客户端配置 */
@@ -367,38 +363,6 @@ export class KomariApi {
     return this.get<VersionInfo>('/version')
   }
 
-  // ===== 登录/登出 =====
-
-  /**
-   * 用户登录
-   * @param username 用户名
-   * @param password 密码
-   * @param twoFactorCode 两步验证码（可选）
-   */
-  async login(username: string, password: string, twoFactorCode?: string): Promise<{ 'set-cookie': { session_token: string } }> {
-    const body: LoginRequest = { username, password }
-    if (twoFactorCode) {
-      body['2fa_code'] = twoFactorCode
-    }
-    return this.post<{ 'set-cookie': { session_token: string } }>('/login', body)
-  }
-
-  /**
-   * 用户登出
-   * 会重定向到首页
-   */
-  logout(): void {
-    window.location.href = `${this.baseUrl}/logout`
-  }
-
-  /**
-   * OAuth 登录
-   * 会重定向到 OAuth 提供商
-   */
-  oauthLogin(): void {
-    window.location.href = `${this.baseUrl}/oauth`
-  }
-
   // ===== 节点信息 =====
 
   /**
@@ -456,7 +420,7 @@ export class RealtimeWebSocket {
     maxReconnectAttempts?: number
   } = {}) {
     const baseUrl = options.baseUrl || '/api/clients'
-    this.url = baseUrl.replace(/^http/, 'ws').replace(/^https/, 'wss')
+    this.url = baseUrl.replace(HTTP_PROTOCOL_REGEX, 'ws').replace(HTTPS_PROTOCOL_REGEX, 'wss')
     this.reconnectInterval = options.reconnectInterval || 3000
     this.maxReconnectAttempts = options.maxReconnectAttempts || 5
   }

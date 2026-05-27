@@ -4,8 +4,6 @@
  */
 
 import type { Client, KomariRpc, NodeStatus } from '@/utils/rpc'
-import { h } from 'vue'
-import LoginDialog from '@/components/LoginDialog.vue'
 import { useAppStore } from '@/stores/app'
 import { useNodesStore } from '@/stores/nodes'
 import { getSharedApi } from '@/utils/api'
@@ -40,8 +38,6 @@ class InitManager {
   private isPolling = false
   private isInitialized = false
   private useWebSocket: boolean | null = null // 根据主题配置决定
-  private postFailureCount = 0
-
   constructor(config: InitConfig = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config }
     this.rpc = getSharedRpc()
@@ -103,7 +99,6 @@ class InitManager {
 
   /**
    * 健康检查 - 测试后端服务是否正常
-   * 如果返回 401，说明是私有站点，需要强制登录
    */
   private async healthCheck(): Promise<void> {
     try {
@@ -113,67 +108,15 @@ class InitManager {
       }
     }
     catch (error) {
-      // 检查是否为 401 错误（私有站点需要登录）
       if (error instanceof RpcError && error.code === 401) {
-        console.warn('[InitManager] Private site detected, requiring login')
-        this.appStore.requireLogin = true
-        this.showForceLoginModal()
-        return
+        console.warn('[InitManager] Private site detected, login UI is disabled in this theme')
+        this.appStore.updateLoginState(false)
+        this.appStore.connectionError = true
+        throw new Error('Private site requires login')
       }
       console.error('[InitManager] Health check failed:', error)
       this.appStore.connectionError = true
       throw new Error('Backend service unavailable')
-    }
-  }
-
-  /**
-   * 显示强制登录 Modal
-   * 用于私有站点，用户必须登录才能访问
-   */
-  private showForceLoginModal(): void {
-    // 解除加载状态
-    this.appStore.loading = false
-
-    window.$modal.create({
-      title: '登录',
-      preset: 'dialog',
-      showIcon: false,
-      content: () => h(LoginDialog, {
-        forceLogin: true,
-        onLoginSuccess: () => {
-          this.reinitAfterForceLogin()
-        },
-      }),
-    })
-  }
-
-  /**
-   * 强制登录成功后重新初始化
-   */
-  private async reinitAfterForceLogin(): Promise<void> {
-    // 重置登录要求状态
-    this.appStore.requireLogin = false
-
-    // 关闭登录 Modal
-    window.$modal?.destroyAll()
-
-    try {
-      // 重新执行初始化流程
-      await this.fetchPublicSettings()
-      await this.fetchUserInfo()
-      await this.fetchNodesData()
-
-      // 解除加载状态
-      this.appStore.loading = false
-
-      // 建立 WebSocket 连接并开始轮询
-      this.startWebSocketAndPolling()
-
-      this.isInitialized = true
-    }
-    catch (error) {
-      console.error('[InitManager] Re-initialization after login failed:', error)
-      this.appStore.connectionError = true
     }
   }
 
@@ -199,9 +142,10 @@ class InitManager {
     try {
       const api = getSharedApi()
       const userInfo = await api.getMe()
-      this.appStore.setUserInfo(userInfo)
+      this.appStore.updateLoginState(userInfo.logged_in)
     }
     catch (error) {
+      this.appStore.updateLoginState(false)
       console.error('[InitManager] Failed to fetch user info:', error)
       // 非关键错误，继续初始化
     }
@@ -426,30 +370,6 @@ class InitManager {
   }
 
   /**
-   * 登录后重新连接 WebSocket
-   * 断开现有连接，重置状态，重新建立连接
-   */
-  async reconnectAfterLogin(): Promise<void> {
-    const client = this.rpc.getClient()
-
-    // 关闭现有 WebSocket 连接
-    if (client.getWsReadyState() !== WebSocket.CLOSED) {
-      client.close()
-    }
-
-    // 根据主题配置重置连接模式
-    const configuredMode = this.appStore.rpcTransportMode
-    this.useWebSocket = configuredMode === 'websocket'
-    this.nodesStore.updateWsState('disconnected', 0)
-
-    // 重新获取用户信息
-    await this.fetchUserInfo()
-
-    // 重新建立 WebSocket 连接（如果配置为 websocket 模式）
-    this.connectWebSocket()
-  }
-
-  /**
    * 销毁管理器
    */
   destroy(): void {
@@ -488,15 +408,5 @@ export function destroyInitManager(): void {
   if (initManager) {
     initManager.destroy()
     initManager = null
-  }
-}
-
-/**
- * 登录后重新连接
- * 断开现有 WebSocket 连接并以登录状态重新建立
- */
-export async function reconnectAfterLogin(): Promise<void> {
-  if (initManager) {
-    await initManager.reconnectAfterLogin()
   }
 }

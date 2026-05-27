@@ -190,9 +190,11 @@ function getCustomTags(node: NodeData): Array<string> {
     <div class="min-w-fit w-full flex flex-col gap-1">
       <!-- 表头 -->
       <div class="grid p-2 bg-background/60 rounded-lg backdrop-blur-sm gap-2" :style="gridStyle">
-        <div v-for="col in columns" :key="col.key"
+        <div
+          v-for="col in columns" :key="col.key"
           :class="[col.sortable ? 'cursor-pointer' : '', ['status', 'os', 'region'].includes(col.key) ? 'text-center' : 'text-left']"
-          @click="handleSort(col)">
+          @click="handleSort(col)"
+        >
           <span class="text-xs text-muted-foreground">
             {{ col.label }}{{ col.sortable && sortKey === col.key ? (sortDir === 1 ? ' ↑' : ' ↓') : '' }}
           </span>
@@ -200,16 +202,20 @@ function getCustomTags(node: NodeData): Array<string> {
       </div>
 
       <!-- 行 -->
-      <div v-for="node in sortedNodes" :key="node.uuid"
+      <div
+        v-for="node in sortedNodes" :key="node.uuid"
         class="flex flex-col relative h-16 justify-center px-2 cursor-pointer bg-background/30 rounded-lg backdrop-blur-sm inset-shadow-[0_0_0_2px] inset-shadow-transparent hover:inset-shadow-green-600/20 hover:bg-background transition-all"
-        :class="[!node.online && '!inset-shadow-red-600/10']" @click="handleClick(node)">
+        :class="[!node.online && '!inset-shadow-red-600/10']" @click="handleClick(node)"
+      >
         <div class="grid gap-2 items-center" :style="gridStyle">
           <template v-for="col in columns" :key="col.key">
             <!-- 在线状态指示器 -->
             <div v-if="col.key === 'status'" class="flex justify-center">
               <div class="size-2 rounded-full relative" :class="[node.online ? 'bg-green-600' : 'bg-red-600']">
-                <div class="animate-ping absolute inset-0 rounded-full opacity-50"
-                  :class="[node.online ? 'bg-green-600' : 'bg-red-600']" />
+                <div
+                  class="animate-ping absolute inset-0 rounded-full opacity-50"
+                  :class="[node.online ? 'bg-green-600' : 'bg-red-600']"
+                />
               </div>
             </div>
 
@@ -223,8 +229,10 @@ function getCustomTags(node: NodeData): Array<string> {
               <div class="text-xs font-semibold truncate">
                 {{ node.name }}
               </div>
-              <div v-if="getPriceTags(node).length > 0"
-                class="flex flex-row gap-3 text-[11px] text-muted-foreground/70 truncate">
+              <div
+                v-if="getPriceTags(node).length > 0"
+                class="flex flex-row gap-3 text-[11px] text-muted-foreground/70 truncate"
+              >
                 <span v-for="(tag, index) in getPriceTags(node)" :key="index">
                   {{ tag }}
                 </span>
@@ -234,8 +242,10 @@ function getCustomTags(node: NodeData): Array<string> {
             <!-- 标签 -->
             <div v-else-if="col.key === 'tags'">
               <div class="flex flex-wrap gap-1 items-center">
-                <Badge v-for="(tag, index) in getCustomTags(node)" :key="index" variant="outline"
-                  class="!text-[11px] rounded text-muted-foreground border-muted-foreground/10 px-1.5">
+                <Badge
+                  v-for="(tag, index) in getCustomTags(node)" :key="index" variant="outline"
+                  class="!text-[11px] rounded text-muted-foreground border-muted-foreground/10 px-1.5"
+                >
                   {{ tag }}
                 </Badge>
               </div>
@@ -280,8 +290,10 @@ function getCustomTags(node: NodeData): Array<string> {
                     {{ formatBytes(node.ram ?? 0) }} / {{ formatBytes(node.mem_total ?? 0) }}
                   </span>
                 </div>
-                <ProgressThin :percentage="(node.ram ?? 0) / (node.mem_total || 1) * 100"
-                  :status="getStatus((node.ram ?? 0) / (node.mem_total || 1) * 100)" :height="4" />
+                <ProgressThin
+                  :percentage="(node.ram ?? 0) / (node.mem_total || 1) * 100"
+                  :status="getStatus((node.ram ?? 0) / (node.mem_total || 1) * 100)" :height="4"
+                />
               </div>
             </div>
 
@@ -296,8 +308,10 @@ function getCustomTags(node: NodeData): Array<string> {
                     {{ formatBytes(node.disk ?? 0) }} / {{ formatBytes(node.disk_total ?? 0) }}
                   </span>
                 </div>
-                <ProgressThin :percentage="(node.disk ?? 0) / (node.disk_total || 1) * 100"
-                  :status="getStatus((node.disk ?? 0) / (node.disk_total || 1) * 100)" :height="4" />
+                <ProgressThin
+                  :percentage="(node.disk ?? 0) / (node.disk_total || 1) * 100"
+                  :status="getStatus((node.disk ?? 0) / (node.disk_total || 1) * 100)" :height="4"
+                />
               </div>
             </div>
 
@@ -318,9 +332,11 @@ function getCustomTags(node: NodeData): Array<string> {
                             <template v-else>∞</template>
                           </span>
                         </div>
-                        <TrafficProgress :upload="node.net_total_up ?? 0" :download="node.net_total_down ?? 0"
+                        <TrafficProgress
+                          :upload="node.net_total_up ?? 0" :download="node.net_total_down ?? 0"
                           :traffic-limit="node.traffic_limit" :traffic-limit-type="(node.traffic_limit_type || 'sum')"
-                          height="4px" />
+                          height="4px"
+                        />
                       </div>
                     </TooltipTrigger>
                     <TooltipContent class="!rounded text-[10px] p-1 px-2 font-medium">
@@ -354,8 +370,10 @@ function getCustomTags(node: NodeData): Array<string> {
           </template>
         </div>
 
-        <div v-if="!node.online" class="absolute inset-0 z-2 p-2 bg-background/10 rounded-lg flex items-center"
-          aria-hidden="true">
+        <div
+          v-if="!node.online" class="absolute inset-0 z-2 p-2 bg-background/10 rounded-lg flex items-center"
+          aria-hidden="true"
+        >
           <div class="grid gap-2 items-center justify-center" :style="gridStyle">
             <div class="h-full space-y-1" :style="offlineOverlayContentStyle">
               <div class="text-sm font-semibold truncate">

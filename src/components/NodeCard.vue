@@ -9,7 +9,7 @@ import { useAppStore } from '@/stores/app'
 import { formatBytesPerSecondWithConfig, formatBytesWithConfig, formatDateTime, formatUptimeWithFormat, getStatus } from '@/utils/helper'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
 import { getRegionCode, getRegionDisplayName } from '@/utils/regionHelper'
-import { formatPriceWithCycle, getDaysUntilExpired, getExpireStatus, getExpireStatusHexColor, parseTags } from '@/utils/tagHelper'
+import { formatPriceWithCycle, getDaysUntilExpired, getExpireStatus, parseTags } from '@/utils/tagHelper'
 
 const props = defineProps<{ node: NodeData }>()
 
@@ -84,14 +84,18 @@ const customTags = computed(() => parseTags(props.node.tags).map(t => t.text))
 </script>
 
 <template>
-  <CardX hoverable
+  <CardX
+    hoverable
     class="node-card w-full cursor-pointer bg-background/50 border-none shadow-[0_0_0_3px] shadow-transparent hover:bg-background hover:shadow-green-600/10 backdrop-blur-sm transition-all duration-200 rounded-md"
-    :class="[!props.node.online && '!shadow-red-600/20']" @click="emit('click')">
+    :class="[!props.node.online && '!shadow-red-600/20']" @click="emit('click')"
+  >
     <template #header>
       <div class="flex gap-2 min-w-0 items-center">
         <div class="size-2 rounded-full relative" :class="[props.node.online ? 'bg-green-600' : 'bg-red-600']">
-          <div class="animate-ping absolute inset-0 rounded-full opacity-50"
-            :class="[props.node.online ? 'bg-green-600' : 'bg-red-600']" />
+          <div
+            class="animate-ping absolute inset-0 rounded-full opacity-50"
+            :class="[props.node.online ? 'bg-green-600' : 'bg-red-600']"
+          />
         </div>
         <span class="text-md font-bold flex-1 min-w-0 truncate">{{ props.node.name }}</span>
       </div>
@@ -100,8 +104,10 @@ const customTags = computed(() => parseTags(props.node.tags).map(t => t.text))
     <template #header-extra>
       <div class="flex gap-2 items-center">
         <img :src="getOSImage(props.node.os)" :alt="getOSName(props.node.os)" class="size-4">
-        <img :src="`/images/flags/${getRegionCode(props.node.region)}.svg`"
-          :alt="getRegionDisplayName(props.node.region)" class="size-5 shrink-0">
+        <img
+          :src="`/images/flags/${getRegionCode(props.node.region)}.svg`"
+          :alt="getRegionDisplayName(props.node.region)" class="size-5 shrink-0"
+        >
       </div>
     </template>
 
@@ -172,8 +178,10 @@ const customTags = computed(() => parseTags(props.node.tags).map(t => t.text))
           </div>
         </div>
         <div class="gap-1.5 grid grid-cols-6 relative">
-          <div v-if="!props.node.online"
-            class="absolute inset-0 flex flex-col gap-1 items-center justify-center z-1 text-center" aria-hidden="true">
+          <div
+            v-if="!props.node.online"
+            class="absolute inset-0 flex flex-col gap-1 items-center justify-center z-1 text-center" aria-hidden="true"
+          >
             <div class="text-sm font-medium text-destructive">
               离线
             </div>
@@ -181,8 +189,10 @@ const customTags = computed(() => parseTags(props.node.tags).map(t => t.text))
               {{ offlineTime }}
             </div>
           </div>
-          <div class="flex flex-col gap-0.5 p-1 pl-2 rounded-sm bg-slate-500/5"
-            :class="[priceTags.length ? 'col-span-2' : 'col-span-3', !props.node.online ? 'blur-xs opacity-60' : '']">
+          <div
+            class="flex flex-col gap-0.5 p-1 pl-2 rounded-sm bg-slate-500/5"
+            :class="[priceTags.length ? 'col-span-2' : 'col-span-3', !props.node.online ? 'blur-xs opacity-60' : '']"
+          >
             <div class="text-[11px] flex flex-col">
               <div class="text-green-600 flex flex-row items-center gap-1">
                 <Icon icon="tabler:chevron-up" width="12" height="12" />
@@ -194,8 +204,10 @@ const customTags = computed(() => parseTags(props.node.tags).map(t => t.text))
               </div>
             </div>
           </div>
-          <div class="flex flex-col gap-0.5 p-1 pl-2 rounded-sm bg-slate-500/5"
-            :class="[priceTags.length ? 'col-span-2' : 'col-span-3', !props.node.online ? 'blur-xs opacity-60' : '']">
+          <div
+            class="flex flex-col gap-0.5 p-1 pl-2 rounded-sm bg-slate-500/5"
+            :class="[priceTags.length ? 'col-span-2' : 'col-span-3', !props.node.online ? 'blur-xs opacity-60' : '']"
+          >
             <div class="text-[11px] text-muted-foreground flex flex-col">
               <div class="flex flex-row items-center gap-1">
                 <Icon icon="tabler:upload" width="12" height="12" />
@@ -207,8 +219,10 @@ const customTags = computed(() => parseTags(props.node.tags).map(t => t.text))
               </div>
             </div>
           </div>
-          <div v-if="priceTags.length" class="col-span-2 flex flex-col gap-0.5 p-1 pl-2 rounded-sm bg-slate-500/5"
-            :class="[!props.node.online ? 'blur-xs opacity-60' : '']">
+          <div
+            v-if="priceTags.length" class="col-span-2 flex flex-col gap-0.5 p-1 pl-2 rounded-sm bg-slate-500/5"
+            :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
+          >
             <div class="text-[11px] text-muted-foreground flex flex-col">
               <div v-for="(tag, index) in priceTags" :key="index" class="flex flex-row items-center gap-1">
                 {{ tag }}
@@ -217,7 +231,8 @@ const customTags = computed(() => parseTags(props.node.tags).map(t => t.text))
           </div>
           <div
             class="col-span-6 flex flex-row gap-2 items-center p-1 rounded-sm bg-slate-500/5 justify-center text-[11px] text-muted-foreground"
-            :class="[!props.node.online ? 'blur-xs opacity-60' : '']">
+            :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
+          >
             <!-- 运行时长 -->
             <span class="inline-flex flex-row gap-1 items-center">
               {{ formatUptime(props.node.uptime ?? 0) }}
@@ -225,8 +240,10 @@ const customTags = computed(() => parseTags(props.node.tags).map(t => t.text))
           </div>
         </div>
         <div v-if="customTags.length > 0" class="flex shrink-0 flex-wrap gap-1 items-center">
-          <Badge v-for="(tag, index) in customTags" :key="index" variant="outline"
-            class="!text-[11px] rounded text-muted-foreground border-muted-foreground/10 px-1.5">
+          <Badge
+            v-for="(tag, index) in customTags" :key="index" variant="outline"
+            class="!text-[11px] rounded text-muted-foreground border-muted-foreground/10 px-1.5"
+          >
             {{ tag }}
           </Badge>
         </div>

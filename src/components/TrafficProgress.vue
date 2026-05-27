@@ -67,13 +67,17 @@ const progressHeight = computed(() => {
   <div class="traffic-progress">
     <div v-if="isDualColorMode" class="traffic-progress__rail bg-muted" :style="{ height: progressHeight }">
       <div class="traffic-progress__fill bg-green-600" :style="{ width: `${uploadPercentage}%` }" />
-      <div class="traffic-progress__fill traffic-progress__fill--last bg-blue-600"
-        :style="{ width: `${downloadPercentage}%` }" />
+      <div
+        class="traffic-progress__fill traffic-progress__fill--last bg-blue-600"
+        :style="{ width: `${downloadPercentage}%` }"
+      />
     </div>
 
     <div v-else class="traffic-progress__rail bg-muted" :style="{ height: progressHeight }">
-      <div class="traffic-progress__fill traffic-progress__fill--last bg-green-600"
-        :style="{ width: `${totalPercentage}%` }" />
+      <div
+        class="traffic-progress__fill traffic-progress__fill--last bg-green-600"
+        :style="{ width: `${totalPercentage}%` }"
+      />
     </div>
 
     <div v-if="showIndicator && showProgress" class="traffic-progress__indicator">

@@ -2,14 +2,12 @@ import { createPinia } from 'pinia'
 import { createApp } from 'vue'
 import { setupIconify } from '@/utils/iconify'
 import { message } from '@/utils/message'
-import { modal } from '@/utils/modal'
 import App from './App.vue'
 import router from './router'
 
 import './styles/main.css'
 
 window.$message = message
-window.$modal = modal
 
 setupIconify().catch((err) => {
   console.warn('[main] iconify init failed', err)

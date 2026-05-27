@@ -6,7 +6,6 @@ import VChart from 'vue-echarts'
 import { Button } from '@/components/ui/button'
 import { Empty } from '@/components/ui/empty'
 import { Spinner } from '@/components/ui/spinner'
-import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAppStore } from '@/stores/app'
 import { cutPeakValues, interpolateNullsLinear } from '@/utils/recordHelper'
@@ -68,7 +67,7 @@ const availableViews = computed(() => {
     }
   }
 
-  const maxPreset = presetViews[presetViews.length - 1]
+  const maxPreset = presetViews.at(-1)
   if (maxPreset && maxHours > maxPreset.hours) {
     const label = maxHours % 24 === 0
       ? `${Math.floor(maxHours / 24)} 天`
@@ -231,7 +230,7 @@ const mergedData = computed(() => {
   )
 
   const hours = selectedHours.value
-  const lastItem = merged[merged.length - 1]
+  const lastItem = merged.at(-1)
   const lastTs = lastItem ? dayjs(lastItem.time as string).valueOf() : dayjs().valueOf()
   const fromTs = lastTs - hours * 3600_000
 
@@ -520,8 +519,10 @@ onMounted(() => {
   <div class="flex flex-col gap-4">
     <!-- 时间选择器 -->
     <div class="flex flex-wrap gap-2 justify-center">
-      <Button v-for="view in availableViews" :key="view.label"
-        :variant="selectedView === view.label ? 'default' : 'outline'" size="sm" @click="selectedView = view.label">
+      <Button
+        v-for="view in availableViews" :key="view.label"
+        :variant="selectedView === view.label ? 'default' : 'outline'" size="sm" @click="selectedView = view.label"
+      >
         {{ view.label }}
       </Button>
     </div>
@@ -537,14 +538,18 @@ onMounted(() => {
 
       <template v-else>
         <!-- 最新值统计卡片（可点击切换选中状态） -->
-        <div v-if="latestValues.length > 0" class="gap-3 grid"
-          style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr))">
-          <div v-for="task in latestValues" :key="task.id"
+        <div
+          v-if="latestValues.length > 0" class="gap-3 grid"
+          style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr))"
+        >
+          <div
+            v-for="task in latestValues" :key="task.id"
             class="p-2 rounded-md bg-background/50 hover:bg-background hover:shadow-[0_0_0_2px] hover:shadow-primary/10 flex gap-3 cursor-pointer select-none transition-all items-center"
             :class="[!selectedTaskIds.includes(task.id) && 'opacity-30']"
             :onmouseover="(e: MouseEvent) => ((e.currentTarget as HTMLElement).style.borderColor = task.color)"
             :onmouseout="(e: MouseEvent) => ((e.currentTarget as HTMLElement).style.borderColor = '')"
-            @click="toggleTask(task.id)">
+            @click="toggleTask(task.id)"
+          >
             <div class="flex-1 min-w-0">
               <TooltipProvider>
                 <div class="flex gap-2 items-center">
@@ -553,8 +558,10 @@ onMounted(() => {
                   <div class="flex-1" />
                   <Tooltip>
                     <TooltipTrigger as-child>
-                      <span class="text-sm opacity-50 cursor-help transition-opacity hover:opacity-100 inline-flex"
-                        style="color: color-mix(in srgb, hsl(var(--foreground)) 80%, transparent)" @click.stop>
+                      <span
+                        class="text-sm opacity-50 cursor-help transition-opacity hover:opacity-100 inline-flex"
+                        style="color: color-mix(in srgb, hsl(var(--foreground)) 80%, transparent)" @click.stop
+                      >
                         <Icon icon="carbon:information" :width="14" :height="14" />
                       </span>
                     </TooltipTrigger>
@@ -630,7 +637,8 @@ onMounted(() => {
               <Tooltip>
                 <TooltipTrigger as-child>
                   <span
-                    class="text-sm opacity-50 cursor-help transition-opacity hover:opacity-100 inline-flex text-muted-foreground">
+                    class="text-sm opacity-50 cursor-help transition-opacity hover:opacity-100 inline-flex text-muted-foreground"
+                  >
                     <Icon icon="carbon:information" :width="14" :height="14" />
                   </span>
                 </TooltipTrigger>

@@ -33,31 +33,39 @@ const showFiling = computed(() => showIcp.value || showPolice.value)
     <div class="flex flex-row text-xs text-muted-foreground">
       <div class="flex gap-1 items-center">
         Powered by
-        <a href="https://github.com/komari-monitor/komari" target="_blank" rel="noopener noreferrer"
+        <a
+          href="https://github.com/komari-monitor/komari" target="_blank" rel="noopener noreferrer"
           class="transition-opacity hover:opacity-80"
-          :title="formattedServerVersion ? formattedServerVersion : undefined">
+          :title="formattedServerVersion ? formattedServerVersion : undefined"
+        >
           <span class="font-medium text-foreground">Komari Monitor</span>
         </a>
       </div>
       <div class="flex-1" />
       <div class="flex flex-wrap gap-1 items-center">
         Theme by
-        <a href="https://github.com/Tokinx/komari-theme-emerald" target="_blank" rel="noopener noreferrer"
-          class="transition-opacity hover:opacity-80" :title="String([buildVersion, buildGitHash])">
+        <a
+          href="https://github.com/Tokinx/komari-theme-emerald" target="_blank" rel="noopener noreferrer"
+          class="transition-opacity hover:opacity-80" :title="String([buildVersion, buildGitHash])"
+        >
           <span class="font-medium text-foreground">Komari Emerald</span>
         </a>
       </div>
     </div>
 
     <div v-if="showFiling" class="flex flex-wrap gap-2 items-center justify-center sm:flex-shrink-0">
-      <a v-if="showIcp" :href="appStore.icpUrl" target="_blank" rel="noopener noreferrer"
-        class="transition-opacity hover:opacity-70">
+      <a
+        v-if="showIcp" :href="appStore.icpUrl" target="_blank" rel="noopener noreferrer"
+        class="transition-opacity hover:opacity-70"
+      >
         <span class="text-xs text-muted-foreground">{{ appStore.icpNumber || '' }}</span>
       </a>
       <span v-if="showIcp && showPolice" class="opacity-50 text-xs text-muted-foreground">·</span>
       <template v-if="showPolice">
-        <a v-if="appStore.policeUrl" :href="appStore.policeUrl" target="_blank" rel="noopener noreferrer"
-          class="transition-opacity hover:opacity-70">
+        <a
+          v-if="appStore.policeUrl" :href="appStore.policeUrl" target="_blank" rel="noopener noreferrer"
+          class="transition-opacity hover:opacity-70"
+        >
           <span class="text-xs text-muted-foreground">{{ appStore.policeNumber || '' }}</span>
         </a>
         <span v-else class="text-xs text-muted-foreground">{{ appStore.policeNumber || '' }}</span>

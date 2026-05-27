@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
-import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { CardX } from '@/components/ui/card-x'
 import { Empty } from '@/components/ui/empty'
-import { Separator } from '@/components/ui/separator'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAppStore } from '@/stores/app'
 import { useNodesStore } from '@/stores/nodes'
 import { formatBytesPerSecondWithConfig, formatBytesWithConfig, formatDateTime, formatUptimeWithFormat } from '@/utils/helper'
@@ -30,8 +28,6 @@ onMounted(() => {
 const formatBytes = (bytes: number) => formatBytesWithConfig(bytes, appStore.byteDecimals)
 const formatBytesPerSecond = (bytes: number) => formatBytesPerSecondWithConfig(bytes, appStore.byteDecimals)
 const formatUptime = (seconds: number) => formatUptimeWithFormat(seconds, 'minute')
-
-const chartView = ref<'load' | 'ping'>('load')
 
 const data = computed(() => nodesStore.nodes.find(node => node.uuid === route.params.id))
 
@@ -82,8 +78,10 @@ const storageInfo = computed<InfoItem[]>(() => [
           <Icon icon="tabler:arrow-left" :width="16" :height="16" />
         </Button>
         <div class="text-lg font-bold flex gap-2 items-center">
-          <img :src="`/images/flags/${getRegionCode(data.region)}.svg`" :alt="getRegionDisplayName(data.region)"
-            class="size-6">
+          <img
+            :src="`/images/flags/${getRegionCode(data.region)}.svg`" :alt="getRegionDisplayName(data.region)"
+            class="size-6"
+          >
           <span>{{ data.name }}</span>
         </div>
         <Badge :variant="data.online ? 'default' : 'destructive'" class="text-xs !rounded">
@@ -92,8 +90,10 @@ const storageInfo = computed<InfoItem[]>(() => [
       </div>
 
       <div class="px-4 gap-4 grid grid-cols-1 md:grid-cols-2">
-        <CardX title="基本信息" size="small"
-          class="col-span-2 group h-full bg-background/50 border-none hover:bg-background transition-all p-1 sm:p-4 rounded-md">
+        <CardX
+          title="基本信息" size="small"
+          class="col-span-2 group h-full bg-background/50 border-none hover:bg-background transition-all p-1 sm:p-4 rounded-md"
+        >
           <div class="gap-2 grid grid-cols-2 lg:grid-cols-4">
             <div v-for="item in [...hardwareInfo, ...systemInfo]" :key="item.label" class="flex flex-col gap-1">
               <div class="flex gap-1 items-center text-muted-foreground">
@@ -110,8 +110,10 @@ const storageInfo = computed<InfoItem[]>(() => [
           </div>
         </CardX>
 
-        <CardX title="存储信息" size="small"
-          class="group h-full bg-background/50 border-none hover:bg-background transition-all p-1 col-span-2 sm:p-4 md:col-span-1 rounded-md">
+        <CardX
+          title="存储信息" size="small"
+          class="group h-full bg-background/50 border-none hover:bg-background transition-all p-1 col-span-2 sm:p-4 md:col-span-1 rounded-md"
+        >
           <div class="gap-2 grid grid-cols-3">
             <div v-for="item in storageInfo" :key="item.label" class="flex flex-col gap-1">
               <div class="flex gap-1 items-center text-muted-foreground">
@@ -123,8 +125,10 @@ const storageInfo = computed<InfoItem[]>(() => [
           </div>
         </CardX>
 
-        <CardX title="网络信息" size="small"
-          class="group h-full bg-background/50 border-none hover:bg-background transition-all p-1 col-span-2 sm:p-4 md:col-span-1 rounded-md">
+        <CardX
+          title="网络信息" size="small"
+          class="group h-full bg-background/50 border-none hover:bg-background transition-all p-1 col-span-2 sm:p-4 md:col-span-1 rounded-md"
+        >
           <div class="gap-2 grid grid-cols-2">
             <div class="flex flex-col gap-1">
               <div class="flex gap-1 items-center text-muted-foreground">

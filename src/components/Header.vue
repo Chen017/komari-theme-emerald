@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
-import { computed, h, inject, ref } from 'vue'
+import { computed, inject, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAppStore } from '@/stores/app'
-import LoginDialog from './LoginDialog.vue'
 
 const router = useRouter()
 const appStore = useAppStore()
@@ -31,14 +30,6 @@ const actionButtons = computed(() => {
       action: 'jumpToSetting',
     })
   }
-  else if (appStore.showLoginButton) {
-    buttons.push({
-      title: '登录',
-      icon: 'icon-park-outline:login',
-      action: 'openLoginDialog',
-    })
-  }
-
   return buttons
 })
 
@@ -49,14 +40,6 @@ function handleButtonClick(action: string) {
       break
     case 'jumpToSetting':
       location.href = '/admin'
-      break
-    case 'openLoginDialog':
-      window.$modal.create({
-        title: '登录',
-        preset: 'dialog',
-        showIcon: false,
-        content: () => h(LoginDialog),
-      })
       break
   }
 }

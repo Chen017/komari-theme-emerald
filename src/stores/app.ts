@@ -1,4 +1,4 @@
-import type { MeInfo, PublicSettings } from '@/utils/api'
+import type { PublicSettings } from '@/utils/api'
 import type { ByteDecimalsConfig } from '@/utils/helper'
 import { usePreferredDark, useStorageAsync } from '@vueuse/core'
 import { defineStore } from 'pinia'
@@ -8,7 +8,6 @@ type ThemeMode = 'auto' | 'light' | 'dark'
 type Lang = 'zh-CN' | 'en-US'
 type NodeViewMode = 'card' | 'list'
 type RpcTransportMode = 'websocket' | 'http'
-type AlertType = 'default' | 'info' | 'success' | 'warning' | 'error'
 
 /** 固定的字节精度配置 */
 const BYTE_DECIMALS: ByteDecimalsConfig = {
@@ -26,11 +25,9 @@ const useAppStore = defineStore('app', () => {
   const themeMode = useStorageAsync<ThemeMode>('themeMode', 'auto', localStorage)
   const lang = ref<Lang>('zh-CN')
   const publicSettings = ref<PublicSettings>()
-  const userInfo = ref<MeInfo>()
   const nodeSelectedGroup = useStorageAsync<string>('nodeSelectedGroup', 'all', localStorage)
   const isLoggedIn = ref<boolean>(false)
   const connectionError = ref<boolean>(false)
-  const requireLogin = ref<boolean>(false)
 
   // 首页滚动位置记忆
   const homeScrollPosition = ref<number>(0)
@@ -81,24 +78,6 @@ const useAppStore = defineStore('app', () => {
     return 'websocket'
   })
 
-  // 计算属性：从主题配置获取是否显示登录按钮
-  const showLoginButton = computed<boolean>(() => {
-    const settings = publicSettings.value?.theme_settings
-    if (settings && typeof settings.showLoginButton === 'boolean') {
-      return settings.showLoginButton
-    }
-    return true
-  })
-
-  // 计算属性：单分组时是否隐藏 Tab
-  const hideSingleGroupTab = computed<boolean>(() => {
-    const settings = publicSettings.value?.theme_settings
-    if (settings && typeof settings.hideSingleGroupTab === 'boolean') {
-      return settings.hideSingleGroupTab
-    }
-    return true
-  })
-
   // 字节格式化精度（固定配置）
   const byteDecimals: ByteDecimalsConfig = { ...BYTE_DECIMALS }
 
@@ -109,19 +88,6 @@ const useAppStore = defineStore('app', () => {
       return settings.alertEnabled
     }
     return false
-  })
-
-  const alertType = computed<AlertType>(() => {
-    const settings = publicSettings.value?.theme_settings
-    const validTypes: AlertType[] = ['default', 'info', 'success', 'warning', 'error']
-
-    if (settings && typeof settings.alertType === 'string') {
-      const type = settings.alertType as AlertType
-      if (validTypes.includes(type)) {
-        return type
-      }
-    }
-    return 'info'
   })
 
   const alertTitle = computed<string>(() => {
@@ -242,15 +208,6 @@ const useAppStore = defineStore('app', () => {
     return 0
   })
 
-  // 计算属性：卡片模糊半径（当启用自定义背景时，使用更高的模糊半径）
-  const cardBlurRadius = computed<number>(() => {
-    if (backgroundEnabled.value && backgroundBlur.value > 0) {
-      // 卡片使用背景模糊半径 + 8px 的额外模糊
-      return backgroundBlur.value + 8
-    }
-    return 0
-  })
-
   // 当 publicSettings 加载后，如果 localStorage 没有保存过视图模式或值为非法值，使用默认值
   watch(publicSettings, (settings) => {
     if (settings && !isValidViewMode(storedViewMode.value)) {
@@ -293,18 +250,8 @@ const useAppStore = defineStore('app', () => {
     themeMode.value = nextMode[themeMode.value]
   }
 
-  function updateLang(newLang: Lang) {
-    lang.value = newLang
-  }
-
-  function setUserInfo(info: MeInfo) {
-    userInfo.value = info
-    isLoggedIn.value = info.logged_in
-  }
-
-  function clearUserInfo() {
-    userInfo.value = undefined
-    isLoggedIn.value = false
+  function updateLoginState(loggedIn: boolean) {
+    isLoggedIn.value = loggedIn
   }
 
   return {
@@ -316,11 +263,8 @@ const useAppStore = defineStore('app', () => {
     nodeViewMode,
     defaultViewMode,
     rpcTransportMode,
-    showLoginButton,
-    hideSingleGroupTab,
     byteDecimals,
     alertEnabled,
-    alertType,
     alertTitle,
     alertContent,
     icpEnabled,
@@ -336,17 +280,12 @@ const useAppStore = defineStore('app', () => {
     currentBackgroundUrl,
     backgroundBlur,
     backgroundOverlay,
-    cardBlurRadius,
     isLoggedIn,
-    userInfo,
     publicSettings,
     connectionError,
-    requireLogin,
     homeScrollPosition,
     updateThemeMode,
-    updateLang,
-    setUserInfo,
-    clearUserInfo,
+    updateLoginState,
   }
 })
 

@@ -8,7 +8,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Empty } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
-import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAppStore } from '@/stores/app'
 import { useNodesStore } from '@/stores/nodes'
@@ -51,12 +50,6 @@ const groups = computed(() => [
   { tab: '全部节点', name: 'all' },
   ...nodesStore.groups.map(g => ({ tab: g, name: g })),
 ])
-
-const showGroupTabs = computed(() => {
-  if (appStore.hideSingleGroupTab && nodesStore.groups.length <= 1)
-    return false
-  return true
-})
 
 watch(
   () => nodesStore.groups,
@@ -101,16 +94,6 @@ const nodeList = computed(() => {
 function handleNodeClick(node: typeof nodesStore.nodes[number]) {
   router.push({ name: 'instance-detail', params: { id: node.uuid } })
 }
-
-const alertVariantMap: Record<string, 'default' | 'destructive'> = {
-  default: 'default',
-  info: 'default',
-  success: 'default',
-  warning: 'default',
-  error: 'destructive',
-}
-
-const alertVariant = computed(() => alertVariantMap[appStore.alertType] || 'default')
 </script>
 
 <template>
@@ -123,7 +106,7 @@ const alertVariant = computed(() => alertVariantMap[appStore.alertType] || 'defa
     </div>
 
     <div v-if="appStore.alertEnabled && appStore.alertContent" class="alert px-4">
-      <Alert :variant="alertVariant" class="border-none bg-background/60 backdrop-blur-xs rounded-md">
+      <Alert class="border-none bg-background/60 backdrop-blur-xs rounded-md">
         <AlertTitle v-if="appStore.alertTitle">
           {{ appStore.alertTitle }}
         </AlertTitle>
@@ -140,41 +123,55 @@ const alertVariant = computed(() => alertVariantMap[appStore.alertType] || 'defa
         <Tabs v-model="appStore.nodeSelectedGroup" class="w-full flex-col gap-4">
           <div class="flex items-center justify-between gap-2 flex-wrap">
             <TabsList class="h-8 bg-background/50 backdrop-blur-xl pointer-events-auto rounded-md">
-              <TabsTrigger v-for="g in groups" :key="g.name" :value="g.name"
-                class="h-6.5 text-xs border-none data-[state=active]:text-green-600 shadow-none rounded-sm">
+              <TabsTrigger
+                v-for="g in groups" :key="g.name" :value="g.name"
+                class="h-6.5 text-xs border-none data-[state=active]:text-green-600 shadow-none rounded-sm"
+              >
                 {{ g.tab }}
               </TabsTrigger>
             </TabsList>
             <div class="search flex gap-2 items-center pointer-events-auto">
-              <Button variant="outline" size="icon" aria-label="卡片视图"
+              <Button
+                variant="outline" size="icon" aria-label="卡片视图"
                 class="w-8 h-8 border-none  bg-background/50 backdrop-blur-xs shadow-none hover:bg-background/60 rounded-md"
                 :class="[appStore.nodeViewMode === 'card' ? '!text-green-600 !bg-background' : '']"
-                @click="appStore.nodeViewMode = 'card'">
+                @click="appStore.nodeViewMode = 'card'"
+              >
                 <Icon icon="tabler:layout-grid" :width="14" :height="14" />
               </Button>
-              <Button variant="outline" size="icon" aria-label="列表视图"
+              <Button
+                variant="outline" size="icon" aria-label="列表视图"
                 class="w-8 h-8 border-none bg-background/50 backdrop-blur-xs shadow-none hover:bg-background/60 rounded-md"
                 :class="[appStore.nodeViewMode === 'list' ? '!text-green-600 !bg-background' : '']"
-                @click="appStore.nodeViewMode = 'list'">
+                @click="appStore.nodeViewMode = 'list'"
+              >
                 <Icon icon="tabler:table" :width="14" :height="14" />
               </Button>
               <div class="relative z-1 w-8 h-8">
                 <div class="absolute top-0 right-0 ">
-                  <Input v-model="searchText" placeholder="搜索节点名称、地区、系统"
-                    class="transition-all placeholder:text-transparent border-none shadow-none w-8 h-8  bg-background/50 backdrop-blur-xs rounded-md hover:!bg-background/60 focus:!w-60 focus:!pl-7.5 focus:placeholder:!text-muted-foreground focus:!bg-background/80 focus:!ring-slate-500/10" />
-                  <Icon icon="tabler:search" :width="14" :height="14"
-                    class="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Input
+                    v-model="searchText" placeholder="搜索节点名称、地区、系统"
+                    class="transition-all placeholder:text-transparent border-none shadow-none w-8 h-8  bg-background/50 backdrop-blur-xs rounded-md hover:!bg-background/60 focus:!w-60 focus:!pl-7.5 focus:placeholder:!text-muted-foreground focus:!bg-background/80 focus:!ring-slate-500/10"
+                  />
+                  <Icon
+                    icon="tabler:search" :width="14" :height="14"
+                    class="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                  />
                 </div>
               </div>
             </div>
           </div>
           <TabsContent v-for="g in groups" :key="g.name" :value="g.name" class="pointer-events-auto">
-            <div v-if="nodeList.length !== 0 && appStore.nodeViewMode === 'card'"
-              class="gap-2 grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(300px,1fr))]">
+            <div
+              v-if="nodeList.length !== 0 && appStore.nodeViewMode === 'card'"
+              class="gap-2 grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(300px,1fr))]"
+            >
               <NodeCard v-for="node in nodeList" :key="node.uuid" :node="node" @click="handleNodeClick(node)" />
             </div>
-            <NodeList v-else-if="nodeList.length !== 0 && appStore.nodeViewMode === 'list'" :nodes="nodeList"
-              @click="handleNodeClick" />
+            <NodeList
+              v-else-if="nodeList.length !== 0 && appStore.nodeViewMode === 'list'" :nodes="nodeList"
+              @click="handleNodeClick"
+            />
             <div v-else class="text-muted-foreground text-center py-8">
               <Empty description="暂无节点" />
             </div>

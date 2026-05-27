@@ -4,8 +4,8 @@ This document applies to `/src` only. Keep changes aligned with the current Vue 
 
 ## Core architecture
 
-- `main.ts` is bootstrap only. It creates the Vue app, installs Pinia and the router, loads global styles, sets `window.$message` / `window.$modal`, kicks off `setupIconify()`, and mounts `App.vue`. Do not move feature logic into bootstrap.
-- `App.vue` is the app shell. It owns global layout, registers the `ModalHost`, mounts `<Toaster>` (vue-sonner) and `Provider`, runs startup lifecycle wiring (`initApp()` / `destroyInitManager()` from `@/utils/init`), and `KeepAlive`s `HomeView`.
+- `main.ts` is bootstrap only. It creates the Vue app, installs Pinia and the router, loads global styles, sets `window.$message`, kicks off `setupIconify()`, and mounts `App.vue`. Do not move feature logic into bootstrap.
+- `App.vue` is the app shell. It owns global layout, mounts `<Toaster>` (vue-sonner) and `Provider`, runs startup lifecycle wiring (`initApp()` / `destroyInitManager()` from `@/utils/init`), and `KeepAlive`s `HomeView`.
 - `src/router/index.ts` defines exactly two lazy routes:
   - `/` → `@/views/HomeView.vue`
   - `/instance/:id` → `@/views/InstanceDetail.vue`
@@ -19,7 +19,7 @@ This document applies to `/src` only. Keep changes aligned with the current Vue 
 
 ## UI library (`src/components/ui/`)
 
-`src/components/ui/` is the local shadcn-vue-style component library (alert, avatar, back-top, badge, button, card, card-x, dialog, empty, input, label, modal-x, pin-input, popover, progress, progress-thin, separator, skeleton, sonner, spinner, switch, tabs, tag, toggle, toggle-group, tooltip). Each component:
+`src/components/ui/` is the local shadcn-vue-style component library (alert, avatar, back-top, badge, button, card-x, empty, input, progress-thin, sonner, spinner, tabs, tooltip). Each component:
 
 - Wraps a `reka-ui` primitive (or composes lower-level primitives) when applicable.
 - Declares variants with `class-variance-authority` and merges classes via `cn()` from `@/lib/utils` (which combines `clsx` + `tailwind-merge`).
@@ -51,15 +51,15 @@ When you need a new piece of UI:
 
 - `src/utils` owns transport, formatting, lookups, and startup orchestration.
 - Keep API and RPC access in `@/utils/api` and `@/utils/rpc`.
-- Keep startup, login modal flow, transport selection, polling, reconnects, and WebSocket fallback in `@/utils/init`.
+- Keep startup, transport selection, polling, reconnects, and WebSocket fallback in `@/utils/init`.
 - Keep formatting in helpers such as `@/utils/helper` and record shaping in `@/utils/recordHelper`.
 - Keep region, OS, and tag lookup logic in their dedicated helper modules (`regionHelper`, `osImageHelper`, `tagHelper`).
-- `@/utils/message` and `@/utils/modal` are the wrappers exposed as `window.$message` / `window.$modal`. `message` calls into `vue-sonner`'s `toast`; `modal` talks to the `ModalHost` registered by `App.vue`.
+- `@/utils/message` is the wrapper exposed as `window.$message`. It calls into `vue-sonner`'s `toast`.
 - Views and components must reuse these helpers instead of duplicating parsing, formatting, lookup, or transport code.
 
 ## App globals
 
-- Only two app globals exist on `window`: `$message` and `$modal`. Both are typed in `src/types/global.d.ts`. Keep that file in sync if you add/remove a global.
+- Only one app global exists on `window`: `$message`. It is typed in `src/types/global.d.ts`. Keep that file in sync if you add/remove a global.
 - There is **no** `$dialog`, `$notification`, or `$loadingBar`. Do not assume Naive-UI-style provider APIs.
 - Theming: `Provider.vue` drives `useDark()` from `@vueuse/core` (storage key `vueuse-color-scheme`) and toggles `.dark` on `<html>`. Source of truth for the user-chosen mode is `useAppStore().themeMode` (`'auto' | 'light' | 'dark'`).
 - Build-time constants `__BUILD_VERSION__` and `__BUILD_GIT_HASH__` are also declared in `src/types/global.d.ts` and injected by `vite.config.ts`.

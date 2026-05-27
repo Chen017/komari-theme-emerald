@@ -4,6 +4,17 @@ import { computed } from 'vue'
 const props = defineProps<{
   content: string
 }>()
+const IMAGE_REGEX = /^!\[([^\]]*)\]\(([^)]+)\)/
+const LINK_REGEX = /^\[([^\]]+)\]\(([^)]+)\)/
+const BOLD_ASTERISK_REGEX = /^\*\*([^*]+)\*\*/
+const BOLD_UNDERSCORE_REGEX = /^__([^_]+)__/
+const ITALIC_ASTERISK_REGEX = /^\*([^*]+)\*/
+const ITALIC_UNDERSCORE_REGEX = /^_([^_]+)_/
+const CODE_REGEX = /^`([^`]+)`/
+const NEXT_SPECIAL_REGEX = /[![*_`\n]/
+const AMP_REGEX = /&/g
+const LT_REGEX = /</g
+const GT_REGEX = />/g
 
 interface Token {
   type: 'text' | 'bold' | 'italic' | 'link' | 'image' | 'code' | 'br'
@@ -21,35 +32,35 @@ function parseMarkdown(text: string): Token[] {
   let remaining = text
 
   while (remaining.length > 0) {
-    const imageMatch = remaining.match(/^!\[([^\]]*)\]\(([^)]+)\)/)
+    const imageMatch = remaining.match(IMAGE_REGEX)
     if (imageMatch) {
       tokens.push({ type: 'image', alt: imageMatch[1], url: imageMatch[2] })
       remaining = remaining.slice(imageMatch[0].length)
       continue
     }
 
-    const linkMatch = remaining.match(/^\[([^\]]+)\]\(([^)]+)\)/)
+    const linkMatch = remaining.match(LINK_REGEX)
     if (linkMatch) {
       tokens.push({ type: 'link', content: linkMatch[1], url: linkMatch[2] })
       remaining = remaining.slice(linkMatch[0].length)
       continue
     }
 
-    const boldMatch = remaining.match(/^\*\*([^*]+)\*\*/) || remaining.match(/^__([^_]+)__/)
+    const boldMatch = remaining.match(BOLD_ASTERISK_REGEX) || remaining.match(BOLD_UNDERSCORE_REGEX)
     if (boldMatch) {
       tokens.push({ type: 'bold', content: boldMatch[1] })
       remaining = remaining.slice(boldMatch[0].length)
       continue
     }
 
-    const italicMatch = remaining.match(/^\*([^*]+)\*/) || remaining.match(/^_([^_]+)_/)
+    const italicMatch = remaining.match(ITALIC_ASTERISK_REGEX) || remaining.match(ITALIC_UNDERSCORE_REGEX)
     if (italicMatch) {
       tokens.push({ type: 'italic', content: italicMatch[1] })
       remaining = remaining.slice(italicMatch[0].length)
       continue
     }
 
-    const codeMatch = remaining.match(/^`([^`]+)`/)
+    const codeMatch = remaining.match(CODE_REGEX)
     if (codeMatch) {
       tokens.push({ type: 'code', content: codeMatch[1] })
       remaining = remaining.slice(codeMatch[0].length)
@@ -62,7 +73,7 @@ function parseMarkdown(text: string): Token[] {
       continue
     }
 
-    const nextSpecial = remaining.search(/[![*_`\n]/)
+    const nextSpecial = remaining.search(NEXT_SPECIAL_REGEX)
     if (nextSpecial === -1) {
       tokens.push({ type: 'text', content: escapeHtml(remaining) })
       break
@@ -82,9 +93,9 @@ function parseMarkdown(text: string): Token[] {
 
 function escapeHtml(text: string): string {
   return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+    .replace(AMP_REGEX, '&amp;')
+    .replace(LT_REGEX, '&lt;')
+    .replace(GT_REGEX, '&gt;')
 }
 
 const tokens = computed(() => parseMarkdown(props.content))
