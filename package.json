@@ -1,11 +1,10 @@
 {
   "name": "komari-theme-naive",
   "type": "module",
-  "version": "1.1.1",
+  "version": "0.0.1",
   "author": {
-    "name": "lyimoexiao",
-    "email": "lyimoexiao@outlook.com",
-    "url": "https://github.com/lyimoexiao"
+    "name": "Tokinx",
+    "url": "https://github.com/Tokinx"
   },
   "license": "MIT",
   "engines": {
@@ -26,6 +25,7 @@
     "@vueuse/core": "catalog:",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
+    "cobe": "catalog:",
     "dayjs": "catalog:",
     "echarts": "catalog:",
     "js-cookie": "catalog:",

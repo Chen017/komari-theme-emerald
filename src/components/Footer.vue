@@ -29,65 +29,39 @@ const showFiling = computed(() => showIcp.value || showPolice.value)
 </script>
 
 <template>
-  <footer class="px-4 py-4 w-full">
-    <div
-      class="flex flex-col gap-3 w-full sm:flex-row sm:gap-4 sm:items-center sm:justify-between max-w-[1280px] mx-auto"
-    >
-      <div class="flex flex-col gap-2 sm:flex-row sm:gap-6">
-        <div class="flex flex-wrap gap-1 items-center">
-          <span class="text-sm text-muted-foreground">Powered by</span>
-          <a
-            href="https://github.com/komari-monitor/komari"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="transition-opacity hover:opacity-80"
-          >
-            <span class="text-sm font-medium text-foreground">Komari Monitor</span>
-          </a>
-          <span v-if="formattedServerVersion" class="text-xs font-mono ml-1 text-muted-foreground">
-            v{{ formattedServerVersion }}
-          </span>
-        </div>
-        <div class="flex flex-wrap gap-1 items-center">
-          <span class="text-sm text-muted-foreground">Theme by</span>
-          <a
-            href="https://github.com/lyimoexiao/komari-theme-naive"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="transition-opacity hover:opacity-80"
-          >
-            <span class="text-sm font-medium text-foreground">Komari Naive</span>
-          </a>
-          <span class="text-xs font-mono ml-1 text-muted-foreground">
-            v{{ buildVersion }} ({{ buildGitHash }})
-          </span>
-        </div>
-      </div>
-
-      <div v-if="showFiling" class="flex flex-wrap gap-2 items-center sm:flex-shrink-0">
-        <a
-          v-if="showIcp"
-          :href="appStore.icpUrl"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="transition-opacity hover:opacity-70"
-        >
-          <span class="text-xs text-muted-foreground">{{ appStore.icpNumber }}</span>
+  <footer class="w-full sm:flex-row sm:gap-4 sm:items-center sm:justify-between max-w-[1280px] mx-auto p-4">
+    <div class="flex flex-row text-xs text-muted-foreground">
+      <div class="flex gap-1 items-center">
+        Powered by
+        <a href="https://github.com/komari-monitor/komari" target="_blank" rel="noopener noreferrer"
+          class="transition-opacity hover:opacity-80"
+          :title="formattedServerVersion ? formattedServerVersion : undefined">
+          <span class="font-medium text-foreground">Komari Monitor</span>
         </a>
-        <span v-if="showIcp && showPolice" class="opacity-50 text-xs text-muted-foreground">|</span>
-        <template v-if="showPolice">
-          <a
-            v-if="appStore.policeUrl"
-            :href="appStore.policeUrl"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="transition-opacity hover:opacity-70"
-          >
-            <span class="text-xs text-muted-foreground">{{ appStore.policeNumber }}</span>
-          </a>
-          <span v-else class="text-xs text-muted-foreground">{{ appStore.policeNumber }}</span>
-        </template>
       </div>
+      <div class="flex-1"></div>
+      <div class="flex flex-wrap gap-1 items-center">
+        Theme by
+        <a href="https://github.com/lyimoexiao/komari-theme-naive" target="_blank" rel="noopener noreferrer"
+          class="transition-opacity hover:opacity-80" :title="String([buildVersion, buildGitHash])">
+          <span class="font-medium text-foreground">Komari Naive</span>
+        </a>
+      </div>
+    </div>
+
+    <div v-if="showFiling" class="flex flex-wrap gap-2 items-center justify-center sm:flex-shrink-0">
+      <a v-if="showIcp" :href="appStore.icpUrl" target="_blank" rel="noopener noreferrer"
+        class="transition-opacity hover:opacity-70">
+        <span class="text-xs text-muted-foreground">{{ appStore.icpNumber || '' }}</span>
+      </a>
+      <span v-if="showIcp && showPolice" class="opacity-50 text-xs text-muted-foreground">·</span>
+      <template v-if="showPolice">
+        <a v-if="appStore.policeUrl" :href="appStore.policeUrl" target="_blank" rel="noopener noreferrer"
+          class="transition-opacity hover:opacity-70">
+          <span class="text-xs text-muted-foreground">{{ appStore.policeNumber || '' }}</span>
+        </a>
+        <span v-else class="text-xs text-muted-foreground">{{ appStore.policeNumber || '' }}</span>
+      </template>
     </div>
   </footer>
 </template>

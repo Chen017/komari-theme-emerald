@@ -15,6 +15,7 @@ import { formatBytes, formatBytesSplit } from '@/utils/helper'
 import { fillMissingTimePoints } from '@/utils/recordHelper'
 import { getSharedRpc } from '@/utils/rpc'
 import '@/utils/echarts' // 共享 ECharts 配置
+import { Icon } from '@iconify/vue'
 
 const props = defineProps<{
   uuid: string
@@ -100,8 +101,8 @@ const baseTooltipConfig = computed(() => ({
 }))
 
 // 图表边距配置
-const chartMargin = { top: 12, right: 24, bottom: 32, left: 56 }
-const chartMarginWithLegend = { top: 12, right: 24, bottom: 52, left: 56 }
+const chartMargin = { top: 30, right: 24, bottom: 32, left: 56 }
+const chartMarginWithLegend = { top: 30, right: 24, bottom: 52, left: 56 }
 
 // 视图选项
 const presetViews = [
@@ -414,10 +415,10 @@ const cpuChartOption = computed(() => ({
       name: 'CPU',
       type: 'line',
       data: chartData.value.map(r => r.cpu),
-      smooth: 0.6,
+
       showSymbol: false,
       yAxisIndex: 0,
-      lineStyle: { width: 2.5, color: chartColors.primary, cap: 'round' as const },
+      lineStyle: { width: 1.5, color: chartColors.primary, cap: 'round' as const },
       areaStyle: {
         color: {
           type: 'linear',
@@ -436,10 +437,10 @@ const cpuChartOption = computed(() => ({
       name: '负载',
       type: 'line',
       data: chartData.value.map(r => r.load),
-      smooth: 0.6,
+
       showSymbol: false,
       yAxisIndex: 1,
-      lineStyle: { width: 2.5, color: chartColors.secondary, cap: 'round' as const },
+      lineStyle: { width: 1.5, color: chartColors.secondary, cap: 'round' as const },
     },
   ],
 }))
@@ -501,9 +502,9 @@ const memoryChartOption = computed(() => ({
       name: 'RAM',
       type: 'line',
       data: chartData.value.map(r => r.ram ?? 0),
-      smooth: 0.6,
+
       showSymbol: false,
-      lineStyle: { width: 2.5, color: chartColors.primary, cap: 'round' as const },
+      lineStyle: { width: 1.5, color: chartColors.primary, cap: 'round' as const },
       areaStyle: {
         color: {
           type: 'linear',
@@ -522,9 +523,9 @@ const memoryChartOption = computed(() => ({
       name: 'Swap',
       type: 'line',
       data: chartData.value.map(r => r.swap ?? 0),
-      smooth: 0.6,
+
       showSymbol: false,
-      lineStyle: { width: 2.5, color: chartColors.secondary, cap: 'round' as const },
+      lineStyle: { width: 1.5, color: chartColors.secondary, cap: 'round' as const },
     },
   ],
 }))
@@ -576,9 +577,9 @@ const diskChartOption = computed(() => ({
       name: '磁盘已用',
       type: 'line',
       data: chartData.value.map(r => r.disk ?? 0),
-      smooth: 0.6,
+
       showSymbol: false,
-      lineStyle: { width: 2.5, color: chartColors.tertiary, cap: 'round' as const },
+      lineStyle: { width: 1.5, color: chartColors.tertiary, cap: 'round' as const },
       areaStyle: {
         color: {
           type: 'linear',
@@ -651,17 +652,17 @@ const networkChartOption = computed(() => ({
       name: '下载',
       type: 'line',
       data: chartData.value.map(r => r.net_in ?? 0),
-      smooth: 0.6,
+
       showSymbol: false,
-      lineStyle: { width: 2.5, color: chartColors.quinary, cap: 'round' as const },
+      lineStyle: { width: 1.5, color: chartColors.quinary, cap: 'round' as const },
     },
     {
       name: '上传',
       type: 'line',
       data: chartData.value.map(r => r.net_out ?? 0),
-      smooth: 0.6,
+
       showSymbol: false,
-      lineStyle: { width: 2.5, color: chartColors.quaternary, cap: 'round' as const },
+      lineStyle: { width: 1.5, color: chartColors.quaternary, cap: 'round' as const },
     },
   ],
 }))
@@ -722,17 +723,17 @@ const connectionsChartOption = computed(() => ({
       name: 'TCP',
       type: 'line',
       data: chartData.value.map(r => r.connections ?? 0),
-      smooth: 0.6,
+
       showSymbol: false,
-      lineStyle: { width: 2.5, color: chartColors.primary, cap: 'round' as const },
+      lineStyle: { width: 1.5, color: chartColors.primary, cap: 'round' as const },
     },
     {
       name: 'UDP',
       type: 'line',
       data: chartData.value.map(r => r.connections_udp ?? 0),
-      smooth: 0.6,
+
       showSymbol: false,
-      lineStyle: { width: 2.5, color: chartColors.tertiary, cap: 'round' as const },
+      lineStyle: { width: 1.5, color: chartColors.tertiary, cap: 'round' as const },
     },
   ],
 }))
@@ -782,9 +783,9 @@ const processChartOption = computed(() => ({
       name: '进程数',
       type: 'line',
       data: chartData.value.map(r => r.process ?? 0),
-      smooth: 0.6,
+
       showSymbol: false,
-      lineStyle: { width: 2.5, color: chartColors.quaternary, cap: 'round' as const },
+      lineStyle: { width: 1.5, color: chartColors.quaternary, cap: 'round' as const },
       areaStyle: {
         color: {
           type: 'linear',
@@ -843,13 +844,8 @@ onMounted(() => {
   <div class="flex flex-col gap-4">
     <!-- 时间选择器 -->
     <div class="flex flex-wrap gap-2 justify-center">
-      <Button
-        v-for="view in availableViews"
-        :key="view.label"
-        :variant="selectedView === view.label ? 'default' : 'outline'"
-        size="sm"
-        @click="selectedView = view.label"
-      >
+      <Button v-for="view in availableViews" :key="view.label"
+        :variant="selectedView === view.label ? 'default' : 'outline'" size="sm" @click="selectedView = view.label">
         {{ view.label }}
       </Button>
     </div>
@@ -866,15 +862,15 @@ onMounted(() => {
       <!-- 图表网格 -->
       <div v-else class="gap-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
         <!-- CPU 卡片 -->
-        <CardX size="small" class="chart-card">
+        <CardX size="small" class="bg-background/50 border-none hover:bg-background transition-all rounded-md">
           <template #header>
             <div class="flex items-center justify-between">
               <span class="text-base font-bold">CPU</span>
-              <div v-if="latestStatus?.cpu != null" class="text-sm flex gap-0.5 items-baseline">
-                <span class="font-number" style="color: hsl(var(--foreground))">{{ latestStatus.cpu.toFixed(1) }}</span>
-                <span style="color: hsl(var(--muted-foreground))">%</span>
+              <div v-if="latestStatus?.cpu != null" class="text-xs flex gap-0.5 items-baseline">
+                <span>{{ latestStatus.cpu.toFixed(1) }}</span>
+                <span>%</span>
               </div>
-              <span v-else style="color: hsl(var(--muted-foreground))">-</span>
+              <span v-else>-</span>
             </div>
           </template>
           <div class="h-48">
@@ -883,22 +879,23 @@ onMounted(() => {
         </CardX>
 
         <!-- 内存卡片 -->
-        <CardX size="small" class="chart-card">
+        <CardX size="small" class="bg-background/50 border-none hover:bg-background transition-all rounded-md">
           <template #header>
             <div class="flex items-center justify-between">
               <span class="text-base font-bold">内存</span>
-              <div class="text-sm flex gap-1 items-baseline">
+              <div class="text-xs flex gap-1 items-baseline">
                 <template v-if="latestStatus?.ram != null">
-                  <span class="font-number" style="color: hsl(var(--foreground))">{{ formatBytesSplit(latestStatus.ram, appStore.byteDecimals).value }}</span>
-                  <span style="color: hsl(var(--muted-foreground))">{{ formatBytesSplit(latestStatus.ram, appStore.byteDecimals).unit }}</span>
+                  <span>{{ formatBytesSplit(latestStatus.ram).value }}</span>
+                  <span>{{ formatBytesSplit(latestStatus.ram).unit }}</span>
                 </template>
-                <span v-else style="color: hsl(var(--muted-foreground))">-</span>
-                <span style="color: hsl(var(--muted-foreground))">/</span>
+                <span v-else>-</span>
+                <span>·</span>
                 <template v-if="nodeInfo?.mem_total">
-                  <span class="font-number" style="color: hsl(var(--muted-foreground))">{{ formatBytesSplit(nodeInfo.mem_total, appStore.byteDecimals).value }}</span>
-                  <span style="color: hsl(var(--muted-foreground))">{{ formatBytesSplit(nodeInfo.mem_total, appStore.byteDecimals).unit }}</span>
+                  <span>{{
+                    formatBytesSplit(nodeInfo.mem_total).value }}</span>
+                  <span>{{ formatBytesSplit(nodeInfo.mem_total).unit }}</span>
                 </template>
-                <span v-else style="color: hsl(var(--muted-foreground))">-</span>
+                <span v-else>-</span>
               </div>
             </div>
           </template>
@@ -908,22 +905,22 @@ onMounted(() => {
         </CardX>
 
         <!-- 磁盘卡片 -->
-        <CardX size="small" class="chart-card">
+        <CardX size="small" class="bg-background/50 border-none hover:bg-background transition-all rounded-md">
           <template #header>
             <div class="flex items-center justify-between">
               <span class="text-base font-bold">磁盘</span>
-              <div class="text-sm flex gap-1 items-baseline">
+              <div class="text-xs flex gap-1 items-baseline">
                 <template v-if="latestStatus?.disk != null">
-                  <span class="font-number" style="color: hsl(var(--foreground))">{{ formatBytesSplit(latestStatus.disk, appStore.byteDecimals).value }}</span>
-                  <span style="color: hsl(var(--muted-foreground))">{{ formatBytesSplit(latestStatus.disk, appStore.byteDecimals).unit }}</span>
+                  <span>{{ formatBytesSplit(latestStatus.disk).value }}</span>
+                  <span>{{ formatBytesSplit(latestStatus.disk).unit }}</span>
                 </template>
-                <span v-else style="color: hsl(var(--muted-foreground))">-</span>
-                <span style="color: hsl(var(--muted-foreground))">/</span>
+                <span v-else>-</span>
+                <span>·</span>
                 <template v-if="nodeInfo?.disk_total">
-                  <span class="font-number" style="color: hsl(var(--muted-foreground))">{{ formatBytesSplit(nodeInfo.disk_total, appStore.byteDecimals).value }}</span>
-                  <span style="color: hsl(var(--muted-foreground))">{{ formatBytesSplit(nodeInfo.disk_total, appStore.byteDecimals).unit }}</span>
+                  <span>{{ formatBytesSplit(nodeInfo.disk_total).value }}</span>
+                  <span>{{ formatBytesSplit(nodeInfo.disk_total).unit }}</span>
                 </template>
-                <span v-else style="color: hsl(var(--muted-foreground))">-</span>
+                <span v-else>-</span>
               </div>
             </div>
           </template>
@@ -933,24 +930,27 @@ onMounted(() => {
         </CardX>
 
         <!-- 网络卡片 -->
-        <CardX size="small" class="chart-card">
+        <CardX size="small" class="bg-background/50 border-none hover:bg-background transition-all rounded-md">
           <template #header>
             <div class="flex items-center justify-between">
               <span class="text-base font-bold">网络</span>
-              <div class="text-sm flex gap-1 items-baseline">
-                <span style="color: hsl(var(--muted-foreground))">↑</span>
-                <template v-if="latestStatus?.net_out != null">
-                  <span class="font-number" style="color: hsl(var(--foreground))">{{ formatBytesSplit(latestStatus.net_out, appStore.byteDecimals).value }}</span>
-                  <span style="color: hsl(var(--muted-foreground))">{{ formatBytesSplit(latestStatus.net_out, appStore.byteDecimals).unit }}/s</span>
-                </template>
-                <span v-else style="color: hsl(var(--muted-foreground))">-</span>
-                <span style="color: hsl(var(--muted-foreground))">｜</span>
-                <span style="color: hsl(var(--muted-foreground))">↓</span>
-                <template v-if="latestStatus?.net_in != null">
-                  <span class="font-number" style="color: hsl(var(--foreground))">{{ formatBytesSplit(latestStatus.net_in, appStore.byteDecimals).value }}</span>
-                  <span style="color: hsl(var(--muted-foreground))">{{ formatBytesSplit(latestStatus.net_in, appStore.byteDecimals).unit }}/s</span>
-                </template>
-                <span v-else style="color: hsl(var(--muted-foreground))">-</span>
+              <div class="text-xs flex gap-2 items-baseline">
+                <span class="flex flex-row items-center justify-center gap-0.5">
+                  <Icon icon="tabler:chevron-up" width="12" height="12" />
+                  <template v-if="latestStatus?.net_out != null">
+                    {{ formatBytesSplit(latestStatus.net_out).value }}
+                    {{ formatBytesSplit(latestStatus.net_out).unit }}/s
+                  </template>
+                  <template v-else>-</template>
+                </span>
+                <span class="flex flex-row items-center justify-center gap-0.5">
+                  <Icon icon="tabler:chevron-down" width="12" height="12" />
+                  <template v-if="latestStatus?.net_in != null">
+                    {{ formatBytesSplit(latestStatus.net_in).value }}
+                    {{ formatBytesSplit(latestStatus.net_in).unit }}/s
+                  </template>
+                  <template v-else>-</template>
+                </span>
               </div>
             </div>
           </template>
@@ -960,16 +960,14 @@ onMounted(() => {
         </CardX>
 
         <!-- 连接数卡片 -->
-        <CardX size="small" class="chart-card">
+        <CardX size="small" class="bg-background/50 border-none hover:bg-background transition-all rounded-md">
           <template #header>
             <div class="flex items-center justify-between">
               <span class="text-base font-bold">连接</span>
-              <div class="text-sm flex gap-1 items-baseline">
-                <span style="color: hsl(var(--muted-foreground))">TCP:</span>
-                <span class="font-number" style="color: hsl(var(--foreground))">{{ latestStatus?.connections ?? '-' }}</span>
-                <span style="color: hsl(var(--muted-foreground))">｜</span>
-                <span style="color: hsl(var(--muted-foreground))">UDP:</span>
-                <span class="font-number" style="color: hsl(var(--foreground))">{{ latestStatus?.connections_udp ?? '-' }}</span>
+              <div class="text-xs flex gap-1 items-baseline">
+                <span>TCP: {{ latestStatus?.connections ?? '-' }}</span>
+                <span>·</span>
+                <span>UDP: {{ latestStatus?.connections_udp ?? '-' }}</span>
               </div>
             </div>
           </template>
@@ -979,11 +977,11 @@ onMounted(() => {
         </CardX>
 
         <!-- 进程卡片 -->
-        <CardX size="small" class="chart-card">
+        <CardX size="small" class="bg-background/50 border-none hover:bg-background transition-all rounded-md">
           <template #header>
             <div class="flex items-center justify-between">
               <span class="text-base font-bold">进程</span>
-              <span class="text-sm font-number" style="color: hsl(var(--foreground))">
+              <span class="text-xs">
                 {{ latestStatus?.process ?? '-' }}
               </span>
             </div>
@@ -996,10 +994,3 @@ onMounted(() => {
     </Spinner>
   </div>
 </template>
-
-<style scoped>
-.chart-card :deep([data-slot='card-content']),
-.chart-card > div:last-child {
-  padding: 8px;
-}
-</style>

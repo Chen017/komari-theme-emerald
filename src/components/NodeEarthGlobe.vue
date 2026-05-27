@@ -311,7 +311,7 @@ function formatRate(bytesPerSec: number): string {
 </script>
 
 <template>
-  <div ref="containerRef" class="relative aspect-square w-full max-w-md mx-auto -translate-y-12">
+  <div ref="containerRef" class="relative aspect-square w-full max-w-md mx-auto -translate-y-6 md:-translate-y-12">
     <canvas ref="canvasRef"
       class="earth-globe-canvas absolute inset-0 w-full h-full select-none touch-none cursor-grab active:cursor-grabbing"
       @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp" @pointercancel="onPointerUp" />
@@ -339,7 +339,7 @@ function formatRate(bytesPerSec: number): string {
     </div>
 
     <div v-if="totalServers > 0"
-      class="absolute top-12 left-0 text-[10px] text-muted-foreground pointer-events-none flex gap-2 items-center backdrop-blur-lg bg-background/60 rounded px-2 py-0.5">
+      class="absolute top-6 md:top-12 left-0 text-[10px] text-muted-foreground pointer-events-none flex gap-2 items-center backdrop-blur-lg bg-background/60 rounded px-2 py-0.5">
       <div v-if="onlineServers > 0" class="flex items-center gap-1">
         <span class="inline-block size-1.5 rounded-full bg-green-600 animate-pulse" />
         <span class="text-green-600">{{ onlineServers }}</span>

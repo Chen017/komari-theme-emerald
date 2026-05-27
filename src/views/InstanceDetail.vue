@@ -29,7 +29,7 @@ onMounted(() => {
 
 const formatBytes = (bytes: number) => formatBytesWithConfig(bytes, appStore.byteDecimals)
 const formatBytesPerSecond = (bytes: number) => formatBytesPerSecondWithConfig(bytes, appStore.byteDecimals)
-const formatUptime = (seconds: number) => formatUptimeWithFormat(seconds, 'day')
+const formatUptime = (seconds: number) => formatUptimeWithFormat(seconds, 'minute')
 
 const chartView = ref<'load' | 'ping'>('load')
 
@@ -78,53 +78,31 @@ const storageInfo = computed<InfoItem[]>(() => [
 
     <template v-else>
       <div class="px-4 py-2 flex gap-4 items-center">
-        <Button variant="ghost" size="icon-sm" @click="router.push('/')">
-          <Icon icon="icon-park-outline:arrow-left" :width="16" :height="16" />
+        <Button variant="ghost" size="icon-sm" class="bg-background/50" @click="router.push('/')">
+          <Icon icon="tabler:arrow-left" :width="16" :height="16" />
         </Button>
         <div class="text-lg font-bold flex gap-2 items-center">
-          <img
-            :src="`/images/flags/${getRegionCode(data.region)}.svg`"
-            :alt="getRegionDisplayName(data.region)"
-            class="size-6"
-          >
+          <img :src="`/images/flags/${getRegionCode(data.region)}.svg`" :alt="getRegionDisplayName(data.region)"
+            class="size-6">
           <span>{{ data.name }}</span>
         </div>
-        <Badge :variant="data.online ? 'default' : 'destructive'" class="text-xs">
+        <Badge :variant="data.online ? 'default' : 'destructive'" class="text-xs !rounded">
           {{ data.online ? '在线' : '离线' }}
         </Badge>
       </div>
 
-      <div class="p-4 gap-4 grid grid-cols-1 lg:grid-cols-2">
-        <CardX title="硬件信息" size="small">
-          <div class="gap-4 grid grid-cols-1 sm:grid-cols-2">
-            <div v-for="item in hardwareInfo" :key="item.label" class="flex flex-col gap-1">
+      <div class="px-4 gap-4 grid grid-cols-1 md:grid-cols-2">
+        <CardX title="基本信息" size="small"
+          class="col-span-2 group h-full bg-background/50 border-none hover:bg-background transition-all p-1 sm:p-4 rounded-md">
+          <div class="gap-2 grid grid-cols-2 lg:grid-cols-4">
+            <div v-for="item in [...hardwareInfo, ...systemInfo]" :key="item.label" class="flex flex-col gap-1">
               <div class="flex gap-1 items-center text-muted-foreground">
-                <Icon v-if="item.icon" :icon="item.icon" :width="14" :height="14" />
-                <span class="text-sm">{{ item.label }}</span>
-              </div>
-              <span class="text-sm break-all">{{ item.value }}</span>
-            </div>
-          </div>
-        </CardX>
-
-        <CardX title="系统信息" size="small">
-          <div class="gap-4 grid grid-cols-1 sm:grid-cols-2">
-            <div v-for="item in systemInfo" :key="item.label" class="flex flex-col gap-1">
-              <div class="flex gap-1 items-center text-muted-foreground">
-                <Icon v-if="item.icon" :icon="item.icon" :width="14" :height="14" />
-                <span class="text-sm">{{ item.label }}</span>
+                <!-- <Icon v-if="item.icon" :icon="item.icon" :width="14" :height="14" /> -->
+                <span class="text-xs sm:text-sm">{{ item.label }}</span>
               </div>
               <div class="flex gap-2 items-center">
-                <img
-                  v-if="item.label === '操作系统'"
-                  :src="getOSImage(data.os)"
-                  :alt="getOSName(data.os)"
-                  class="size-5"
-                >
-                <span
-                  class="text-sm break-all"
-                  :class="(item.label === '运行时间' || item.label === '最后上报') ? 'font-number' : ''"
-                >
+                <img v-if="item.label === '操作系统'" :src="getOSImage(data.os)" :alt="getOSName(data.os)" class="size-5">
+                <span class="text-xs sm:text-sm break-all">
                   {{ item.value }}
                 </span>
               </div>
@@ -132,65 +110,55 @@ const storageInfo = computed<InfoItem[]>(() => [
           </div>
         </CardX>
 
-        <CardX title="存储信息" size="small">
-          <div class="gap-4 grid grid-cols-1 sm:grid-cols-3">
+        <CardX title="存储信息" size="small"
+          class="group h-full bg-background/50 border-none hover:bg-background transition-all p-1 col-span-2 sm:p-4 md:col-span-1 rounded-md">
+          <div class="gap-2 grid grid-cols-3">
             <div v-for="item in storageInfo" :key="item.label" class="flex flex-col gap-1">
               <div class="flex gap-1 items-center text-muted-foreground">
                 <Icon v-if="item.icon" :icon="item.icon" :width="14" :height="14" />
-                <span class="text-sm">{{ item.label }}</span>
+                <span class="text-xs sm:text-sm">{{ item.label }}</span>
               </div>
-              <span class="text-sm font-number">{{ item.value }}</span>
+              <span class="text-xs sm:text-sm">{{ item.value }}</span>
             </div>
           </div>
         </CardX>
 
-        <CardX title="网络信息" size="small">
-          <div class="gap-4 grid grid-cols-1 sm:grid-cols-2">
+        <CardX title="网络信息" size="small"
+          class="group h-full bg-background/50 border-none hover:bg-background transition-all p-1 col-span-2 sm:p-4 md:col-span-1 rounded-md">
+          <div class="gap-2 grid grid-cols-2">
             <div class="flex flex-col gap-1">
               <div class="flex gap-1 items-center text-muted-foreground">
                 <Icon icon="icon-park-outline:transfer-data" :width="14" :height="14" />
-                <span class="text-sm">总流量</span>
+                <span class="text-xs sm:text-sm">总流量</span>
               </div>
-              <span class="text-sm break-all font-number">
-                ↑ {{ formatBytes(data?.net_total_up ?? 0) }}
+              <span class="text-xs sm:text-sm break-all flex flex-row items-center gap-1">
+                <Icon icon="tabler:upload" width="12" height="12" />
+                {{ formatBytes(data?.net_total_up ?? 0) }}
                 <span class="p-1" />
-                ↓ {{ formatBytes(data?.net_total_down ?? 0) }}
+                <Icon icon="tabler:download" width="12" height="12" />
+                {{ formatBytes(data?.net_total_down ?? 0) }}
               </span>
             </div>
             <div class="flex flex-col gap-1">
               <div class="flex gap-1 items-center text-muted-foreground">
                 <Icon icon="icon-park-outline:dashboard-one" :width="14" :height="14" />
-                <span class="text-sm">网络速率</span>
+                <span class="text-xs sm:text-sm">网络速率</span>
               </div>
-              <span class="text-sm break-all font-number">
-                ↑ {{ formatBytesPerSecond(data?.net_out ?? 0) }}
+              <span class="text-xs sm:text-sm break-all flex flex-row items-center gap-1">
+                <Icon icon="tabler:chevron-up" width="12" height="12" />
+                {{ formatBytesPerSecond(data?.net_out ?? 0) }}
                 <span class="p-1" />
-                ↓ {{ formatBytesPerSecond(data?.net_in ?? 0) }}
+                <Icon icon="tabler:chevron-down" width="12" height="12" />
+                {{ formatBytesPerSecond(data?.net_in ?? 0) }}
               </span>
             </div>
           </div>
         </CardX>
       </div>
 
-      <Separator class="my-0 mx-4" />
-
-      <div class="p-4">
-        <Tabs v-model="chartView" class="w-full">
-          <TabsList>
-            <TabsTrigger value="load">
-              负载
-            </TabsTrigger>
-            <TabsTrigger value="ping">
-              延迟
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="load">
-            <LoadChart :uuid="data.uuid" />
-          </TabsContent>
-          <TabsContent value="ping">
-            <PingChart :uuid="data.uuid" />
-          </TabsContent>
-        </Tabs>
+      <div class="p-4 space-y-8">
+        <LoadChart :uuid="data.uuid" />
+        <PingChart :uuid="data.uuid" />
       </div>
     </template>
   </div>

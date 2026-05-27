@@ -5,7 +5,6 @@ import { computed } from 'vue'
 import { CardX } from '@/components/ui/card-x'
 import { ProgressThin } from '@/components/ui/progress-thin'
 import { Badge } from '@/components/ui/badge'
-import { useThemeVars } from '@/composables/useThemeVars'
 import { useAppStore } from '@/stores/app'
 import { formatBytesPerSecondWithConfig, formatBytesWithConfig, formatDateTime, formatUptimeWithFormat, getStatus } from '@/utils/helper'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
@@ -17,7 +16,6 @@ const props = defineProps<{ node: NodeData }>()
 const emit = defineEmits<{ click: [] }>()
 
 const appStore = useAppStore()
-const themeVars = useThemeVars()
 
 const formatBytes = (bytes: number) => formatBytesWithConfig(bytes, appStore.byteDecimals)
 const formatBytesPerSecond = (bytes: number) => formatBytesPerSecondWithConfig(bytes, appStore.byteDecimals)

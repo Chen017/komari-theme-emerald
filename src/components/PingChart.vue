@@ -27,10 +27,10 @@ const chartThemeColors = computed(() => ({
   text: isDark.value ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.85)',
   textSecondary: isDark.value ? 'rgba(255, 255, 255, 0.55)' : 'rgba(0, 0, 0, 0.55)',
   textTertiary: isDark.value ? 'rgba(255, 255, 255, 0.35)' : 'rgba(0, 0, 0, 0.35)',
-  borderColor: isDark.value ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+  borderColor: isDark.value ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
   splitLineColor: isDark.value ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)',
-  tooltipBg: isDark.value ? 'rgba(40, 40, 40, 0.95)' : 'rgba(255, 255, 255, 0.98)',
-  tooltipShadow: isDark.value ? 'rgba(0, 0, 0, 0.4)' : 'rgba(0, 0, 0, 0.12)',
+  tooltipBg: isDark.value ? 'rgba(40, 40, 40, 0.95)' : 'rgba(255, 255, 255, 0.8)',
+  tooltipShadow: isDark.value ? 'rgba(0, 0, 0, 0.4)' : 'rgba(0, 0, 0, 0.1)',
   crosshairColor: isDark.value ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)',
 }))
 
@@ -143,7 +143,7 @@ const error = ref<string | null>(null)
 const selectedTaskIds = ref<number[]>([])
 const cutPeak = ref(false)
 
-const chartMargin = { top: 12, right: 24, bottom: 52, left: 56 }
+const chartMargin = { top: 30, right: 24, bottom: 52, left: 56 }
 
 // ==================== 数据获取 ====================
 
@@ -358,15 +358,13 @@ const baseTooltipConfig = computed(() => ({
   backgroundColor: chartThemeColors.value.tooltipBg,
   borderColor: 'transparent',
   borderWidth: 0,
-  borderRadius: 8,
-  padding: [10, 14],
-  boxShadow: `0 4px 16px ${chartThemeColors.value.tooltipShadow}`,
+  borderRadius: 6,
   textStyle: {
     color: chartThemeColors.value.text,
-    fontSize: 13,
+    fontSize: 12,
     lineHeight: 20,
   },
-  extraCssText: 'box-shadow: none;',
+  extraCssText: 'backdrop-filter: blur(4px);z-index:9;box-shadow:0 0 10px ' + chartThemeColors.value.tooltipShadow,
   axisPointer: {
     type: 'cross' as const,
     crossStyle: {
@@ -395,10 +393,10 @@ const pingChartOption = computed(() => {
       name: task.name,
       type: 'line' as const,
       data: data.map(d => d[task.id] as number | null ?? null),
-      smooth: cutPeak.value ? 0.6 : 0.4,
+      smooth: cutPeak.value ? 0.6 : 0.1,
       showSymbol: false,
       connectNulls: false,
-      lineStyle: { width: 2.5, color, cap: 'round' as const },
+      lineStyle: { width: 1.5, color, cap: 'round' as const },
       itemStyle: { color }, // 确保 symbol 颜色一致
     }
   })
@@ -453,7 +451,7 @@ const pingChartOption = computed(() => {
     },
     legend: {
       type: 'scroll',
-      bottom: 4,
+      bottom: 0,
       itemWidth: 12,
       itemHeight: 12,
       itemGap: 16,
@@ -480,7 +478,7 @@ const pingChartOption = computed(() => {
     yAxis: {
       type: 'value',
       name: '延迟 (ms)',
-      nameTextStyle: { color: chartThemeColors.value.textSecondary, padding: [0, 40, 0, 0] },
+      nameTextStyle: { color: chartThemeColors.value.textSecondary },
       axisLabel: { fontSize: 11, color: chartThemeColors.value.textSecondary, formatter: '{value}' },
       axisLine: { show: false },
       axisTick: { show: false },
@@ -519,126 +517,118 @@ onMounted(() => {
 </script>
 
 <template>
-  <TooltipProvider :delay-duration="200">
-    <div class="flex flex-col gap-4">
-      <!-- 时间选择器 -->
-      <div class="flex flex-wrap gap-2 justify-center">
-        <Button
-          v-for="view in availableViews"
-          :key="view.label"
-          :variant="selectedView === view.label ? 'default' : 'outline'"
-          size="sm"
-          @click="selectedView = view.label"
-        >
-          {{ view.label }}
-        </Button>
+  <div class="flex flex-col gap-4">
+    <!-- 时间选择器 -->
+    <div class="flex flex-wrap gap-2 justify-center">
+      <Button v-for="view in availableViews" :key="view.label"
+        :variant="selectedView === view.label ? 'default' : 'outline'" size="sm" @click="selectedView = view.label">
+        {{ view.label }}
+      </Button>
+    </div>
+
+    <!-- 内容区域 -->
+    <Spinner :show="loading" content-class="flex flex-col gap-4">
+      <div v-if="error" class="text-red-500 py-8 text-center">
+        {{ error }}
+      </div>
+      <div v-else-if="tasks.length === 0 && !loading" class="py-8">
+        <Empty description="暂无延迟数据" />
       </div>
 
-      <!-- 内容区域 -->
-      <Spinner :show="loading" content-class="flex flex-col gap-4">
-        <div v-if="error" class="text-red-500 py-8 text-center">
-          {{ error }}
-        </div>
-        <div v-else-if="tasks.length === 0 && !loading" class="py-8">
-          <Empty description="暂无延迟数据" />
-        </div>
-
-        <template v-else>
-          <!-- 最新值统计卡片（可点击切换选中状态） -->
-          <div v-if="latestValues.length > 0" class="gap-3 grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr))">
-            <div
-              v-for="task in latestValues"
-              :key="task.id"
-              class="p-3 rounded-md border bg-card flex gap-3 cursor-pointer select-none transition-colors items-center"
-              :class="[
-                selectedTaskIds.includes(task.id)
-                  ? ''
-                  : 'opacity-50',
-              ]"
-              :onmouseover="(e: MouseEvent) => ((e.currentTarget as HTMLElement).style.borderColor = task.color)"
-              :onmouseout="(e: MouseEvent) => ((e.currentTarget as HTMLElement).style.borderColor = '')"
-              @click="toggleTask(task.id)"
-            >
-              <div
-                class="rounded-md flex-shrink-0 h-10 w-1.5"
-                :style="{ backgroundColor: task.color }"
-              />
-              <div class="flex-1 min-w-0">
+      <template v-else>
+        <!-- 最新值统计卡片（可点击切换选中状态） -->
+        <div v-if="latestValues.length > 0" class="gap-3 grid"
+          style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr))">
+          <div v-for="task in latestValues" :key="task.id"
+            class="p-2 rounded-md bg-background/50 hover:bg-background hover:shadow-[0_0_0_2px] hover:shadow-primary/10 flex gap-3 cursor-pointer select-none transition-all items-center"
+            :class="[!selectedTaskIds.includes(task.id) && 'opacity-30']"
+            :onmouseover="(e: MouseEvent) => ((e.currentTarget as HTMLElement).style.borderColor = task.color)"
+            :onmouseout="(e: MouseEvent) => ((e.currentTarget as HTMLElement).style.borderColor = '')"
+            @click="toggleTask(task.id)">
+            <div class="flex-1 min-w-0">
+              <TooltipProvider>
                 <div class="flex gap-2 items-center">
-                  <span class="text-base font-semibold truncate">{{ task.name }}</span>
+                  <div class="rounded h-4 w-1" :style="{ backgroundColor: task.color }" />
+                  <span class="text-sm font-semibold truncate">{{ task.name }}</span>
+                  <div class="flex-1"></div>
                   <Tooltip>
                     <TooltipTrigger as-child>
-                      <span class="text-sm opacity-50 cursor-help transition-opacity hover:opacity-100 inline-flex" style="color: color-mix(in srgb, hsl(var(--foreground)) 80%, transparent)" @click.stop>
+                      <span class="text-sm opacity-50 cursor-help transition-opacity hover:opacity-100 inline-flex"
+                        style="color: color-mix(in srgb, hsl(var(--foreground)) 80%, transparent)" @click.stop>
                         <Icon icon="carbon:information" :width="14" :height="14" />
                       </span>
                     </TooltipTrigger>
-                    <TooltipContent>
-                      <div class="text-sm gap-x-4 gap-y-1.5 grid grid-cols-2">
+                    <TooltipContent class="!rounded p-3">
+                      <div class="text-xs gap-x-4 gap-y-1.5 grid grid-cols-4">
                         <template v-if="task.min !== undefined">
-                          <span style="color: hsl(var(--muted-foreground))">最小</span>
+                          <span class="text-muted-foreground">最小</span>
                           <span class="font-medium font-number">{{ Math.round(task.min) }} ms</span>
                         </template>
                         <template v-if="task.max !== undefined">
-                          <span style="color: hsl(var(--muted-foreground))">最大</span>
+                          <span class="text-muted-foreground">最大</span>
                           <span class="font-medium font-number">{{ Math.round(task.max) }} ms</span>
                         </template>
                         <template v-if="task.avg !== undefined">
-                          <span style="color: hsl(var(--muted-foreground))">平均</span>
+                          <span class="text-muted-foreground">平均</span>
                           <span class="font-medium font-number">{{ Math.round(task.avg) }} ms</span>
                         </template>
                         <template v-if="task.latest !== undefined">
-                          <span style="color: hsl(var(--muted-foreground))">最新</span>
+                          <span class="text-muted-foreground">最新</span>
                           <span class="font-medium font-number">{{ Math.round(task.latest) }} ms</span>
                         </template>
                         <template v-if="task.p50 !== undefined">
-                          <span style="color: hsl(var(--muted-foreground))">P50</span>
+                          <span class="text-muted-foreground">P50</span>
                           <span class="font-medium font-number">{{ Math.round(task.p50) }} ms</span>
                         </template>
                         <template v-if="task.p99 !== undefined">
-                          <span style="color: hsl(var(--muted-foreground))">P99</span>
+                          <span class="text-muted-foreground">P99</span>
                           <span class="font-medium font-number">{{ Math.round(task.p99) }} ms</span>
                         </template>
                         <template v-if="task.p99_p50_ratio !== undefined">
-                          <span style="color: hsl(var(--muted-foreground))">波动率</span>
+                          <span class="text-muted-foreground">波动率</span>
                           <span class="font-medium font-number">{{ task.p99_p50_ratio.toFixed(2) }}</span>
                         </template>
                         <template v-if="task.interval !== undefined">
-                          <span style="color: hsl(var(--muted-foreground))">间隔</span>
+                          <span class="text-muted-foreground">间隔</span>
                           <span class="font-medium font-number">{{ task.interval }}s</span>
                         </template>
                         <template v-if="task.type">
-                          <span style="color: hsl(var(--muted-foreground))">类型</span>
+                          <span class="text-muted-foreground">类型</span>
                           <span class="font-medium font-number">{{ task.type.toUpperCase() }}</span>
                         </template>
                         <template v-if="task.total !== undefined">
-                          <span style="color: hsl(var(--muted-foreground))">总数</span>
+                          <span class="text-muted-foreground">总数</span>
                           <span class="font-medium font-number">{{ task.total }}</span>
                         </template>
                       </div>
                     </TooltipContent>
                   </Tooltip>
                 </div>
-                <div class="text-sm mt-1 flex gap-3 items-center" style="color: hsl(var(--muted-foreground))">
-                  <span class="font-medium font-number" style="color: hsl(var(--foreground))">{{ task.latestValue !== null ? `${Math.round(task.latestValue)} ms` : '-' }}</span>
-                  <span class="opacity-60">•</span>
-                  <span class="font-number">{{ task.loss.toFixed(1) }}% 丢包</span>
-                  <template v-if="task.p99_p50_ratio !== undefined">
-                    <span class="opacity-60">•</span>
-                    <span class="font-number" title="波动率 p99/p50">{{ task.p99_p50_ratio.toFixed(1) }} 波动</span>
-                  </template>
-                </div>
+              </TooltipProvider>
+              <div class="text-xs mt-1 flex gap-1.5 items-center text-muted-foreground">
+                <span class="font-medium font-number" title="平均延迟">
+                  {{ task.avg !== undefined ? `${Math.round(task.avg)}ms` : '-' }}
+                </span>
+                <span class="opacity-60">·</span>
+                <span class="font-number" title="丢包率">{{ task.loss.toFixed(2) }}%</span>
+                <template v-if="task.p99_p50_ratio !== undefined">
+                  <span class="opacity-60">·</span>
+                  <span class="font-number" title="波动率">{{ task.p99_p50_ratio.toFixed(2) }}</span>
+                </template>
               </div>
             </div>
           </div>
+        </div>
 
-          <!-- 峰值裁剪开关 + 全选/全不选 -->
-          <div class="flex flex-wrap gap-4 items-center">
+        <!-- 平滑峰值开关 + 全选/全不选 -->
+        <div class="flex flex-wrap gap-4 items-center py-2 justify-between">
+          <TooltipProvider>
             <div class="flex gap-2 items-center">
-              <Switch v-model="cutPeak" />
-              <span class="text-sm">裁剪峰值</span>
+              <Button :variant="cutPeak ? 'default' : 'outline'" size="sm" @click="cutPeak = !cutPeak">平滑峰值</Button>
               <Tooltip>
                 <TooltipTrigger as-child>
-                  <span class="text-sm opacity-50 cursor-help transition-opacity hover:opacity-100 inline-flex" style="color: hsl(var(--muted-foreground))">
+                  <span
+                    class="text-sm opacity-50 cursor-help transition-opacity hover:opacity-100 inline-flex text-muted-foreground">
                     <Icon icon="carbon:information" :width="14" :height="14" />
                   </span>
                 </TooltipTrigger>
@@ -647,22 +637,22 @@ onMounted(() => {
                 </TooltipContent>
               </Tooltip>
             </div>
-            <div class="flex gap-2 items-center">
-              <Button variant="ghost" size="sm" @click="showAllTasks">
-                全选
-              </Button>
-              <Button variant="ghost" size="sm" @click="hideAllTasks">
-                全不选
-              </Button>
-            </div>
+          </TooltipProvider>
+          <div class="flex gap-2 items-center">
+            <Button variant="ghost" size="sm" @click="showAllTasks">
+              全选
+            </Button>
+            <Button variant="ghost" size="sm" @click="hideAllTasks">
+              全不选
+            </Button>
           </div>
+        </div>
 
-          <!-- 图表 -->
-          <div class="h-80">
-            <VChart :option="pingChartOption" autoresize />
-          </div>
-        </template>
-      </Spinner>
-    </div>
-  </TooltipProvider>
+        <!-- 图表 -->
+        <div class="h-80 bg-background/50 p-4 rounded-md">
+          <VChart :option="pingChartOption" autoresize />
+        </div>
+      </template>
+    </Spinner>
+  </div>
 </template>

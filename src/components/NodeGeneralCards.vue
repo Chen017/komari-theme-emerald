@@ -64,127 +64,104 @@ const formattedDiskTotal = computed(() => formatBytesSplit(totalDisk.value.total
 </script>
 
 <template>
-  <div class="p-4 grid grid-cols-12 grid-rows-1 gap-2 h-58">
-    <NodeEarthGlobe class="col-span-6 col-start-7" />
+  <div class="p-4 grid grid-cols-12 grid-rows-1 gap-2 h-auto md:h-58">
+    <NodeEarthGlobe class="col-span-12 col-start-1 md:col-span-6 md:col-start-7" />
 
-    <div class="col-span-6 row-start-1 grid grid-cols-12 grid-rows-2 gap-2">
-      <CardX
-        hoverable
-        class="col-span-4 row-span-1 col-start-1 row-start-1 group h-full bg-background/50 border-none hover:bg-background transition-all"
-        content-class="h-full !p-3"
-      >
+    <div
+      class="h-36 -mt-36 md:mt-0 col-span-12 row-start-3 z-9 md:h-auto md:col-span-6 md:row-start-1 grid grid-cols-12 grid-rows-2 gap-2">
+      <CardX hoverable
+        class="col-span-4 row-span-1 col-start-1 row-start-1 group h-full bg-background/50 border-none hover:bg-background backdrop-blur-sm md:backdrop-blur-none transition-all"
+        content-class="h-full !p-3">
         <div class="flex h-full flex-col justify-between gap-1">
           <div class="flex items-start justify-between">
             <span class="text-xs font-medium tracking-wider text-muted-foreground">内存用量</span>
-            <Icon
-              icon="tabler:cash" :width="20" :height="20"
-              class="text-slate-500/20 group-hover:text-slate-500 transition-colors"
-            />
+            <Icon icon="tabler:cash" :width="20" :height="20"
+              class="text-slate-500/20 group-hover:text-slate-500 transition-colors" />
           </div>
           <div class="flex items-baseline gap-1 min-w-0 font-number">
-            <span class="text-2xl font-bold leading-none tracking-tight">{{ formattedMemoryUsed.value }}</span>
-            <span class="text-xs font-medium text-muted-foreground truncate">
-              / {{ formattedMemoryTotal.value }} {{ formattedMemoryTotal.unit }}
+            <span class="text-md md:text-2xl font-bold leading-none tracking-tight">{{ formattedMemoryUsed.value }}</span>
+            <span class="text-[11px] md:text-xs font-medium text-muted-foreground truncate">
+              {{ formattedMemoryUsed.unit }} / {{ formattedMemoryTotal.value }} {{ formattedMemoryTotal.unit }}
             </span>
           </div>
         </div>
       </CardX>
-      <CardX
-        hoverable
-        class="col-span-4 row-span-1 col-start-1 row-start-2 group h-full bg-background/50 border-none hover:bg-background transition-all"
-        content-class="h-full !p-3"
-      >
+      <CardX hoverable
+        class="col-span-4 row-span-1 col-start-1 row-start-2 group h-full bg-background/50 border-none hover:bg-background backdrop-blur-sm md:backdrop-blur-none transition-all"
+        content-class="h-full !p-3">
         <div class="flex h-full flex-col justify-between gap-1">
           <div class="flex items-start justify-between">
             <span class="text-xs font-medium tracking-wider text-muted-foreground">硬盘用量</span>
-            <Icon
-              icon="tabler:server-2" :width="20" :height="20"
-              class="text-slate-500/20 group-hover:text-slate-500 transition-colors"
-            />
+            <Icon icon="tabler:server-2" :width="20" :height="20"
+              class="text-slate-500/20 group-hover:text-slate-500 transition-colors" />
           </div>
           <div class="flex items-baseline gap-1 min-w-0 font-number">
-            <span class="text-2xl font-bold leading-none tracking-tight">{{ formattedDiskUsed.value }}</span>
-            <span class="text-xs font-medium text-muted-foreground truncate">
-              / {{ formattedDiskTotal.value }} {{ formattedDiskTotal.unit }}
+            <span class="text-md md:text-2xl font-bold leading-none tracking-tight">{{ formattedDiskUsed.value }}</span>
+            <span class="text-[11px] md:text-xs font-medium text-muted-foreground truncate">
+              {{ formattedDiskUsed.unit }} / {{ formattedDiskTotal.value }} {{ formattedDiskTotal.unit }}
             </span>
           </div>
         </div>
       </CardX>
 
-      <CardX
-        hoverable
-        class="col-span-4 row-span-1 col-start-5 row-start-1 group bg-background/50 border-none hover:bg-background transition-all"
-        content-class="h-full !p-3"
-      >
+      <CardX hoverable
+        class="col-span-4 row-span-1 col-start-5 row-start-1 group bg-background/50 border-none hover:bg-background backdrop-blur-sm md:backdrop-blur-none transition-all"
+        content-class="h-full !p-3">
         <div class="flex h-full flex-col justify-between gap-1">
           <div class="flex items-start justify-between">
             <span class="text-xs font-medium tracking-wider text-muted-foreground">累计上行</span>
-            <Icon
-              icon="tabler:upload" :width="20" :height="20"
-              class="text-slate-500/20 group-hover:text-slate-500 transition-colors"
-            />
+            <Icon icon="tabler:upload" :width="20" :height="20"
+              class="text-slate-500/20 group-hover:text-slate-500 transition-colors" />
           </div>
           <div class="flex items-baseline gap-1 font-number">
-            <span class="text-2xl font-bold leading-none tracking-tight">{{ formattedTrafficUp.value }}</span>
-            <span class="text-xs font-medium text-muted-foreground">{{ formattedTrafficUp.unit }}</span>
+            <span class="text-md md:text-2xl font-bold leading-none tracking-tight">{{ formattedTrafficUp.value }}</span>
+            <span class="text-[11px] md:text-xs font-medium text-muted-foreground">{{ formattedTrafficUp.unit }}</span>
           </div>
         </div>
       </CardX>
-      <CardX
-        hoverable
-        class="col-span-4 row-span-1 col-start-5 row-start-2 group bg-background/50 border-none hover:bg-background transition-all"
-        content-class="h-full !p-3"
-      >
+      <CardX hoverable
+        class="col-span-4 row-span-1 col-start-5 row-start-2 group bg-background/50 border-none hover:bg-background backdrop-blur-sm md:backdrop-blur-none transition-all"
+        content-class="h-full !p-3">
         <div class="flex h-full flex-col justify-between gap-1">
           <div class="flex items-start justify-between">
             <span class="text-xs font-medium tracking-wider text-muted-foreground">累计下行</span>
-            <Icon
-              icon="tabler:download" :width="20" :height="20"
-              class="text-slate-500/20 group-hover:text-slate-500 transition-colors"
-            />
+            <Icon icon="tabler:download" :width="20" :height="20"
+              class="text-slate-500/20 group-hover:text-slate-500 transition-colors" />
           </div>
           <div class="flex items-baseline gap-1 font-number">
-            <span class="text-2xl font-bold leading-none tracking-tight">{{ formattedTrafficDown.value }}</span>
-            <span class="text-xs font-medium text-muted-foreground">{{ formattedTrafficDown.unit }}</span>
+            <span class="text-md md:text-2xl font-bold leading-none tracking-tight">{{ formattedTrafficDown.value }}</span>
+            <span class="text-[11px] md:text-xs font-medium text-muted-foreground">{{ formattedTrafficDown.unit }}</span>
           </div>
         </div>
       </CardX>
 
-      <CardX
-        hoverable
-        class="col-span-4 row-span-1 col-start-9 row-start-1 group bg-background/50 border-none hover:bg-background transition-all"
-        content-class="h-full !p-3"
-      >
+      <CardX hoverable
+        class="col-span-4 row-span-1 col-start-9 row-start-1 group bg-background/50 border-none hover:bg-background backdrop-blur-sm md:backdrop-blur-none transition-all"
+        content-class="h-full !p-3">
         <div class="flex h-full flex-col justify-between gap-1">
           <div class="flex items-start justify-between">
             <span class="text-xs font-medium tracking-wider text-muted-foreground">实时上行</span>
-            <Icon
-              icon="tabler:chevrons-up" :width="20" :height="20"
-              class="text-slate-500/20 group-hover:text-slate-500 transition-colors"
-            />
+            <Icon icon="tabler:chevrons-up" :width="20" :height="20"
+              class="text-slate-500/20 group-hover:text-slate-500 transition-colors" />
           </div>
           <div class="flex items-baseline gap-1 font-number">
-            <span class="text-2xl font-bold leading-none tracking-tight">{{ formattedSpeedUp.value }}</span>
-            <span class="text-xs font-medium text-muted-foreground">{{ formattedSpeedUp.unit }}</span>
+            <span class="text-md md:text-2xl font-bold leading-none tracking-tight">{{ formattedSpeedUp.value }}</span>
+            <span class="text-[11px] md:text-xs font-medium text-muted-foreground">{{ formattedSpeedUp.unit }}</span>
           </div>
         </div>
       </CardX>
-      <CardX
-        hoverable
-        class="col-span-4 row-span-1 col-start-9 row-start-2 group bg-background/50 border-none hover:bg-background transition-all"
-        content-class="h-full !p-3"
-      >
+      <CardX hoverable
+        class="col-span-4 row-span-1 col-start-9 row-start-2 group bg-background/50 border-none hover:bg-background backdrop-blur-sm md:backdrop-blur-none transition-all"
+        content-class="h-full !p-3">
         <div class="flex h-full flex-col justify-between gap-1">
           <div class="flex items-start justify-between">
             <span class="text-xs font-medium tracking-wider text-muted-foreground">实时下行</span>
-            <Icon
-              icon="tabler:chevrons-down" :width="20" :height="20"
-              class="text-slate-500/20 group-hover:text-slate-500 transition-colors"
-            />
+            <Icon icon="tabler:chevrons-down" :width="20" :height="20"
+              class="text-slate-500/20 group-hover:text-slate-500 transition-colors" />
           </div>
           <div class="flex items-baseline gap-1 font-number">
-            <span class="text-2xl font-bold leading-none tracking-tight">{{ formattedSpeedDown.value }}</span>
-            <span class="text-xs font-medium text-muted-foreground">{{ formattedSpeedDown.unit }}</span>
+            <span class="text-md md:text-2xl font-bold leading-none tracking-tight">{{ formattedSpeedDown.value }}</span>
+            <span class="text-[11px] md:text-xs font-medium text-muted-foreground">{{ formattedSpeedDown.unit }}</span>
           </div>
         </div>
       </CardX>
