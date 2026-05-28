@@ -6,6 +6,7 @@ import VChart from 'vue-echarts'
 import { Button } from '@/components/ui/button'
 import { Empty } from '@/components/ui/empty'
 import { Spinner } from '@/components/ui/spinner'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAppStore } from '@/stores/app'
 import { cutPeakValues, interpolateNullsLinear } from '@/utils/recordHelper'
@@ -29,7 +30,7 @@ const chartThemeColors = computed(() => ({
   borderColor: isDark.value ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
   splitLineColor: isDark.value ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)',
   tooltipBg: isDark.value ? 'rgba(40, 40, 40, 0.95)' : 'rgba(255, 255, 255, 0.8)',
-  tooltipShadow: isDark.value ? 'rgba(0, 0, 0, 0.4)' : 'rgba(0, 0, 0, 0.1)',
+  tooltipShadow: isDark.value ? 'rgba(0, 0, 0, 0.4)' : 'rgba(0, 0, 0, 0.06)',
   crosshairColor: isDark.value ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)',
 }))
 
@@ -363,7 +364,7 @@ const baseTooltipConfig = computed(() => ({
     fontSize: 12,
     lineHeight: 20,
   },
-  extraCssText: `backdrop-filter: blur(4px);z-index:9;box-shadow:0 0 10px ${chartThemeColors.value.tooltipShadow}`,
+  extraCssText: `backdrop-filter: blur(5px);z-index:9;box-shadow:0 0 0 1px ${chartThemeColors.value.tooltipShadow}, 0 0 16px ${chartThemeColors.value.tooltipShadow}`,
   axisPointer: {
     type: 'cross' as const,
     crossStyle: {
@@ -518,14 +519,34 @@ onMounted(() => {
 <template>
   <div class="flex flex-col gap-4">
     <!-- 时间选择器 -->
-    <div class="flex flex-wrap gap-2 justify-center">
-      <Button
-        v-for="view in availableViews" :key="view.label"
-        :variant="selectedView === view.label ? 'default' : 'outline'" size="sm" @click="selectedView = view.label"
-      >
-        {{ view.label }}
-      </Button>
-    </div>
+    <Tabs v-model="selectedView" class="w-full items-center">
+      <div class="overflow-x-auto rounded-sm">
+        <TabsList class="h-8 bg-background/50 backdrop-blur-xl pointer-events-auto rounded-md">
+          <TabsTrigger
+            v-for="view in availableViews" :key="view.label" :value="view.label"
+            class="h-6.5 text-xs border-none data-[state=active]:text-green-600 shadow-none rounded-sm"
+          >
+            {{ view.label }}
+          </TabsTrigger>
+        </TabsList>
+      </div>
+      <div class="flex-1" />
+      <div class="flex gap-2 items-center">
+        <Button
+          variant="ghost" size="xs" class="rounded bg-background/50 hover:bg-background border-none"
+          :class="selectedTaskIds.length === tasks.length ? 'shadow-[0_0_0_2px] shadow-primary/10' : ''"
+          @click="showAllTasks"
+        >
+          全选
+        </Button>
+        <Button
+          variant="ghost" size="xs" class="rounded bg-background/50 hover:bg-background border-none"
+          :class="!selectedTaskIds.length && 'shadow-[0_0_0_2px] shadow-primary/10'" @click="hideAllTasks"
+        >
+          全不选
+        </Button>
+      </div>
+    </Tabs>
 
     <!-- 内容区域 -->
     <Spinner :show="loading" content-class="flex flex-col gap-4">
@@ -540,7 +561,7 @@ onMounted(() => {
         <!-- 最新值统计卡片（可点击切换选中状态） -->
         <div
           v-if="latestValues.length > 0" class="gap-3 grid"
-          style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr))"
+          style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr))"
         >
           <div
             v-for="task in latestValues" :key="task.id"
@@ -561,6 +582,7 @@ onMounted(() => {
                       <span
                         class="text-sm opacity-50 cursor-help transition-opacity hover:opacity-100 inline-flex"
                         style="color: color-mix(in srgb, hsl(var(--foreground)) 80%, transparent)" @click.stop
+                        @touchstart.stop
                       >
                         <Icon icon="carbon:information" :width="14" :height="14" />
                       </span>
@@ -627,7 +649,7 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- 平滑峰值开关 + 全选/全不选 -->
+        <!-- 平滑峰值开关 -->
         <div class="flex flex-wrap gap-4 items-center py-2 justify-between">
           <TooltipProvider>
             <div class="flex gap-2 items-center">
@@ -648,14 +670,6 @@ onMounted(() => {
               </Tooltip>
             </div>
           </TooltipProvider>
-          <div class="flex gap-2 items-center">
-            <Button variant="ghost" size="sm" @click="showAllTasks">
-              全选
-            </Button>
-            <Button variant="ghost" size="sm" @click="hideAllTasks">
-              全不选
-            </Button>
-          </div>
         </div>
 
         <!-- 图表 -->

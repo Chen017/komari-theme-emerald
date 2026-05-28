@@ -160,7 +160,7 @@ const storageInfo = computed<InfoItem[]>(() => [
         </CardX>
       </div>
 
-      <div class="p-4 space-y-8">
+      <div class="p-4 space-y-4">
         <LoadChart :uuid="data.uuid" />
         <PingChart :uuid="data.uuid" />
       </div>

@@ -6,10 +6,10 @@ import { useIntervalFn } from '@vueuse/core'
 import dayjs from 'dayjs'
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import VChart from 'vue-echarts'
-import { Button } from '@/components/ui/button'
 import { CardX } from '@/components/ui/card-x'
 import { Empty } from '@/components/ui/empty'
 import { Spinner } from '@/components/ui/spinner'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAppStore } from '@/stores/app'
 import { useNodesStore } from '@/stores/nodes'
 import { formatBytes, formatBytesSplit } from '@/utils/helper'
@@ -63,8 +63,8 @@ const chartThemeColors = computed(() => ({
   textTertiary: isDark.value ? 'rgba(255, 255, 255, 0.35)' : 'rgba(0, 0, 0, 0.35)',
   borderColor: isDark.value ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
   splitLineColor: isDark.value ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)',
-  tooltipBg: isDark.value ? 'rgba(40, 40, 40, 0.95)' : 'rgba(255, 255, 255, 0.98)',
-  tooltipShadow: isDark.value ? 'rgba(0, 0, 0, 0.4)' : 'rgba(0, 0, 0, 0.12)',
+  tooltipBg: isDark.value ? 'rgba(40, 40, 40, 0.95)' : 'rgba(255, 255, 255, 0.8)',
+  tooltipShadow: isDark.value ? 'rgba(0, 0, 0, 0.4)' : 'rgba(0, 0, 0, 0.06)',
   crosshairColor: isDark.value ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)',
 }))
 
@@ -75,15 +75,13 @@ const baseTooltipConfig = computed(() => ({
   backgroundColor: chartThemeColors.value.tooltipBg,
   borderColor: 'transparent',
   borderWidth: 0,
-  borderRadius: 8,
-  padding: [10, 14],
-  boxShadow: `0 4px 16px ${chartThemeColors.value.tooltipShadow}`,
+  borderRadius: 6,
   textStyle: {
     color: chartThemeColors.value.text,
-    fontSize: 13,
+    fontSize: 12,
     lineHeight: 20,
   },
-  extraCssText: 'box-shadow: none;',
+  extraCssText: `backdrop-filter: blur(5px);z-index:9;box-shadow:0 0 0 1px ${chartThemeColors.value.tooltipShadow}, 0 0 16px ${chartThemeColors.value.tooltipShadow}`,
   axisPointer: {
     type: 'cross' as const,
     crossStyle: {
@@ -843,14 +841,16 @@ onMounted(() => {
 <template>
   <div class="flex flex-col gap-4">
     <!-- 时间选择器 -->
-    <div class="flex flex-wrap gap-2 justify-center">
-      <Button
-        v-for="view in availableViews" :key="view.label"
-        :variant="selectedView === view.label ? 'default' : 'outline'" size="sm" @click="selectedView = view.label"
-      >
-        {{ view.label }}
-      </Button>
-    </div>
+    <Tabs v-model="selectedView" class="w-full items-center">
+      <TabsList class="h-8 bg-background/50 backdrop-blur-xl pointer-events-auto rounded-md">
+        <TabsTrigger
+          v-for="view in availableViews" :key="view.label" :value="view.label"
+          class="h-6.5 text-xs border-none data-[state=active]:text-green-600 shadow-none rounded-sm"
+        >
+          {{ view.label }}
+        </TabsTrigger>
+      </TabsList>
+    </Tabs>
 
     <!-- 内容区域 -->
     <Spinner :show="loading">
