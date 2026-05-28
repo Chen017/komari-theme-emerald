@@ -196,6 +196,10 @@ const lossPanelTooltip = computed(() => {
     : ''
   return `平均丢包 ${pingStats.avgLoss.value.toFixed(1)}%${volatility}`
 })
+
+function hasRegion(region: string | null | undefined): boolean {
+  return Boolean(region?.trim())
+}
 </script>
 
 <template>
@@ -220,6 +224,7 @@ const lossPanelTooltip = computed(() => {
       <div class="flex gap-2 items-center">
         <img :src="getOSImage(props.node.os)" :alt="getOSName(props.node.os)" class="size-4">
         <img
+          v-if="hasRegion(props.node.region)"
           :src="`/images/flags/${getRegionCode(props.node.region)}.svg`"
           :alt="getRegionDisplayName(props.node.region)" class="size-5 shrink-0"
         >

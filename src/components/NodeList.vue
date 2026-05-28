@@ -116,6 +116,10 @@ function getFlagSrc(region: string): string {
   return `/images/flags/${getRegionCode(region)}.svg`
 }
 
+function hasRegion(region: string | null | undefined): boolean {
+  return Boolean(region?.trim())
+}
+
 function handleClick(node: NodeData) {
   emit('click', node)
 }
@@ -220,7 +224,12 @@ function getCustomTags(node: NodeData): Array<string> {
 
             <!-- 国旗 -->
             <div v-else-if="col.key === 'region'" class="flex justify-center">
-              <img :src="getFlagSrc(node.region)" :alt="getRegionDisplayName(node.region)" class="size-5 rounded-sm">
+              <img
+                v-if="hasRegion(node.region)"
+                :src="getFlagSrc(node.region)"
+                :alt="getRegionDisplayName(node.region)"
+                class="size-5 rounded-sm"
+              >
             </div>
 
             <!-- 节点名称 -->
