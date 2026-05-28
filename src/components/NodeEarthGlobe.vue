@@ -29,10 +29,20 @@ const shouldRender = computed(() => documentVisibility.value === 'visible' && el
 const shouldAutoRotate = computed(() => reducedMotion.value !== 'reduce')
 
 let globe: Globe | null = null
+const INITIAL_THETA = 0.22
+const MIN_THETA = -0.65
+const MAX_THETA = 0.65
 let phi = 0
 let targetPhi = 0
+let theta = INITIAL_THETA
+let targetTheta = INITIAL_THETA
 let isPointerDown = false
 let lastPointerX = 0
+let lastPointerY = 0
+
+function clampTheta(value: number): number {
+  return Math.min(Math.max(value, MIN_THETA), MAX_THETA)
+}
 
 // 减少高采样导致的性能问题
 function getCappedDpr(): number {
@@ -296,7 +306,7 @@ function buildInitialOptions(): COBEOptions {
     width,
     height,
     phi,
-    theta: 0.22,
+    theta,
     dark: colors.dark,
     diffuse: 1.2,
     mapSamples: 10000, // 地图采样点数，默认 16000
@@ -314,20 +324,26 @@ function buildInitialOptions(): COBEOptions {
 }
 
 // phi 收敛/静止时整帧跳过 globe.update，WebGL + 锚点写入双双归零
-const PHI_IDLE_EPSILON = 1e-5
+const ORIENTATION_IDLE_EPSILON = 1e-5
 const { pause: pauseRaf, resume: resumeRaf } = useRafFn(
   () => {
     if (!globe)
       return
     const prevPhi = phi
+    const prevTheta = theta
     if (!isPointerDown && shouldAutoRotate.value)
       targetPhi += 0.006
     phi += (targetPhi - phi) * 0.12
-    if (Math.abs(phi - prevPhi) < PHI_IDLE_EPSILON)
+    theta += (targetTheta - theta) * 0.12
+    if (
+      Math.abs(phi - prevPhi) < ORIENTATION_IDLE_EPSILON
+      && Math.abs(theta - prevTheta) < ORIENTATION_IDLE_EPSILON
+    ) {
       return
+    }
     refreshContainerSizeCache()
     const { width, height } = getRenderSize()
-    globe.update({ phi, width, height })
+    globe.update({ phi, theta, width, height })
     flushDirtyAnchors()
   },
   { immediate: false, fpsLimit: 60 },
@@ -410,19 +426,26 @@ watch(shouldRender, (visible) => {
 
 function onPointerDown(e: PointerEvent) {
   isPointerDown = true
-  lastPointerX = e.clientX;
-  (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  lastPointerX = e.clientX
+  lastPointerY = e.clientY
+  const target = e.currentTarget as HTMLElement
+  target.setPointerCapture(e.pointerId)
 }
 function onPointerMove(e: PointerEvent) {
   if (!isPointerDown)
     return
-  const delta = e.clientX - lastPointerX
+  const deltaX = e.clientX - lastPointerX
+  const deltaY = e.clientY - lastPointerY
   lastPointerX = e.clientX
-  targetPhi += delta / 200
+  lastPointerY = e.clientY
+  targetPhi += deltaX / 200
+  targetTheta = clampTheta(targetTheta + deltaY / 300)
 }
 function onPointerUp(e: PointerEvent) {
-  isPointerDown = false;
-  (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
+  isPointerDown = false
+  const target = e.currentTarget as HTMLElement
+  if (target.hasPointerCapture(e.pointerId))
+    target.releasePointerCapture(e.pointerId)
 }
 
 const totalServers = computed(() => regionClusters.value.reduce((sum, c) => sum + c.servers, 0))
