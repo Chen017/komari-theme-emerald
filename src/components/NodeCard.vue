@@ -362,6 +362,7 @@ const lossPanelTooltip = computed(() => {
           <!-- 延迟 -->
           <div
             class="group/panel relative col-span-3 flex flex-col gap-1.5 p-1.5 h-10 rounded-sm bg-slate-500/5"
+            :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
             :title="latencyPanelTooltip"
           >
             <div class="flex items-center justify-between gap-2 text-[11px] leading-none relative">
@@ -391,6 +392,7 @@ const lossPanelTooltip = computed(() => {
           <!-- 丢包 -->
           <div
             class="group/panel relative col-span-3 flex flex-col gap-1.5 p-1.5 h-10 rounded-sm bg-slate-500/5"
+            :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
             :title="lossPanelTooltip"
           >
             <div class="flex items-center justify-between gap-2 text-[11px] leading-none">
