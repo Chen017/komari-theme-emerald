@@ -448,8 +448,8 @@ function onPointerUp(e: PointerEvent) {
     target.releasePointerCapture(e.pointerId)
 }
 
-const totalServers = computed(() => regionClusters.value.reduce((sum, c) => sum + c.servers, 0))
-const onlineServers = computed(() => regionClusters.value.reduce((sum, c) => sum + c.onlineServers, 0))
+const totalServers = computed(() => nodesStore.nodes.length)
+const onlineServers = computed(() => nodesStore.nodes.filter(node => node.online).length)
 const offlineServers = computed(() => totalServers.value - onlineServers.value)
 
 function rateFor(code: string): RegionRate {
