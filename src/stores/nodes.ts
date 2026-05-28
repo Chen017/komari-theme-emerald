@@ -1,6 +1,7 @@
 import type { Client, NodeStatus } from '@/utils/rpc'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { parseNodeGroups } from '@/utils/groupHelper'
 
 /** 流量限制类型 */
 export type TrafficLimitType = 'up' | 'down' | 'min' | 'max' | 'sum'
@@ -104,8 +105,7 @@ const useNodesStore = defineStore('nodes', () => {
   const groups = computed(() => {
     const groupSet = new Set<string>()
     nodes.value.forEach((n) => {
-      if (n.group)
-        groupSet.add(n.group)
+      parseNodeGroups(n.group).forEach(group => groupSet.add(group))
     })
     return Array.from(groupSet)
   })

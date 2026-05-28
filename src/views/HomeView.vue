@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAppStore } from '@/stores/app'
 import { useNodesStore } from '@/stores/nodes'
+import { isNodeInGroup, parseNodeGroups } from '@/utils/groupHelper'
 import { isRegionMatch } from '@/utils/regionHelper'
 
 defineOptions({ name: 'HomeView' })
@@ -72,7 +73,7 @@ function isNodeMatchSearch(node: typeof nodesStore.nodes[number], search: string
     return true
   if (node.os && node.os.toLowerCase().includes(lowerSearch))
     return true
-  if (node.group && node.group.toLowerCase().includes(lowerSearch))
+  if (parseNodeGroups(node.group).some(group => group.toLowerCase().includes(lowerSearch)))
     return true
   if (node.tags && node.tags.toLowerCase().includes(lowerSearch))
     return true
@@ -82,9 +83,7 @@ function isNodeMatchSearch(node: typeof nodesStore.nodes[number], search: string
 }
 
 const nodeList = computed(() => {
-  let filtered = appStore.nodeSelectedGroup === 'all'
-    ? nodesStore.nodes
-    : nodesStore.nodes.filter(n => n.group === appStore.nodeSelectedGroup)
+  let filtered = nodesStore.nodes.filter(node => isNodeInGroup(node.group, appStore.nodeSelectedGroup))
   if (debouncedSearchText.value.trim()) {
     filtered = filtered.filter(n => isNodeMatchSearch(n, debouncedSearchText.value))
   }
