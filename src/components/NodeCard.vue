@@ -5,8 +5,9 @@ import { computed } from 'vue'
 import { Badge } from '@/components/ui/badge'
 import { CardX } from '@/components/ui/card-x'
 import { ProgressThin } from '@/components/ui/progress-thin'
+import { useNodePingStats } from '@/composables/useNodePingStats'
 import { useAppStore } from '@/stores/app'
-import { formatBytesPerSecondWithConfig, formatBytesWithConfig, formatDateTime, formatUptimeWithFormat, getStatus } from '@/utils/helper'
+import { formatBytesPerSecondWithConfig, formatBytesWithConfig, formatDateTime, getStatus } from '@/utils/helper'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
 import { getRegionCode, getRegionDisplayName } from '@/utils/regionHelper'
 import { formatPriceWithCycle, getDaysUntilExpired, getExpireStatus, parseTags } from '@/utils/tagHelper'
@@ -19,7 +20,6 @@ const appStore = useAppStore()
 
 const formatBytes = (bytes: number) => formatBytesWithConfig(bytes, appStore.byteDecimals)
 const formatBytesPerSecond = (bytes: number) => formatBytesPerSecondWithConfig(bytes, appStore.byteDecimals)
-const formatUptime = (seconds: number) => formatUptimeWithFormat(seconds, 'minute')
 const offlineTime = computed(() => formatDateTime(props.node.time))
 
 const cpuStatus = computed(() => getStatus(props.node.cpu ?? 0))
@@ -27,6 +27,24 @@ const memPercentage = computed(() => (props.node.ram ?? 0) / (props.node.mem_tot
 const memStatus = computed(() => getStatus(memPercentage.value))
 const diskPercentage = computed(() => (props.node.disk ?? 0) / (props.node.disk_total || 1) * 100)
 const diskStatus = computed(() => getStatus(diskPercentage.value))
+
+const pingStatsEnabled = computed(() => {
+  if (appStore.publicSettings?.record_enabled === false)
+    return false
+  return appStore.publicSettings?.ping_record_preserve_time !== 0
+})
+
+const pingStatsHours = computed(() => {
+  const preserveTime = appStore.publicSettings?.ping_record_preserve_time
+  if (typeof preserveTime === 'number' && preserveTime > 0)
+    return Math.min(preserveTime, 1)
+  return 1
+})
+
+const pingStats = useNodePingStats(() => props.node.uuid, {
+  hours: pingStatsHours,
+  enabled: pingStatsEnabled,
+})
 
 const trafficUsedPercentage = computed(() => {
   if (props.node.traffic_limit <= 0)
@@ -81,21 +99,109 @@ const priceTags = computed(() => {
 })
 
 const customTags = computed(() => parseTags(props.node.tags).map(t => t.text))
+
+function getLatencyToneClass(latency: number): string {
+  if (latency <= 60)
+    return 'bg-emerald-600/90'
+  if (latency <= 100)
+    return 'bg-green-400/80'
+  if (latency <= 160)
+    return 'bg-lime-400/80'
+  if (latency <= 200)
+    return 'bg-yellow-400/80'
+  return 'bg-rose-500/80'
+}
+
+function getLossToneClass(loss: number): string {
+  if (loss <= 1)
+    return 'bg-emerald-600/90'
+  if (loss <= 3)
+    return 'bg-green-400/90'
+  if (loss <= 6)
+    return 'bg-lime-400/90'
+  if (loss <= 9)
+    return 'bg-yellow-400/90'
+  return 'bg-rose-500/80'
+}
+
+function buildPingBars(metric: 'latency' | 'loss') {
+  const points = pingStats.history.value
+  if (!points.length)
+    return []
+
+  return points.map((point, index) => {
+    const value = point[metric]
+
+    return {
+      key: `${point.time}-${index}`,
+      className: value === null
+        ? 'bg-muted-foreground/15'
+        : metric === 'latency'
+          ? getLatencyToneClass(value)
+          : getLossToneClass(value),
+      tooltip: value === null
+        ? `${formatDateTime(point.time)} 暂无数据`
+        : metric === 'latency'
+          ? `${formatDateTime(point.time, 'HH:mm:ss')}\n${Math.round(value)} ms`
+          : `${formatDateTime(point.time, 'HH:mm:ss')}\n${value.toFixed(1)}%`,
+    }
+  })
+}
+
+const latencyBars = computed(() => buildPingBars('latency'))
+const lossBars = computed(() => buildPingBars('loss'))
+
+const latencyDisplay = computed(() => {
+  if (pingStats.hasData.value)
+    return `${Math.round(pingStats.avgLatency.value)} ms`
+  if (pingStats.loading.value)
+    return '加载中'
+  return '暂无'
+})
+
+const lossDisplay = computed(() => {
+  if (pingStats.hasData.value)
+    return `${pingStats.avgLoss.value.toFixed(1)}%`
+  if (pingStats.loading.value)
+    return '加载中'
+  return '暂无'
+})
+
+const pingEmptyText = computed(() => {
+  if (!pingStatsEnabled.value)
+    return '未启用记录'
+  if (pingStats.error.value)
+    return '加载失败'
+  if (pingStats.loading.value)
+    return '加载中...'
+  return '~'
+})
+
+const latencyPanelTooltip = computed(() => {
+  if (!pingStats.hasData.value)
+    return ''
+  return `平均延迟 ${Math.round(pingStats.avgLatency.value)} ms`
+})
+
+const lossPanelTooltip = computed(() => {
+  if (!pingStats.hasData.value)
+    return ''
+  const volatility = pingStats.avgVolatility.value > 0
+    ? `，平均波动 ${pingStats.avgVolatility.value.toFixed(2)}`
+    : ''
+  return `平均丢包 ${pingStats.avgLoss.value.toFixed(1)}%${volatility}`
+})
 </script>
 
 <template>
-  <CardX
-    hoverable
+  <CardX hoverable
     class="node-card w-full cursor-pointer bg-background/50 border-none shadow-[0_0_0_3px] shadow-transparent hover:bg-background hover:shadow-green-600/10 backdrop-blur-sm transition-all duration-200 rounded-md"
-    :class="[!props.node.online && '!shadow-red-600/20']" @click="emit('click')"
-  >
+    :class="[!props.node.online && '!shadow-red-600/20']" @click="emit('click')">
     <template #header>
       <div class="flex gap-2 min-w-0 items-center">
         <div class="size-2 rounded-full relative" :class="[props.node.online ? 'bg-green-600' : 'bg-red-600']">
-          <div
-            class="animate-ping absolute inset-0 rounded-full opacity-50"
-            :class="[props.node.online ? 'bg-green-600' : 'bg-red-600']"
-          />
+          <div class="animate-ping absolute inset-0 rounded-full opacity-50"
+            :class="[props.node.online ? 'bg-green-600' : 'bg-red-600']" />
         </div>
         <span class="text-md font-bold flex-1 min-w-0 truncate">{{ props.node.name }}</span>
       </div>
@@ -104,10 +210,8 @@ const customTags = computed(() => parseTags(props.node.tags).map(t => t.text))
     <template #header-extra>
       <div class="flex gap-2 items-center">
         <img :src="getOSImage(props.node.os)" :alt="getOSName(props.node.os)" class="size-4">
-        <img
-          :src="`/images/flags/${getRegionCode(props.node.region)}.svg`"
-          :alt="getRegionDisplayName(props.node.region)" class="size-5 shrink-0"
-        >
+        <img :src="`/images/flags/${getRegionCode(props.node.region)}.svg`"
+          :alt="getRegionDisplayName(props.node.region)" class="size-5 shrink-0">
       </div>
     </template>
 
@@ -178,10 +282,8 @@ const customTags = computed(() => parseTags(props.node.tags).map(t => t.text))
           </div>
         </div>
         <div class="gap-1.5 grid grid-cols-6 relative">
-          <div
-            v-if="!props.node.online"
-            class="absolute inset-0 flex flex-col gap-1 items-center justify-center z-1 text-center" aria-hidden="true"
-          >
+          <div v-if="!props.node.online"
+            class="absolute inset-0 flex flex-col gap-1 items-center justify-center z-1 text-center" aria-hidden="true">
             <div class="text-sm font-medium text-destructive">
               离线
             </div>
@@ -189,10 +291,8 @@ const customTags = computed(() => parseTags(props.node.tags).map(t => t.text))
               {{ offlineTime }}
             </div>
           </div>
-          <div
-            class="flex flex-col gap-0.5 p-1 pl-2 rounded-sm bg-slate-500/5"
-            :class="[priceTags.length ? 'col-span-2' : 'col-span-3', !props.node.online ? 'blur-xs opacity-60' : '']"
-          >
+          <div class="flex flex-col gap-0.5 p-1 pl-2 rounded-sm bg-slate-500/5"
+            :class="[priceTags.length ? 'col-span-2' : 'col-span-3', !props.node.online ? 'blur-xs opacity-60' : '']">
             <div class="text-[11px] flex flex-col">
               <div class="text-green-600 flex flex-row items-center gap-1">
                 <Icon icon="tabler:chevron-up" width="12" height="12" />
@@ -204,10 +304,8 @@ const customTags = computed(() => parseTags(props.node.tags).map(t => t.text))
               </div>
             </div>
           </div>
-          <div
-            class="flex flex-col gap-0.5 p-1 pl-2 rounded-sm bg-slate-500/5"
-            :class="[priceTags.length ? 'col-span-2' : 'col-span-3', !props.node.online ? 'blur-xs opacity-60' : '']"
-          >
+          <div class="flex flex-col gap-0.5 p-1 pl-2 rounded-sm bg-slate-500/5"
+            :class="[priceTags.length ? 'col-span-2' : 'col-span-3', !props.node.online ? 'blur-xs opacity-60' : '']">
             <div class="text-[11px] text-muted-foreground flex flex-col">
               <div class="flex flex-row items-center gap-1">
                 <Icon icon="tabler:upload" width="12" height="12" />
@@ -219,31 +317,71 @@ const customTags = computed(() => parseTags(props.node.tags).map(t => t.text))
               </div>
             </div>
           </div>
-          <div
-            v-if="priceTags.length" class="col-span-2 flex flex-col gap-0.5 p-1 pl-2 rounded-sm bg-slate-500/5"
-            :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
-          >
+          <div v-if="priceTags.length" class="col-span-2 flex flex-col gap-0.5 p-1 pl-2 rounded-sm bg-slate-500/5"
+            :class="[!props.node.online ? 'blur-xs opacity-60' : '']">
             <div class="text-[11px] text-muted-foreground flex flex-col">
               <div v-for="(tag, index) in priceTags" :key="index" class="flex flex-row items-center gap-1">
                 {{ tag }}
               </div>
             </div>
           </div>
-          <div
+          <!-- 运行时长 -->
+          <!-- <div
             class="col-span-6 flex flex-row gap-2 items-center p-1 rounded-sm bg-slate-500/5 justify-center text-[11px] text-muted-foreground"
-            :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
-          >
-            <!-- 运行时长 -->
+            :class="[!props.node.online ? 'blur-xs opacity-60' : '']">
             <span class="inline-flex flex-row gap-1 items-center">
               {{ formatUptime(props.node.uptime ?? 0) }}
             </span>
+          </div> -->
+          <!-- 延迟 -->
+          <div class="group/panel relative col-span-3 flex flex-col gap-1.5 p-1.5 h-10 rounded-sm bg-slate-500/5"
+            :title="latencyPanelTooltip">
+            <div class="flex items-center justify-between gap-2 text-[11px] leading-none relative">
+              <span class="text-muted-foreground">延迟</span>
+              <span class="font-medium text-foreground/85">{{ latencyDisplay }}</span>
+            </div>
+            <div v-if="latencyBars.length"
+              class="grid h-full items-end gap-[1px] opacity-80 group-hover/panel:opacity-100"
+              :style="{ gridTemplateColumns: `repeat(${latencyBars.length}, minmax(0, 1fr))` }">
+              <span v-for="bar in latencyBars" :key="bar.key" class="group/bar relative h-full w-full">
+                <span
+                  class="block h-full w-full rounded-[1px] transition-transform duration-150 group-hover/bar:scale-y-160"
+                  :class="bar.className" />
+                <span
+                  class="pointer-events-none absolute bottom-full left-1/2 z-20 hidden mb-2 -translate-x-1/2 whitespace-wrap rounded bg-foreground/80 p-1 text-[10px] leading-none text-background shadow-lg group-hover/bar:block after:content-[attr(data-tooltip)]"
+                  :data-tooltip="bar.tooltip" />
+              </span>
+            </div>
+            <div v-else class="text-[10px] text-center text-muted-foreground/70">
+              {{ pingEmptyText }}
+            </div>
+          </div>
+          <!-- 丢包 -->
+          <div class="group/panel relative col-span-3 flex flex-col gap-1.5 p-1.5 h-10 rounded-sm bg-slate-500/5"
+            :title="lossPanelTooltip">
+            <div class="flex items-center justify-between gap-2 text-[11px] leading-none">
+              <span class="text-muted-foreground">丢包</span>
+              <span class="font-medium text-foreground/85">{{ lossDisplay }}</span>
+            </div>
+            <div v-if="lossBars.length" class="grid h-full items-end gap-[1px] opacity-80 group-hover/panel:opacity-100"
+              :style="{ gridTemplateColumns: `repeat(${lossBars.length}, minmax(0, 1fr))` }">
+              <span v-for="bar in lossBars" :key="bar.key" class="group/bar relative h-full w-full">
+                <span
+                  class="block h-full w-full rounded-[1px] transition-transform duration-150 group-hover/bar:scale-y-160"
+                  :class="bar.className" />
+                <span
+                  class="pointer-events-none absolute bottom-full left-1/2 z-20 hidden mb-2 -translate-x-1/2 whitespace-wrap rounded bg-foreground/80 p-1 text-[10px] leading-none text-background shadow-lg group-hover/bar:block after:content-[attr(data-tooltip)]"
+                  :data-tooltip="bar.tooltip" />
+              </span>
+            </div>
+            <div v-else class="text-[10px] text-center text-muted-foreground/70">
+              {{ pingEmptyText }}
+            </div>
           </div>
         </div>
         <div v-if="customTags.length > 0" class="flex shrink-0 flex-wrap gap-1 items-center">
-          <Badge
-            v-for="(tag, index) in customTags" :key="index" variant="outline"
-            class="!text-[11px] rounded text-muted-foreground border-muted-foreground/10 px-1.5"
-          >
+          <Badge v-for="(tag, index) in customTags" :key="index" variant="outline"
+            class="!text-[11px] rounded text-muted-foreground border-muted-foreground/10 px-1.5">
             {{ tag }}
           </Badge>
         </div>
