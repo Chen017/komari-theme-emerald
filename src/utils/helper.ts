@@ -2,7 +2,7 @@ import dayjs from 'dayjs'
 
 /** 字节单位常量 */
 const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'] as const
-const LAST_BYTE_UNIT = BYTE_UNITS[BYTE_UNITS.length - 1]
+const LAST_BYTE_UNIT = BYTE_UNITS.at(-1)
 
 /** 时间单位配置（秒为单位） */
 const TIME_UNITS = [
