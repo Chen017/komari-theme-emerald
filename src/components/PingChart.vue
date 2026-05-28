@@ -520,17 +520,17 @@ onMounted(() => {
   <div class="flex flex-col gap-4">
     <!-- 时间选择器 -->
     <Tabs v-model="selectedView" class="w-full items-center">
-      <div class="overflow-x-auto rounded-sm">
-        <TabsList class="h-8 bg-background/50 backdrop-blur-xl pointer-events-auto rounded-md">
+      <div class="min-w-0 flex-1 overflow-x-auto rounded-sm pointer-events-auto">
+        <TabsList class="w-max h-8 bg-background/50 backdrop-blur-xl rounded-md">
           <TabsTrigger
             v-for="view in availableViews" :key="view.label" :value="view.label"
-            class="h-6.5 text-xs border-none data-[state=active]:text-green-600 shadow-none rounded-sm"
+            class="h-6.5 flex-none shrink-0 text-xs border-none data-[state=active]:text-green-600 shadow-none rounded-sm"
           >
             {{ view.label }}
           </TabsTrigger>
         </TabsList>
       </div>
-      <div class="flex-1" />
+      <div class="md:flex-1" />
       <div class="flex gap-2 items-center">
         <Button
           variant="ghost" size="xs" class="rounded bg-background/50 hover:bg-background border-none"
