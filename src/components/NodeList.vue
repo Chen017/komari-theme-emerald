@@ -5,7 +5,6 @@ import { computed, ref } from 'vue'
 import TrafficProgress from '@/components/TrafficProgress.vue'
 import { Badge } from '@/components/ui/badge'
 import { ProgressThin } from '@/components/ui/progress-thin'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAppStore } from '@/stores/app'
 import { formatBytesPerSecondWithConfig, formatBytesWithConfig, formatDateTime, formatUptimeWithFormat, getStatus } from '@/utils/helper'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
@@ -266,11 +265,11 @@ function getCustomTags(node: NodeData): Array<string> {
             <!-- CPU -->
             <div v-else-if="col.key === 'cpu'" class="group">
               <div class="space-y-1">
-                <div class="text-[10px] text-muted-foreground ">
-                  <span class="inline group-hover:hidden truncate">
+                <div class="text-[10px] text-muted-foreground truncate">
+                  <span class="inline group-hover:hidden">
                     {{ (node.cpu ?? 0).toFixed(1) }}%
                   </span>
-                  <span class="hidden group-hover:inline truncate">
+                  <span class="hidden group-hover:inline">
                     {{ node.load.toFixed(2) ?? 0 }}, {{ node.load5.toFixed(2) ?? 0 }}, {{ node.load15.toFixed(2) ?? 0
                     }}
                   </span>
@@ -282,11 +281,11 @@ function getCustomTags(node: NodeData): Array<string> {
             <!-- 内存 -->
             <div v-else-if="col.key === 'mem'" class="group">
               <div class="space-y-1">
-                <div class="text-[10px] text-muted-foreground ">
-                  <span class="inline group-hover:hidden truncate">
+                <div class="text-[10px] text-muted-foreground truncate">
+                  <span class="inline group-hover:hidden">
                     {{ ((node.ram ?? 0) / (node.mem_total || 1) * 100).toFixed(1) }}%
                   </span>
-                  <span class="hidden group-hover:inline truncate">
+                  <span class="hidden group-hover:inline">
                     {{ formatBytes(node.ram ?? 0) }} / {{ formatBytes(node.mem_total ?? 0) }}
                   </span>
                 </div>
@@ -300,11 +299,11 @@ function getCustomTags(node: NodeData): Array<string> {
             <!-- 硬盘 -->
             <div v-else-if="col.key === 'disk'" class="group">
               <div class="space-y-1">
-                <div class="text-[10px] text-muted-foreground ">
-                  <span class="inline group-hover:hidden truncate">
+                <div class="text-[10px] text-muted-foreground truncate">
+                  <span class="inline group-hover:hidden">
                     {{ ((node.disk ?? 0) / (node.disk_total || 1) * 100).toFixed(1) }}%
                   </span>
-                  <span class="hidden group-hover:inline truncate">
+                  <span class="hidden group-hover:inline">
                     {{ formatBytes(node.disk ?? 0) }} / {{ formatBytes(node.disk_total ?? 0) }}
                   </span>
                 </div>
@@ -317,41 +316,37 @@ function getCustomTags(node: NodeData): Array<string> {
 
             <!-- 流量 -->
             <div v-else-if="col.key === 'traffic'" class="group">
-              <TooltipProvider>
-                <div class="flex items-center gap-2">
-                  <Tooltip>
-                    <TooltipTrigger as-child>
-                      <div class="space-y-1 w-full">
-                        <div class="text-[10px] text-muted-foreground ">
-                          <span class="inline group-hover:hidden truncate">
-                            {{ getTrafficUsedPercentage(node).toFixed(1) }}%
-                          </span>
-                          <span class="hidden group-hover:inline truncate">
-                            {{ formatBytes(getTrafficUsed(node)) }} /
-                            <template v-if="showTrafficProgress(node)">{{ formatBytes(node.traffic_limit) }}</template>
-                            <template v-else>∞</template>
-                          </span>
-                        </div>
-                        <TrafficProgress
-                          :upload="node.net_total_up ?? 0" :download="node.net_total_down ?? 0"
-                          :traffic-limit="node.traffic_limit" :traffic-limit-type="(node.traffic_limit_type || 'sum')"
-                          height="4px"
-                        />
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent class="!rounded text-[10px] p-1 px-2 font-medium">
-                      <span class="text-green-600 flex flex-row gap-0.5 items-center">
-                        <Icon icon="tabler:chevron-up" width="12" height="12" />
-                        {{ formatBytes(node.net_total_up ?? 0) }}
-                      </span>
-                      <span class="text-blue-600 flex flex-row gap-0.5 items-center">
-                        <Icon icon="tabler:chevron-down" width="12" height="12" />
-                        {{ formatBytes(node.net_total_down ?? 0) }}
-                      </span>
-                    </TooltipContent>
-                  </Tooltip>
+              <div class="group/traffic relative flex items-center gap-2">
+                <div class="space-y-1 w-full">
+                  <div class="text-[10px] text-muted-foreground truncate">
+                    <span class="inline group-hover:hidden">
+                      {{ getTrafficUsedPercentage(node).toFixed(1) }}%
+                    </span>
+                    <span class="hidden group-hover:inline">
+                      {{ formatBytes(getTrafficUsed(node)) }} /
+                      <template v-if="showTrafficProgress(node)">{{ formatBytes(node.traffic_limit) }}</template>
+                      <template v-else>∞</template>
+                    </span>
+                  </div>
+                  <TrafficProgress
+                    :upload="node.net_total_up ?? 0" :download="node.net_total_down ?? 0"
+                    :traffic-limit="node.traffic_limit" :traffic-limit-type="(node.traffic_limit_type || 'sum')"
+                    height="4px"
+                  />
                 </div>
-              </TooltipProvider>
+                <div
+                  class="pointer-events-none absolute bottom-full left-1/2 z-20 hidden mb-1.5 -translate-x-1/2 whitespace-nowrap rounded bg-foreground/80 p-1 text-[10px] leading-none text-background shadow-lg group-hover/traffic:block"
+                >
+                  <span class="flex flex-row gap-0.5 items-center">
+                    <Icon icon="tabler:chevron-up" width="12" height="12" />
+                    {{ formatBytes(node.net_total_up ?? 0) }}
+                  </span>
+                  <span class="flex flex-row gap-0.5 items-center">
+                    <Icon icon="tabler:chevron-down" width="12" height="12" />
+                    {{ formatBytes(node.net_total_down ?? 0) }}
+                  </span>
+                </div>
+              </div>
             </div>
 
             <!-- 速率 -->
