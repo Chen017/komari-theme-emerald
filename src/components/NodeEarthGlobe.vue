@@ -1,9 +1,15 @@
 <script setup lang="ts">
 import type { Arc, COBEOptions, Globe, Marker } from 'cobe'
 import { Icon } from '@iconify/vue'
-import { useElementSize } from '@vueuse/core'
+import {
+  useDocumentVisibility,
+  useElementSize,
+  useElementVisibility,
+  usePreferredReducedMotion,
+  useRafFn,
+} from '@vueuse/core'
 import createGlobe from 'cobe'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useNodesStore } from '@/stores/nodes'
 import { getCoordByCode, getCountryCodeFromRegion } from '@/utils/geoHelper'
@@ -16,12 +22,25 @@ const containerRef = ref<HTMLDivElement>()
 const canvasRef = ref<HTMLCanvasElement>()
 const { width: containerWidth, height: containerHeight } = useElementSize(containerRef)
 
+const documentVisibility = useDocumentVisibility()
+const elementVisible = useElementVisibility(containerRef)
+const reducedMotion = usePreferredReducedMotion()
+const shouldRender = computed(() => documentVisibility.value === 'visible' && elementVisible.value)
+const shouldAutoRotate = computed(() => reducedMotion.value !== 'reduce')
+
 let globe: Globe | null = null
-let rafId: number | null = null
-const phi = ref(0)
-const targetPhi = ref(0)
-const isPointerDown = ref(false)
+let phi = 0
+let targetPhi = 0
+let isPointerDown = false
 let lastPointerX = 0
+
+// 减少高采样导致的性能问题
+function getCappedDpr(): number {
+  if (typeof window === 'undefined')
+    return 1.5
+  const raw = window.devicePixelRatio || 1
+  return Math.min(Math.max(raw, 1.5), 2)
+}
 
 interface RegionCluster {
   code: string
@@ -34,7 +53,7 @@ function clusterKey(c: RegionCluster) {
   return `${c.code}:${c.servers}:${c.onlineServers}`
 }
 
-/** 节点按地区聚合 —— 仅依赖客户端列表，不掺入实时速率，避免每次速率推送都重算 markers/arcs */
+// 节点按地区聚合
 const regionClusters = computed<RegionCluster[]>(() => {
   const map = new Map<string, RegionCluster>()
   for (const node of nodesStore.nodes) {
@@ -62,7 +81,6 @@ interface RegionRate {
   down: number
 }
 
-/** 每个地区的实时上下行速率（仅在线节点参与） */
 const regionRates = computed<Map<string, RegionRate>>(() => {
   const map = new Map<string, RegionRate>()
   for (const node of nodesStore.nodes) {
@@ -86,76 +104,150 @@ function markerId(code: string): string {
   return `cdn-${code.toLowerCase()}`
 }
 
-/**
- * 用 transform: translate3d 驱动 overlay 位置（替代 CSS anchor() 的 top/left）
- * cobe v2 内部用 1×1 锚点 div + style.left/top="xx%" 驱动；
- * 我们直接读这个 inline style 字符串（不触发 layout），换算成 px 写到 overlay transform 上，
- * 让 overlay 完整走 GPU 合成层，避免每帧 layout/paint。
- */
-const labelEls = new Map<string, HTMLDivElement>()
-const flagEls = new Map<string, HTMLDivElement>()
-const anchorElCache = new Map<string, HTMLDivElement>()
+// 挂载 marker
+const anchorRefs = shallowRef<ReadonlyMap<string, HTMLDivElement>>(new Map())
 
-function onLabelRef(el: any, code: string) {
-  if (el)
-    labelEls.set(code, el as HTMLDivElement)
-  else
-    labelEls.delete(code)
+function getAnchorEl(code: string): HTMLDivElement | undefined {
+  return anchorRefs.value.get(markerId(code))
 }
 
-function onFlagRef(el: any, code: string) {
-  if (el)
-    flagEls.set(code, el as HTMLDivElement)
-  else
-    flagEls.delete(code)
+// 容器尺寸缓存
+let cachedContainerW = 0
+let cachedContainerH = 0
+function refreshContainerSizeCache() {
+  cachedContainerW = containerWidth.value || canvasRef.value?.clientWidth || 320
+  cachedContainerH = containerHeight.value || canvasRef.value?.clientHeight || cachedContainerW
 }
 
-function findAnchorEl(code: string): HTMLDivElement | null {
-  const id = markerId(code)
-  const cached = anchorElCache.get(id)
-  if (cached && cached.isConnected)
-    return cached
-  const wrapper = canvasRef.value?.parentElement
-  if (!wrapper)
-    return null
-  const el = wrapper.querySelector<HTMLDivElement>(`div[style*="--cobe-${id}"]`)
-  if (el)
-    anchorElCache.set(id, el)
-  return el
-}
+const patchedAnchors = new WeakSet<HTMLElement>()
 
-function syncOverlays() {
-  const w = containerWidth.value
-  const h = containerHeight.value
-  if (!w || !h)
+interface AnchorCtx {
+  xPx: number
+  yPx: number
+}
+const anchorCtxs = new WeakMap<HTMLDivElement, AnchorCtx>()
+const dirtyAnchors = new Set<HTMLDivElement>()
+
+// 批量 flush 锚点位置
+function flushDirtyAnchors() {
+  if (dirtyAnchors.size === 0)
     return
-  flagEls.forEach((flagEl, code) => {
-    const anchorEl = findAnchorEl(code)
-    if (!anchorEl)
-      return
-    const xPct = Number.parseFloat(anchorEl.style.left)
-    const yPct = Number.parseFloat(anchorEl.style.top)
-    if (Number.isNaN(xPct) || Number.isNaN(yPct))
-      return
-    const x = (xPct / 100) * w
-    const y = (yPct / 100) * h
-    flagEl.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`
-    const labelEl = labelEls.get(code)
-    if (labelEl)
-      labelEl.style.transform = `translate3d(${x}px, ${y}px, 0) translateY(-100%)`
-  })
+  for (const el of dirtyAnchors) {
+    const ctx = anchorCtxs.get(el)
+    if (ctx)
+      el.style.transform = `translate3d(${ctx.xPx}px, ${ctx.yPx}px, 0)`
+  }
+  dirtyAnchors.clear()
+}
+
+// 锚点定位改为性能更优、支持 GPU 加速的 transform
+// 异常回落到 cobe 默认行为
+function patchAnchorTransform(el: HTMLDivElement) {
+  if (patchedAnchors.has(el))
+    return
+  refreshContainerSizeCache()
+  const ctx: AnchorCtx = {
+    xPx: ((Number.parseFloat(el.style.left) || 0) / 100) * cachedContainerW,
+    yPx: ((Number.parseFloat(el.style.top) || 0) / 100) * cachedContainerH,
+  }
+  anchorCtxs.set(el, ctx)
+  el.style.left = '0px'
+  el.style.top = '0px'
+  el.style.transform = `translate3d(${ctx.xPx}px, ${ctx.yPx}px, 0)`
+  el.style.willChange = 'transform'
+  try {
+    Object.defineProperty(el.style, 'left', {
+      configurable: true,
+      enumerable: true,
+      get() { return '0px' },
+      set(v: string) {
+        const next = ((Number.parseFloat(v) || 0) / 100) * cachedContainerW
+        if (next === ctx.xPx)
+          return
+        ctx.xPx = next
+        dirtyAnchors.add(el)
+      },
+    })
+    Object.defineProperty(el.style, 'top', {
+      configurable: true,
+      enumerable: true,
+      get() { return '0px' },
+      set(v: string) {
+        const next = ((Number.parseFloat(v) || 0) / 100) * cachedContainerH
+        if (next === ctx.yPx)
+          return
+        ctx.yPx = next
+        dirtyAnchors.add(el)
+      },
+    })
+    patchedAnchors.add(el)
+  }
+  catch (err) {
+    console.warn('[NodeEarthGlobe] anchor transform patch failed, falling back to cobe default', err)
+  }
+}
+
+function patchAllAnchors() {
+  if (!canvasRef.value)
+    return
+  const wrapper = canvasRef.value.parentElement
+  if (!wrapper)
+    return
+  const anchors = wrapper.querySelectorAll<HTMLDivElement>('div[style*="--cobe-"]')
+  anchors.forEach(patchAnchorTransform)
+}
+
+// hook wrapper.append：在 cobe 写入新锚点的第一个 left/top 之前完成 patch
+const COBE_HOOK_FLAG = Symbol('cobeAppendHooked')
+type HookableWrapper = HTMLElement & { [COBE_HOOK_FLAG]?: boolean }
+
+function hookWrapperAppend() {
+  if (!canvasRef.value)
+    return
+  const wrapper = canvasRef.value.parentElement as HookableWrapper | null
+  if (!wrapper || wrapper[COBE_HOOK_FLAG])
+    return
+  wrapper[COBE_HOOK_FLAG] = true
+  const origAppend = wrapper.append.bind(wrapper)
+  wrapper.append = (...nodes: (Node | string)[]) => {
+    const ret = origAppend(...nodes)
+    for (const node of nodes) {
+      if (node instanceof HTMLDivElement && node.style.cssText.includes('--cobe-'))
+        patchAnchorTransform(node)
+    }
+    return ret
+  }
+}
+
+function syncAnchorRefs() {
+  if (!canvasRef.value) {
+    anchorRefs.value = new Map()
+    return
+  }
+  const wrapper = canvasRef.value.parentElement
+  if (!wrapper) {
+    anchorRefs.value = new Map()
+    return
+  }
+  const next = new Map<string, HTMLDivElement>()
+  for (const cluster of regionClusters.value) {
+    const id = markerId(cluster.code)
+    const el = wrapper.querySelector<HTMLDivElement>(`div[style*="--cobe-${id}"]`)
+    if (el)
+      next.set(id, el)
+  }
+  anchorRefs.value = next
 }
 
 const markers = computed<Marker[]>(() => {
-  // size 设为 0：cobe 仍会创建 --cobe-{id} 锚点 div，但 WebGL 不渲染圆点（被旗帜浮层取代）
   return regionClusters.value.map(cluster => ({
     id: markerId(cluster.code),
     location: cluster.coord,
-    size: 0,
+    size: 0, // 不渲染圆点
   }))
 })
 
-/** 以服务器数最多的地区为中心，向其余地区连线，形成 CDN 拓扑 */
+// 以服务器数最多的地区为中心，向其余地区连线，形成 CDN 拓扑
 const arcs = computed<Arc[]>(() => {
   const clusters = regionClusters.value
   if (clusters.length < 2)
@@ -200,14 +292,14 @@ function buildInitialOptions(): COBEOptions {
   const colors = themeColors.value
   const { width, height } = getRenderSize()
   return {
-    devicePixelRatio: typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1,
-    width: width * 2,
-    height: height * 2,
-    phi: phi.value,
+    devicePixelRatio: getCappedDpr(),
+    width,
+    height,
+    phi,
     theta: 0.22,
     dark: colors.dark,
     diffuse: 1.2,
-    mapSamples: 16000,
+    mapSamples: 10000, // 地图采样点数，默认 16000
     mapBrightness: colors.mapBrightness,
     baseColor: colors.baseColor,
     markerColor: colors.markerColor,
@@ -221,41 +313,60 @@ function buildInitialOptions(): COBEOptions {
   }
 }
 
-function animate() {
-  if (!globe)
-    return
-  if (!isPointerDown.value)
-    targetPhi.value += 0.0012
-  phi.value += (targetPhi.value - phi.value) * 0.12
-  const { width, height } = getRenderSize()
-  globe.update({
-    phi: phi.value,
-    width: width * 2,
-    height: height * 2,
-  })
-  syncOverlays()
-  rafId = requestAnimationFrame(animate)
-}
+// phi 收敛/静止时整帧跳过 globe.update，WebGL + 锚点写入双双归零
+const PHI_IDLE_EPSILON = 1e-5
+const { pause: pauseRaf, resume: resumeRaf } = useRafFn(
+  () => {
+    if (!globe)
+      return
+    const prevPhi = phi
+    if (!isPointerDown && shouldAutoRotate.value)
+      targetPhi += 0.006
+    phi += (targetPhi - phi) * 0.12
+    if (Math.abs(phi - prevPhi) < PHI_IDLE_EPSILON)
+      return
+    refreshContainerSizeCache()
+    const { width, height } = getRenderSize()
+    globe.update({ phi, width, height })
+    flushDirtyAnchors()
+  },
+  { immediate: false, fpsLimit: 60 },
+)
 
 function startGlobe() {
   if (!canvasRef.value)
     return
   globe = createGlobe(canvasRef.value, buildInitialOptions())
-  rafId = requestAnimationFrame(animate)
+  refreshContainerSizeCache()
+  hookWrapperAppend()
+  patchAllAnchors()
+  syncAnchorRefs()
+  // documentVisibility 同步可读；useElementVisibility 需等 IntersectionObserver 首回调
+  // 先按"前台"启动，若实际不可见，shouldRender 的 watch 会在下一帧 pause
+  if (documentVisibility.value === 'visible')
+    resumeRaf()
 }
 
-function stopGlobe() {
-  if (rafId !== null) {
-    cancelAnimationFrame(rafId)
-    rafId = null
-  }
+// 必须先清空 anchorRefs 让 Teleport 把 marker 移回 wrapper，再 destroy；
+// 否则 destroy 时锚点 div 被移除会连带 marker 一起被剥离。
+// cobe 也不会清理自己创建的 wrapper Z，这里手动收尾。
+async function stopGlobe() {
+  pauseRaf()
+  anchorRefs.value = new Map()
+  await nextTick()
   globe?.destroy()
   globe = null
-  anchorElCache.clear()
+  if (canvasRef.value && containerRef.value) {
+    const cobeWrapper = canvasRef.value.parentElement
+    if (cobeWrapper && cobeWrapper !== containerRef.value) {
+      containerRef.value.appendChild(canvasRef.value)
+      cobeWrapper.remove()
+    }
+  }
 }
 
-function rebuildGlobe() {
-  stopGlobe()
+async function rebuildGlobe() {
+  await stopGlobe()
   startGlobe()
 }
 
@@ -264,35 +375,53 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  stopGlobe()
+  pauseRaf()
+  globe?.destroy()
+  globe = null
 })
 
-// 切换主题需要重建（baseColor/dark 等颜色在 createGlobe 阶段固化）
-watch(() => appStore.isDark, () => rebuildGlobe())
-// 仅当地区集合或数量真正变化时才推送 markers/arcs，避免每次速率更新都搬运 WebGL buffer
+// 切换主题时重建 globe
+watch(() => appStore.isDark, async () => {
+  await rebuildGlobe()
+})
+
+// 仅地区集合或在线状态变化时才推送 markers/arcs；速率推送不触发
 watch(
   () => regionClusters.value.map(clusterKey).join(','),
   () => {
     if (!globe)
       return
+    refreshContainerSizeCache()
     globe.update({ markers: markers.value, arcs: arcs.value })
+    syncAnchorRefs()
+    // phi 静止时 RAF 跳帧会漏掉这次 flush，手动补一次
+    flushDirtyAnchors()
   },
 )
 
+watch(shouldRender, (visible) => {
+  if (!globe)
+    return
+  if (visible)
+    resumeRaf()
+  else
+    pauseRaf()
+})
+
 function onPointerDown(e: PointerEvent) {
-  isPointerDown.value = true
+  isPointerDown = true
   lastPointerX = e.clientX;
   (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
 }
 function onPointerMove(e: PointerEvent) {
-  if (!isPointerDown.value)
+  if (!isPointerDown)
     return
   const delta = e.clientX - lastPointerX
   lastPointerX = e.clientX
-  targetPhi.value += delta / 200
+  targetPhi += delta / 200
 }
 function onPointerUp(e: PointerEvent) {
-  isPointerDown.value = false;
+  isPointerDown = false;
   (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
 }
 
@@ -318,31 +447,32 @@ function formatRate(bytesPerSec: number): string {
       @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp" @pointercancel="onPointerUp"
     />
 
-    <div
-      v-for="cluster in regionClusters" :key="`flag-${cluster.code}`" :ref="(el) => onFlagRef(el, cluster.code)"
-      class="region-flag transition-opacity duration-300" :style="{
-        opacity: `var(--cobe-visible-${markerId(cluster.code)}, 0)`,
-      }"
-    >
-      <img :src="`/images/flags/${cluster.code}.svg`" :alt="cluster.code" class="size-4 block">
-    </div>
-
-    <div
-      v-for="cluster in regionClusters" :key="cluster.code" :ref="(el) => onLabelRef(el, cluster.code)"
-      class="cdn-label bg-background/60 backdrop-blur-[2px] rounded transition-[opacity,filter] duration-500" :style="{
-        opacity: `var(--cobe-visible-${markerId(cluster.code)}, 0)`,
-        filter: `blur(calc((1 - var(--cobe-visible-${markerId(cluster.code)}, 0)) * 20px))`,
-      }"
-    >
-      <div class="p-0.5 px-1 text-xs zoom-80 items-start justify-center text-nowrap">
-        <div class="text-green-600 flex flex-row items-center gap-0.5">
-          <Icon icon="tabler:chevron-up" width="12" height="12" /> {{ formatRate(rateFor(cluster.code).up) }}
+    <template v-for="cluster in regionClusters" :key="cluster.code">
+      <Teleport :to="getAnchorEl(cluster.code) ?? containerRef!" :disabled="!getAnchorEl(cluster.code)">
+        <div
+          class="absolute -top-7.5 left-0 transition-[opacity,filter] duration-500 rounded backdrop-blur-[2px]"
+          :style="{
+            opacity: `var(--cobe-visible-${markerId(cluster.code)}, 0)`,
+            filter: `blur(calc((1 - var(--cobe-visible-${markerId(cluster.code)}, 0)) * 20px))`,
+          }"
+        >
+          <img
+            :src="`/images/flags/${cluster.code}.svg`" :alt="cluster.code"
+            class="size-4 block absolute -bottom-2 -left-2 z-1"
+          >
+          <div
+            class="relative z-2 bg-background/60 rounded py-0.5 px-1 text-xs zoom-80 items-start justify-center text-nowrap"
+          >
+            <div class="text-green-600 flex flex-row items-center gap-0.5">
+              <Icon icon="tabler:chevron-up" width="12" height="12" /> {{ formatRate(rateFor(cluster.code).up) }}
+            </div>
+            <div class="text-blue-600 flex flex-row items-center gap-0.5">
+              <Icon icon="tabler:chevron-down" width="12" height="12" /> {{ formatRate(rateFor(cluster.code).down) }}
+            </div>
+          </div>
         </div>
-        <div class="text-blue-600 flex flex-row items-center gap-0.5">
-          <Icon icon="tabler:chevron-down" width="12" height="12" /> {{ formatRate(rateFor(cluster.code).down) }}
-        </div>
-      </div>
-    </div>
+      </Teleport>
+    </template>
 
     <div
       v-if="totalServers > 0"
@@ -367,27 +497,5 @@ function formatRate(bytesPerSec: number): string {
 <style scoped>
 .earth-globe-canvas {
   contain: layout paint;
-}
-
-/* CDN 标签 & 国旗 marker：位置完全由 JS 写入 transform: translate3d(x, y, 0) ... 驱动
-   - translate3d 强制独立合成层，跳过 layout/paint，只走 GPU composite
-   - top/left 固定为 0，只作为 transform 起点 */
-.cdn-label {
-  position: absolute;
-  top: 0;
-  left: 0;
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
-  pointer-events: none;
-  will-change: transform;
-}
-
-.region-flag {
-  position: absolute;
-  top: 0;
-  left: 0;
-  pointer-events: none;
-  will-change: transform, opacity;
 }
 </style>
