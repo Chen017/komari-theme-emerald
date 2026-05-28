@@ -145,7 +145,7 @@ function buildPingBars(metric: 'latency' | 'loss') {
           ? getLatencyToneClass(value)
           : getLossToneClass(value),
       tooltip: value === null
-        ? `${formatDateTime(point.time)} 暂无数据`
+        ? `${formatDateTime(point.time, 'HH:mm:ss')} 暂无数据`
         : metric === 'latency'
           ? `${formatDateTime(point.time, 'HH:mm:ss')}\n${Math.round(value)} ms`
           : `${formatDateTime(point.time, 'HH:mm:ss')}\n${value.toFixed(1)}%`,
