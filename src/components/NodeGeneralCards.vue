@@ -55,18 +55,28 @@ const formattedMemoryUsed = computed(() => formatBytesSplit(totalMemory.value.us
 const formattedMemoryTotal = computed(() => formatBytesSplit(totalMemory.value.total, appStore.byteDecimals))
 const formattedDiskUsed = computed(() => formatBytesSplit(totalDisk.value.used, appStore.byteDecimals))
 const formattedDiskTotal = computed(() => formatBytesSplit(totalDisk.value.total, appStore.byteDecimals))
+
+const showEarth = computed(() => !appStore.hideEarth)
+const wrapperClass = computed(() => showEarth.value
+  ? 'p-4 grid grid-cols-12 grid-rows-1 gap-2 h-auto md:h-58'
+  : 'p-4 grid grid-cols-1 gap-2 h-auto')
+const cardGridClass = computed(() => showEarth.value
+  ? 'h-42 -mt-42 md:mt-0 col-span-12 row-start-3 z-9 md:h-auto md:col-span-6 md:row-start-1 grid grid-cols-12 grid-rows-2 gap-2'
+  : 'col-span-1 grid grid-cols-3 md:grid-cols-6 gap-2')
 </script>
 
 <template>
-  <div class="p-4 grid grid-cols-12 grid-rows-1 gap-2 h-auto md:h-58">
-    <NodeEarthGlobe class="col-span-12 col-start-1 md:col-span-6 md:col-start-7" />
+  <div :class="wrapperClass">
+    <NodeEarthGlobe
+      v-if="showEarth"
+      class="col-span-12 col-start-1 md:col-span-6 md:col-start-7"
+    />
 
-    <div
-      class="h-36 -mt-36 md:mt-0 col-span-12 row-start-3 z-9 md:h-auto md:col-span-6 md:row-start-1 grid grid-cols-12 grid-rows-2 gap-2"
-    >
+    <div :class="cardGridClass">
       <CardX
         hoverable
-        class="col-span-4 row-span-1 col-start-1 row-start-1 group h-full bg-background/50 border-none hover:bg-background backdrop-blur-sm md:backdrop-blur-none transition-all"
+        class="group h-full bg-background/50 border-none hover:bg-background backdrop-blur-sm md:backdrop-blur-none transition-all"
+        :class="showEarth ? 'col-span-4 row-span-1 col-start-1 row-start-1' : 'col-span-1 min-h-18 md:min-h-28'"
         content-class="h-full !p-3"
       >
         <div class="flex h-full flex-col justify-between gap-1">
@@ -89,7 +99,8 @@ const formattedDiskTotal = computed(() => formatBytesSplit(totalDisk.value.total
       </CardX>
       <CardX
         hoverable
-        class="col-span-4 row-span-1 col-start-1 row-start-2 group h-full bg-background/50 border-none hover:bg-background backdrop-blur-sm md:backdrop-blur-none transition-all"
+        class="group h-full bg-background/50 border-none hover:bg-background backdrop-blur-sm md:backdrop-blur-none transition-all"
+        :class="showEarth ? 'col-span-4 row-span-1 col-start-1 row-start-2' : 'col-span-1 min-h-18 md:min-h-28'"
         content-class="h-full !p-3"
       >
         <div class="flex h-full flex-col justify-between gap-1">
@@ -111,7 +122,8 @@ const formattedDiskTotal = computed(() => formatBytesSplit(totalDisk.value.total
 
       <CardX
         hoverable
-        class="col-span-4 row-span-1 col-start-5 row-start-1 group bg-background/50 border-none hover:bg-background backdrop-blur-sm md:backdrop-blur-none transition-all"
+        class="group bg-background/50 border-none hover:bg-background backdrop-blur-sm md:backdrop-blur-none transition-all"
+        :class="showEarth ? 'col-span-4 row-span-1 col-start-5 row-start-1' : 'col-span-1 min-h-18 md:min-h-28'"
         content-class="h-full !p-3"
       >
         <div class="flex h-full flex-col justify-between gap-1">
@@ -132,7 +144,8 @@ const formattedDiskTotal = computed(() => formatBytesSplit(totalDisk.value.total
       </CardX>
       <CardX
         hoverable
-        class="col-span-4 row-span-1 col-start-5 row-start-2 group bg-background/50 border-none hover:bg-background backdrop-blur-sm md:backdrop-blur-none transition-all"
+        class="group bg-background/50 border-none hover:bg-background backdrop-blur-sm md:backdrop-blur-none transition-all"
+        :class="showEarth ? 'col-span-4 row-span-1 col-start-5 row-start-2' : 'col-span-1 min-h-18 md:min-h-28'"
         content-class="h-full !p-3"
       >
         <div class="flex h-full flex-col justify-between gap-1">
@@ -156,7 +169,8 @@ const formattedDiskTotal = computed(() => formatBytesSplit(totalDisk.value.total
 
       <CardX
         hoverable
-        class="col-span-4 row-span-1 col-start-9 row-start-1 group bg-background/50 border-none hover:bg-background backdrop-blur-sm md:backdrop-blur-none transition-all"
+        class="group bg-background/50 border-none hover:bg-background backdrop-blur-sm md:backdrop-blur-none transition-all"
+        :class="showEarth ? 'col-span-4 row-span-1 col-start-9 row-start-1' : 'col-span-1 min-h-18 md:min-h-28'"
         content-class="h-full !p-3"
       >
         <div class="flex h-full flex-col justify-between gap-1">
@@ -175,7 +189,8 @@ const formattedDiskTotal = computed(() => formatBytesSplit(totalDisk.value.total
       </CardX>
       <CardX
         hoverable
-        class="col-span-4 row-span-1 col-start-9 row-start-2 group bg-background/50 border-none hover:bg-background backdrop-blur-sm md:backdrop-blur-none transition-all"
+        class="group bg-background/50 border-none hover:bg-background backdrop-blur-sm md:backdrop-blur-none transition-all"
+        :class="showEarth ? 'col-span-4 row-span-1 col-start-9 row-start-2' : 'col-span-1 min-h-18 md:min-h-28'"
         content-class="h-full !p-3"
       >
         <div class="flex h-full flex-col justify-between gap-1">

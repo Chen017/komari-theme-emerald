@@ -106,6 +106,30 @@ const useAppStore = defineStore('app', () => {
     return ''
   })
 
+  const stopEarth = computed<boolean>(() => {
+    const settings = publicSettings.value?.theme_settings
+    if (settings && typeof settings.stopEarth === 'boolean') {
+      return settings.stopEarth
+    }
+    return false
+  })
+
+  const hideEarth = computed<boolean>(() => {
+    const settings = publicSettings.value?.theme_settings
+    if (settings && typeof settings.hideEarth === 'boolean') {
+      return settings.hideEarth
+    }
+    return false
+  })
+
+  const hideGeneralCard = computed<boolean>(() => {
+    const settings = publicSettings.value?.theme_settings
+    if (settings && typeof settings.hideGeneralCard === 'boolean') {
+      return settings.hideGeneralCard
+    }
+    return false
+  })
+
   // 计算属性：ICP 备案配置
   const icpEnabled = computed<boolean>(() => {
     const settings = publicSettings.value?.theme_settings
@@ -267,6 +291,9 @@ const useAppStore = defineStore('app', () => {
     alertEnabled,
     alertTitle,
     alertContent,
+    stopEarth,
+    hideEarth,
+    hideGeneralCard,
     icpEnabled,
     icpNumber,
     icpUrl,

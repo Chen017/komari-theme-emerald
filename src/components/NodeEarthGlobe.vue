@@ -26,22 +26,55 @@ const documentVisibility = useDocumentVisibility()
 const elementVisible = useElementVisibility(containerRef)
 const reducedMotion = usePreferredReducedMotion()
 const shouldRender = computed(() => documentVisibility.value === 'visible' && elementVisible.value)
-const shouldAutoRotate = computed(() => reducedMotion.value !== 'reduce')
+const shouldAutoRotate = computed(() => reducedMotion.value !== 'reduce' && !appStore.stopEarth)
 
 let globe: Globe | null = null
 const INITIAL_THETA = 0.22
 const MIN_THETA = -0.65
 const MAX_THETA = 0.65
-let phi = 0
-let targetPhi = 0
+const CHINA_COORD = getCoordByCode('CN') ?? [35.8617, 104.1954]
+const STOPPED_DEFAULT_PHI = normalizePhi(-Math.PI / 2 - CHINA_COORD[1] * Math.PI / 180)
+let phi = appStore.stopEarth ? STOPPED_DEFAULT_PHI : 0
+let targetPhi = phi
 let theta = INITIAL_THETA
 let targetTheta = INITIAL_THETA
 let isPointerDown = false
 let lastPointerX = 0
 let lastPointerY = 0
+let staticRedrawUntil = 0
+
+function normalizePhi(value: number): number {
+  const circle = Math.PI * 2
+  let next = value % circle
+  if (next <= -Math.PI)
+    next += circle
+  if (next > Math.PI)
+    next -= circle
+  return next
+}
 
 function clampTheta(value: number): number {
   return Math.min(Math.max(value, MIN_THETA), MAX_THETA)
+}
+
+function resetStoppedView() {
+  phi = STOPPED_DEFAULT_PHI
+  targetPhi = STOPPED_DEFAULT_PHI
+  theta = INITIAL_THETA
+  targetTheta = INITIAL_THETA
+}
+
+function triggerStaticRedrawWindow(duration = 1500) {
+  if (typeof performance === 'undefined') {
+    staticRedrawUntil = Date.now() + duration
+    return
+  }
+  staticRedrawUntil = performance.now() + duration
+}
+
+function shouldKeepStaticRedraw(): boolean {
+  const now = typeof performance === 'undefined' ? Date.now() : performance.now()
+  return now < staticRedrawUntil
 }
 
 // 减少高采样导致的性能问题
@@ -323,6 +356,17 @@ function buildInitialOptions(): COBEOptions {
   }
 }
 
+function updateGlobeFrame(forceSyncAnchors = false) {
+  if (!globe)
+    return
+  refreshContainerSizeCache()
+  const { width, height } = getRenderSize()
+  globe.update({ phi, theta, width, height })
+  if (forceSyncAnchors)
+    syncAnchorRefs()
+  flushDirtyAnchors()
+}
+
 // phi 收敛/静止时整帧跳过 globe.update，WebGL + 锚点写入双双归零
 const ORIENTATION_IDLE_EPSILON = 1e-5
 const { pause: pauseRaf, resume: resumeRaf } = useRafFn(
@@ -339,12 +383,12 @@ const { pause: pauseRaf, resume: resumeRaf } = useRafFn(
       Math.abs(phi - prevPhi) < ORIENTATION_IDLE_EPSILON
       && Math.abs(theta - prevTheta) < ORIENTATION_IDLE_EPSILON
     ) {
+      if (!shouldAutoRotate.value && shouldKeepStaticRedraw()) {
+        updateGlobeFrame(true)
+      }
       return
     }
-    refreshContainerSizeCache()
-    const { width, height } = getRenderSize()
-    globe.update({ phi, theta, width, height })
-    flushDirtyAnchors()
+    updateGlobeFrame()
   },
   { immediate: false, fpsLimit: 60 },
 )
@@ -352,11 +396,19 @@ const { pause: pauseRaf, resume: resumeRaf } = useRafFn(
 function startGlobe() {
   if (!canvasRef.value)
     return
+  if (appStore.stopEarth) {
+    resetStoppedView()
+    triggerStaticRedrawWindow()
+  }
   globe = createGlobe(canvasRef.value, buildInitialOptions())
   refreshContainerSizeCache()
   hookWrapperAppend()
   patchAllAnchors()
   syncAnchorRefs()
+  // 静止地球没有自转帧，首帧需要在实际尺寸稳定后主动重绘一次。
+  requestAnimationFrame(() => {
+    updateGlobeFrame(true)
+  })
   // documentVisibility 同步可读；useElementVisibility 需等 IntersectionObserver 首回调
   // 先按"前台"启动，若实际不可见，shouldRender 的 watch 会在下一帧 pause
   if (documentVisibility.value === 'visible')
@@ -401,6 +453,27 @@ watch(() => appStore.isDark, async () => {
   await rebuildGlobe()
 })
 
+watch(
+  [containerWidth, containerHeight],
+  ([width, height]) => {
+    if (!globe || width <= 0 || height <= 0)
+      return
+    if (!shouldAutoRotate.value)
+      triggerStaticRedrawWindow(600)
+    updateGlobeFrame(true)
+  },
+)
+
+watch(
+  () => appStore.stopEarth,
+  (stopped) => {
+    if (stopped)
+      resetStoppedView()
+    triggerStaticRedrawWindow()
+    updateGlobeFrame(true)
+  },
+)
+
 // 仅地区集合或在线状态变化时才推送 markers/arcs；速率推送不触发
 watch(
   () => regionClusters.value.map(clusterKey).join(','),
@@ -410,6 +483,8 @@ watch(
     refreshContainerSizeCache()
     globe.update({ markers: markers.value, arcs: arcs.value })
     syncAnchorRefs()
+    if (!shouldAutoRotate.value)
+      triggerStaticRedrawWindow(600)
     // phi 静止时 RAF 跳帧会漏掉这次 flush，手动补一次
     flushDirtyAnchors()
   },
@@ -418,10 +493,14 @@ watch(
 watch(shouldRender, (visible) => {
   if (!globe)
     return
-  if (visible)
+  if (visible) {
+    if (!shouldAutoRotate.value)
+      triggerStaticRedrawWindow()
     resumeRaf()
-  else
+  }
+  else {
     pauseRaf()
+  }
 })
 
 function onPointerDown(e: PointerEvent) {

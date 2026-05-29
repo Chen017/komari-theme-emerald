@@ -115,9 +115,9 @@ function handleNodeClick(node: typeof nodesStore.nodes[number]) {
       </Alert>
     </div>
 
-    <NodeGeneralCards />
+    <NodeGeneralCards v-if="!appStore.hideGeneralCard" />
 
-    <div class="node-info p-4 pt-0 flex flex-col gap-4 relative z-1 pointer-events-none">
+    <div class="node-info p-4 pt-0 flex flex-col gap-4 relative z-1 pointer-events-none" :class="!!appStore.hideGeneralCard && 'pt-4'">
       <div class="nodes">
         <Tabs v-model="appStore.nodeSelectedGroup" class="w-full flex-col gap-4">
           <div class="flex gap-2 items-center flex-nowrap">
