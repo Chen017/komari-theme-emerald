@@ -33,8 +33,8 @@ const INITIAL_THETA = 0.22
 const MIN_THETA = -0.65
 const MAX_THETA = 0.65
 const CHINA_COORD = getCoordByCode('CN') ?? [35.8617, 104.1954]
-const STOPPED_DEFAULT_PHI = normalizePhi(-Math.PI / 2 - CHINA_COORD[1] * Math.PI / 180)
-let phi = appStore.stopEarth ? STOPPED_DEFAULT_PHI : 0
+const DEFAULT_PHI = normalizePhi(-Math.PI / 2 - CHINA_COORD[1] * Math.PI / 180)
+let phi = DEFAULT_PHI
 let targetPhi = phi
 let theta = INITIAL_THETA
 let targetTheta = INITIAL_THETA
@@ -58,8 +58,8 @@ function clampTheta(value: number): number {
 }
 
 function resetStoppedView() {
-  phi = STOPPED_DEFAULT_PHI
-  targetPhi = STOPPED_DEFAULT_PHI
+  phi = DEFAULT_PHI
+  targetPhi = DEFAULT_PHI
   theta = INITIAL_THETA
   targetTheta = INITIAL_THETA
 }
