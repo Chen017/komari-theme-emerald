@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import dayjs from 'dayjs'
-import { computed, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import VChart from 'vue-echarts'
 import { Button } from '@/components/ui/button'
 import { Empty } from '@/components/ui/empty'
@@ -142,8 +142,45 @@ const error = ref<string | null>(null)
 // 任务选择
 const selectedTaskIds = ref<number[]>([])
 const cutPeak = ref(false)
+const isTouchTooltipMode = ref(false)
+const activeTaskTooltipId = ref<number | null>(null)
+const smoothInfoTooltipOpen = ref(false)
 
 const chartMargin = { top: 30, right: 24, bottom: 52, left: 56 }
+let coarsePointerMediaQuery: MediaQueryList | null = null
+
+function syncTouchTooltipMode() {
+  if (typeof window === 'undefined') {
+    isTouchTooltipMode.value = false
+    return
+  }
+
+  const hasCoarsePointer = window.matchMedia('(pointer: coarse)').matches
+  const hasTouchPoints = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0
+  isTouchTooltipMode.value = hasCoarsePointer || hasTouchPoints
+}
+
+function setTaskTooltipOpen(taskId: number, open: boolean) {
+  activeTaskTooltipId.value = open ? taskId : activeTaskTooltipId.value === taskId ? null : activeTaskTooltipId.value
+}
+
+function toggleTaskTooltip(taskId: number) {
+  if (!isTouchTooltipMode.value)
+    return
+
+  activeTaskTooltipId.value = activeTaskTooltipId.value === taskId ? null : taskId
+  smoothInfoTooltipOpen.value = false
+}
+
+function toggleSmoothInfoTooltip() {
+  if (!isTouchTooltipMode.value)
+    return
+
+  smoothInfoTooltipOpen.value = !smoothInfoTooltipOpen.value
+  if (smoothInfoTooltipOpen.value) {
+    activeTaskTooltipId.value = null
+  }
+}
 
 // ==================== 数据获取 ====================
 
@@ -504,15 +541,25 @@ watch(() => props.uuid, () => {
   remoteData.value = []
   tasks.value = []
   selectedTaskIds.value = []
+  activeTaskTooltipId.value = null
+  smoothInfoTooltipOpen.value = false
   fetchRecords()
 })
 
 onMounted(() => {
+  syncTouchTooltipMode()
+  coarsePointerMediaQuery = window.matchMedia('(pointer: coarse)')
+  coarsePointerMediaQuery.addEventListener('change', syncTouchTooltipMode)
+
   const firstView = availableViews.value[0]
   if (firstView && !selectedView.value) {
     selectedView.value = firstView.label
   }
   fetchRecords()
+})
+
+onBeforeUnmount(() => {
+  coarsePointerMediaQuery?.removeEventListener('change', syncTouchTooltipMode)
 })
 </script>
 
@@ -533,15 +580,16 @@ onMounted(() => {
       <div class="md:flex-1" />
       <div class="flex gap-2 items-center">
         <Button
-          variant="ghost" size="xs" class="rounded bg-background/50 hover:bg-background border-none"
-          :class="selectedTaskIds.length === tasks.length ? 'shadow-[0_0_0_2px] shadow-primary/10' : ''"
+          variant="ghost" size="xs" class="h-7 rounded-sm bg-background/50 hover:bg-background border-none"
+          :class="selectedTaskIds.length === tasks.length ? 'shadow-[0_0_0_2px] shadow-green-600/10 text-green-600' : ''"
           @click="showAllTasks"
         >
           全选
         </Button>
         <Button
-          variant="ghost" size="xs" class="rounded bg-background/50 hover:bg-background border-none"
-          :class="!selectedTaskIds.length && 'shadow-[0_0_0_2px] shadow-primary/10'" @click="hideAllTasks"
+          variant="ghost" size="xs" class="h-7 rounded-sm bg-background/50 hover:bg-background border-none"
+          :class="!selectedTaskIds.length && 'shadow-[0_0_0_2px] shadow-green-600/10 text-green-600'"
+          @click="hideAllTasks"
         >
           全不选
         </Button>
@@ -577,15 +625,14 @@ onMounted(() => {
                   <div class="rounded h-4 w-1" :style="{ backgroundColor: task.color }" />
                   <span class="text-sm font-semibold truncate">{{ task.name }}</span>
                   <div class="flex-1" />
-                  <Tooltip>
+                  <Tooltip
+                    :open="isTouchTooltipMode ? activeTaskTooltipId === task.id : undefined"
+                    @update:open="(open) => setTaskTooltipOpen(task.id, open)"
+                  >
                     <TooltipTrigger as-child>
-                      <span
-                        class="text-sm opacity-50 cursor-help transition-opacity hover:opacity-100 inline-flex"
-                        style="color: color-mix(in srgb, hsl(var(--foreground)) 80%, transparent)" @click.stop
-                        @touchstart.stop
-                      >
+                      <Button variant="ghost" size="icon-xs" class="text-slate-500" @click.stop="toggleTaskTooltip(task.id)">
                         <Icon icon="carbon:information" :width="14" :height="14" />
-                      </span>
+                      </Button>
                     </TooltipTrigger>
                     <TooltipContent class="!rounded p-3">
                       <div class="text-xs gap-x-4 gap-y-1.5 grid grid-cols-4">
@@ -653,16 +700,20 @@ onMounted(() => {
         <div class="flex flex-wrap gap-4 items-center py-2 justify-between">
           <TooltipProvider>
             <div class="flex gap-2 items-center">
-              <Button :variant="cutPeak ? 'default' : 'outline'" size="sm" @click="cutPeak = !cutPeak">
+              <Button
+                variant="ghost" size="xs" class="h-7 rounded-sm bg-background/50 hover:bg-background border-none"
+                :class="cutPeak && 'shadow-[0_0_0_2px] shadow-green-600/10 text-green-600'" @click="cutPeak = !cutPeak"
+              >
                 平滑峰值
               </Button>
-              <Tooltip>
+              <Tooltip
+                :open="isTouchTooltipMode ? smoothInfoTooltipOpen : undefined"
+                @update:open="(open) => smoothInfoTooltipOpen = open"
+              >
                 <TooltipTrigger as-child>
-                  <span
-                    class="text-sm opacity-50 cursor-help transition-opacity hover:opacity-100 inline-flex text-muted-foreground"
-                  >
+                  <Button variant="ghost" size="icon-xs" class="text-slate-500" @click.stop="toggleSmoothInfoTooltip">
                     <Icon icon="carbon:information" :width="14" :height="14" />
-                  </span>
+                  </Button>
                 </TooltipTrigger>
                 <TooltipContent>
                   <span>使用 EWMA 算法平滑数据并过滤突变值</span>
