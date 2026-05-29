@@ -166,7 +166,7 @@ function handleNodeClick(node: typeof nodesStore.nodes[number]) {
           <TabsContent v-for="g in groups" :key="g.name" :value="g.name" class="pointer-events-auto">
             <div
               v-if="nodeList.length !== 0 && appStore.nodeViewMode === 'card'"
-              class="gap-2 grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(300px,1fr))]"
+              class="gap-3 grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(300px,1fr))]"
             >
               <NodeCard v-for="node in nodeList" :key="node.uuid" :node="node" @click="handleNodeClick(node)" />
             </div>

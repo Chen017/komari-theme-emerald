@@ -5,7 +5,7 @@ import { computed } from 'vue'
 import { Badge } from '@/components/ui/badge'
 import { CardX } from '@/components/ui/card-x'
 import { ProgressThin } from '@/components/ui/progress-thin'
-import { useNodePingStats } from '@/composables/useNodePingStats'
+import { useNodePingDisplay } from '@/composables/useNodePingDisplay'
 import { useAppStore } from '@/stores/app'
 import { formatBytesPerSecondWithConfig, formatBytesWithConfig, formatDateTime, formatUptimeWithFormat, getStatus } from '@/utils/helper'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
@@ -20,7 +20,7 @@ const appStore = useAppStore()
 
 const formatBytes = (bytes: number) => formatBytesWithConfig(bytes, appStore.byteDecimals)
 const formatBytesPerSecond = (bytes: number) => formatBytesPerSecondWithConfig(bytes, appStore.byteDecimals)
-const formatUptime = (seconds: number) => formatUptimeWithFormat(seconds, 'minute')
+const formatUptime = (seconds: number) => formatUptimeWithFormat(seconds, 'hour')
 const offlineTime = computed(() => formatDateTime(props.node.time))
 
 const cpuStatus = computed(() => getStatus(props.node.cpu ?? 0))
@@ -29,25 +29,14 @@ const memStatus = computed(() => getStatus(memPercentage.value))
 const diskPercentage = computed(() => (props.node.disk ?? 0) / (props.node.disk_total || 1) * 100)
 const diskStatus = computed(() => getStatus(diskPercentage.value))
 
-const pingStatsEnabled = computed(() => {
-  if (appStore.publicSettings?.record_enabled === false)
-    return false
-  return appStore.publicSettings?.ping_record_preserve_time !== 0
-})
-
-const pingStatsHours = computed(() => {
-  const preserveTime = appStore.publicSettings?.ping_record_preserve_time
-  if (typeof preserveTime === 'number' && preserveTime > 0)
-    return Math.min(preserveTime, 1)
-  return 1
-})
-
-const pingStats = useNodePingStats(() => props.node.uuid, {
-  hours: pingStatsHours,
-  enabled: pingStatsEnabled,
-})
-
-const EMPTY_PING_BAR_COUNT = 20
+const {
+  latencyRenderBars,
+  lossRenderBars,
+  latencyDisplay,
+  lossDisplay,
+  latencyPanelTooltip,
+  lossPanelTooltip,
+} = useNodePingDisplay(() => props.node.uuid)
 
 function showTrafficProgress(node: NodeData): boolean {
   return node.traffic_limit > 0
@@ -107,108 +96,6 @@ const priceTags = computed(() => {
 
 const customTags = computed(() => parseTags(props.node.tags).map(t => t.text))
 
-function getLatencyToneClass(latency: number): string {
-  if (latency <= 60)
-    return 'bg-emerald-600/90'
-  if (latency <= 100)
-    return 'bg-green-400/80'
-  if (latency <= 160)
-    return 'bg-lime-400/80'
-  if (latency <= 200)
-    return 'bg-yellow-400/80'
-  return 'bg-rose-500/80'
-}
-
-function getLossToneClass(loss: number): string {
-  if (loss <= 1)
-    return 'bg-emerald-600/90'
-  if (loss <= 3)
-    return 'bg-green-400/90'
-  if (loss <= 6)
-    return 'bg-lime-400/90'
-  if (loss <= 9)
-    return 'bg-yellow-400/90'
-  return 'bg-rose-500/80'
-}
-
-function buildPingBars(metric: 'latency' | 'loss') {
-  const points = pingStats.history.value
-  if (!points.length)
-    return []
-
-  return points.map((point, index) => {
-    const value = point[metric]
-
-    return {
-      key: `${point.time}-${index}`,
-      className: value === null
-        ? 'bg-muted-foreground/15'
-        : metric === 'latency'
-          ? getLatencyToneClass(value)
-          : getLossToneClass(value),
-      tooltip: value === null
-        ? `${formatDateTime(point.time, 'HH:mm:ss')} N/A`
-        : metric === 'latency'
-          ? `${formatDateTime(point.time, 'HH:mm:ss')}\n${Math.round(value)} ms`
-          : `${formatDateTime(point.time, 'HH:mm:ss')}\n${value.toFixed(1)}%`,
-    }
-  })
-}
-
-function buildEmptyPingBars(metric: 'latency' | 'loss') {
-  const tooltip = pingStats.loading.value
-    ? '加载中'
-    : pingStats.error.value
-      ? '加载失败'
-      : !pingStatsEnabled.value
-          ? '未启用记录'
-          : metric === 'latency'
-            ? 'N/A'
-            : 'N/A'
-
-  return Array.from({ length: EMPTY_PING_BAR_COUNT }, (_, index) => ({
-    key: `${metric}-empty-${index}`,
-    className: 'bg-muted-foreground/10',
-    tooltip,
-  }))
-}
-
-const latencyBars = computed(() => buildPingBars('latency'))
-const lossBars = computed(() => buildPingBars('loss'))
-const latencyRenderBars = computed(() => latencyBars.value.length ? latencyBars.value : buildEmptyPingBars('latency'))
-const lossRenderBars = computed(() => lossBars.value.length ? lossBars.value : buildEmptyPingBars('loss'))
-
-const latencyDisplay = computed(() => {
-  if (pingStats.hasData.value)
-    return `${Math.round(pingStats.avgLatency.value)} ms`
-  if (pingStats.loading.value)
-    return '加载中'
-  return '-'
-})
-
-const lossDisplay = computed(() => {
-  if (pingStats.hasData.value)
-    return `${pingStats.avgLoss.value.toFixed(1)}%`
-  if (pingStats.loading.value)
-    return '加载中'
-  return '-'
-})
-
-const latencyPanelTooltip = computed(() => {
-  if (!pingStats.hasData.value)
-    return ''
-  return `平均延迟 ${Math.round(pingStats.avgLatency.value)} ms`
-})
-
-const lossPanelTooltip = computed(() => {
-  if (!pingStats.hasData.value)
-    return ''
-  const volatility = pingStats.avgVolatility.value > 0
-    ? `，平均波动 ${pingStats.avgVolatility.value.toFixed(2)}`
-    : ''
-  return `平均丢包 ${pingStats.avgLoss.value.toFixed(1)}%${volatility}`
-})
-
 function hasRegion(region: string | null | undefined): boolean {
   return Boolean(region?.trim())
 }
@@ -222,10 +109,17 @@ function hasRegion(region: string | null | undefined): boolean {
   >
     <template #header>
       <div class="flex gap-2 min-w-0 items-center">
-        <div class="size-2 rounded-full relative" :class="[props.node.online ? 'bg-green-600' : 'bg-red-600']">
+        <div
+          class="group/bar size-2 rounded-full relative"
+          :class="[props.node.online ? 'bg-green-600' : 'bg-red-600']"
+        >
           <div
             class="animate-ping absolute inset-0 rounded-full opacity-50"
             :class="[props.node.online ? 'bg-green-600' : 'bg-red-600']"
+          />
+          <div
+            class="pointer-events-none absolute top-1/2 left-full hidden z-20 ml-2 -translate-y-1/2 whitespace-nowrap rounded bg-foreground/80 p-1 text-[10px] leading-none text-background shadow-lg group-hover/bar:block after:content-[attr(data-tooltip)]"
+            :data-tooltip="formatUptime(props.node.uptime ?? 0)"
           />
         </div>
         <span class="text-md font-bold flex-1 min-w-0 truncate">{{ props.node.name }}</span>
@@ -236,8 +130,7 @@ function hasRegion(region: string | null | undefined): boolean {
       <div class="flex gap-2 items-center">
         <img :src="getOSImage(props.node.os)" :alt="getOSName(props.node.os)" class="size-4">
         <img
-          v-if="hasRegion(props.node.region)"
-          :src="`/images/flags/${getRegionCode(props.node.region)}.svg`"
+          v-if="hasRegion(props.node.region)" :src="`/images/flags/${getRegionCode(props.node.region)}.svg`"
           :alt="getRegionDisplayName(props.node.region)" class="size-5 shrink-0"
         >
       </div>
@@ -368,31 +261,30 @@ function hasRegion(region: string | null | undefined): boolean {
             </div>
           </div>
           <!-- 运行时长 -->
-          <div
+          <!-- <div
             class="col-span-6 flex flex-row gap-2 items-center p-1 rounded-sm bg-slate-500/5 justify-center text-[11px] text-muted-foreground"
             :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
           >
             <span class="inline-flex flex-row gap-1 items-center">
               {{ formatUptime(props.node.uptime ?? 0) }}
             </span>
-          </div>
+          </div> -->
           <!-- 延迟 -->
           <div
             class="group/panel relative col-span-3 flex flex-col gap-1.5 p-1.5 h-10 rounded-sm bg-slate-500/5"
-            :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
-            :title="latencyPanelTooltip"
+            :class="[!props.node.online ? 'blur-xs opacity-60' : '']" :title="latencyPanelTooltip"
           >
             <div class="flex items-center justify-between gap-2 text-[11px] leading-none relative">
               <span class="text-muted-foreground">延迟</span>
               <span class="font-medium text-foreground/85">{{ latencyDisplay }}</span>
             </div>
             <div
-              class="grid h-full items-end gap-[1px] opacity-80 group-hover/panel:opacity-100"
+              class="grid h-full items-end gap-[1px] opacity-80 group-hover/panel:opacity-100 cursor-auto"
               :style="{ gridTemplateColumns: `repeat(${latencyRenderBars.length}, minmax(0, 1fr))` }"
             >
               <span v-for="bar in latencyRenderBars" :key="bar.key" class="group/bar relative h-full w-full">
                 <span
-                  class="block h-full w-full rounded-[1px] transition-transform duration-150 group-hover/bar:scale-y-160"
+                  class="block h-full w-full rounded-[1px] transition-transform duration-150 group-hover/bar:scale-y-160 group-hover/panel:opacity-60 group-hover/bar:!opacity-100"
                   :class="bar.className"
                 />
                 <span
@@ -405,20 +297,19 @@ function hasRegion(region: string | null | undefined): boolean {
           <!-- 丢包 -->
           <div
             class="group/panel relative col-span-3 flex flex-col gap-1.5 p-1.5 h-10 rounded-sm bg-slate-500/5"
-            :class="[!props.node.online ? 'blur-xs opacity-60' : '']"
-            :title="lossPanelTooltip"
+            :class="[!props.node.online ? 'blur-xs opacity-60' : '']" :title="lossPanelTooltip"
           >
             <div class="flex items-center justify-between gap-2 text-[11px] leading-none">
               <span class="text-muted-foreground">丢包</span>
               <span class="font-medium text-foreground/85">{{ lossDisplay }}</span>
             </div>
             <div
-              class="grid h-full items-end gap-[1px] opacity-80 group-hover/panel:opacity-100"
+              class="grid h-full items-end gap-[1px] opacity-80 group-hover/panel:opacity-100 cursor-auto"
               :style="{ gridTemplateColumns: `repeat(${lossRenderBars.length}, minmax(0, 1fr))` }"
             >
               <span v-for="bar in lossRenderBars" :key="bar.key" class="group/bar relative h-full w-full">
                 <span
-                  class="block h-full w-full rounded-[1px] transition-transform duration-150 group-hover/bar:scale-y-160"
+                  class="block h-full w-full rounded-[1px] transition-transform duration-150 group-hover/bar:scale-y-160 group-hover/panel:opacity-60 group-hover/bar:!opacity-100"
                   :class="bar.className"
                 />
                 <span
