@@ -1,5 +1,5 @@
 import type { MaybeRefOrGetter } from 'vue'
-import { computed, ref, toValue, watch } from 'vue'
+import { computed, ref, shallowRef, toValue, watch } from 'vue'
 import { getSharedRpc } from '@/utils/rpc'
 
 export interface NodePingHistoryPoint {
@@ -17,29 +17,32 @@ export interface NodePingStatsState {
 }
 
 interface PingRecord {
+  client: string
   task_id: number
   time: string
   value: number
 }
 
-interface PingTaskInfo {
-  id: number
-  loss?: number
-  avg?: number
-  latest?: number
-  p50?: number
-  p99_p50_ratio?: number
+interface SharedPingRecordsResponse {
+  records?: PingRecord[]
 }
 
-interface PingRecordsResponse {
-  records?: PingRecord[]
-  tasks?: PingTaskInfo[]
+interface SharedPingRecordsState {
+  recordsByClient: Map<string, PingRecord[]>
+}
+
+interface SharedPingRecordsEntry {
+  data: ReturnType<typeof shallowRef<SharedPingRecordsState | null>>
+  loading: ReturnType<typeof ref<boolean>>
+  error: ReturnType<typeof ref<string | null>>
+  promise: Promise<void> | null
 }
 
 const HISTORY_BUCKET_COUNT = 20
-const CACHE_VERSION = 2
+const CACHE_VERSION = 3
 const CACHE_KEY_PREFIX = 'komari-theme-emerald:node-ping-stats'
 const FULL_LOSS_EPSILON = 1e-6
+const sharedPingRecordsCache = new Map<number, SharedPingRecordsEntry>()
 
 interface TaskRecordSummary {
   total: number
@@ -81,27 +84,13 @@ function summarizeTaskRecords(records: PingRecord[]): Map<number, TaskRecordSumm
   return summaries
 }
 
-function isTaskFullyLost(task: PingTaskInfo | undefined, summary: TaskRecordSummary | undefined): boolean {
-  if (isFiniteNumber(task?.loss) && task.loss >= 100 - FULL_LOSS_EPSILON)
-    return true
-
-  return Boolean(summary && summary.total > 0 && summary.success === 0)
-}
-
-function getIncludedTaskIds(records: PingRecord[], tasks: PingTaskInfo[]): Set<number> {
+function getIncludedTaskIds(records: PingRecord[]): Set<number> {
   const recordSummaries = summarizeTaskRecords(records)
-  const tasksById = new Map(tasks.map(task => [task.id, task]))
-  const taskIds = new Set<number>([
-    ...recordSummaries.keys(),
-    ...tasksById.keys(),
-  ])
 
   return new Set(
-    [...taskIds].filter((taskId) => {
-      const task = tasksById.get(taskId)
-      const summary = recordSummaries.get(taskId)
-      return !isTaskFullyLost(task, summary)
-    }),
+    [...recordSummaries.entries()]
+      .filter(([, summary]) => summary.total > 0 && summary.success > 0)
+      .map(([taskId]) => taskId),
   )
 }
 
@@ -173,6 +162,78 @@ function writeStatsCache(uuid: string, hours: number, value: NodePingStatsState)
   }
 }
 
+function createSharedPingRecordsEntry(): SharedPingRecordsEntry {
+  return {
+    data: shallowRef<SharedPingRecordsState | null>(null),
+    loading: ref(false),
+    error: ref<string | null>(null),
+    promise: null,
+  }
+}
+
+function getSharedPingRecordsEntry(hours: number): SharedPingRecordsEntry {
+  const cachedEntry = sharedPingRecordsCache.get(hours)
+  if (cachedEntry)
+    return cachedEntry
+
+  const nextEntry = createSharedPingRecordsEntry()
+  sharedPingRecordsCache.set(hours, nextEntry)
+  return nextEntry
+}
+
+function buildRecordsByClient(records: PingRecord[]): Map<string, PingRecord[]> {
+  const grouped = new Map<string, PingRecord[]>()
+
+  for (const record of records) {
+    if (!record.client)
+      continue
+
+    const clientRecords = grouped.get(record.client) ?? []
+    clientRecords.push(record)
+    grouped.set(record.client, clientRecords)
+  }
+
+  for (const clientRecords of grouped.values()) {
+    clientRecords.sort(
+      (left, right) => new Date(left.time).getTime() - new Date(right.time).getTime(),
+    )
+  }
+
+  return grouped
+}
+
+async function loadSharedPingRecords(entry: SharedPingRecordsEntry, hours: number): Promise<void> {
+  if (entry.promise)
+    return entry.promise
+
+  const rpc = getSharedRpc()
+  entry.loading.value = true
+  entry.error.value = null
+
+  entry.promise = (async () => {
+    try {
+      const result = await rpc.getClient().call<SharedPingRecordsResponse>('common:getRecords', {
+        type: 'ping',
+        hours,
+      })
+
+      entry.data.value = {
+        recordsByClient: buildRecordsByClient(result?.records ?? []),
+      }
+    }
+    catch (err) {
+      entry.error.value = err instanceof Error ? err.message : '获取 Ping 历史失败'
+      throw err
+    }
+    finally {
+      entry.loading.value = false
+      entry.promise = null
+    }
+  })()
+
+  return entry.promise
+}
+
 function buildPingHistory(records: PingRecord[]): NodePingHistoryPoint[] {
   const sortedRecords = records
     .map((record) => {
@@ -213,35 +274,71 @@ function buildPingHistory(records: PingRecord[]): NodePingHistoryPoint[] {
   })
 }
 
-function buildStats(result?: PingRecordsResponse): NodePingStatsState {
-  const rawRecords = result?.records ?? []
-  const rawTasks = result?.tasks ?? []
-  const includedTaskIds = getIncludedTaskIds(rawRecords, rawTasks)
+function getPercentile(values: number[], percentile: number): number | null {
+  if (!values.length)
+    return null
+
+  const sorted = [...values].sort((left, right) => left - right)
+  const position = Math.min(sorted.length - 1, Math.max(0, (sorted.length - 1) * percentile))
+  const lowerIndex = Math.floor(position)
+  const upperIndex = Math.ceil(position)
+  const lowerValue = sorted[lowerIndex]
+  const upperValue = sorted[upperIndex]
+
+  if (lowerValue === undefined || upperValue === undefined)
+    return null
+  if (lowerIndex === upperIndex)
+    return lowerValue
+
+  return lowerValue + (upperValue - lowerValue) * (position - lowerIndex)
+}
+
+function buildStats(records: PingRecord[]): NodePingStatsState {
+  const includedTaskIds = getIncludedTaskIds(records)
 
   if (!includedTaskIds.size)
     return createEmptyStats()
 
-  const records = rawRecords.filter(record => includedTaskIds.has(record.task_id))
-  const tasks = rawTasks.filter(task => includedTaskIds.has(task.id))
-  const history = buildPingHistory(records)
+  const filteredRecords = records.filter(record => includedTaskIds.has(record.task_id))
+  const history = buildPingHistory(filteredRecords)
+  const taskRecords = new Map<number, PingRecord[]>()
 
-  const latencyValues = tasks
-    .map(task => task.avg ?? task.latest ?? task.p50)
-    .filter(isFiniteNumber)
+  for (const record of filteredRecords) {
+    const currentRecords = taskRecords.get(record.task_id) ?? []
+    currentRecords.push(record)
+    taskRecords.set(record.task_id, currentRecords)
+  }
+
+  const latencyValues: number[] = []
+  const taskLossValues: number[] = []
+  const volatilityValues: number[] = []
+
+  for (const recordsByTask of taskRecords.values()) {
+    const validValues = recordsByTask
+      .map(record => record.value)
+      .filter(value => value >= 0)
+
+    if (!validValues.length)
+      continue
+
+    latencyValues.push(average(validValues))
+    taskLossValues.push((recordsByTask.length - validValues.length) / recordsByTask.length * 100)
+
+    if (validValues.length > 1) {
+      const p50 = getPercentile(validValues, 0.5)
+      const p99 = getPercentile(validValues, 0.99)
+      if (isFiniteNumber(p50) && isFiniteNumber(p99) && p50 > FULL_LOSS_EPSILON) {
+        volatilityValues.push(p99 / p50)
+      }
+    }
+  }
+
   const historyLatencyValues = history
     .map(point => point.latency)
-    .filter(isFiniteNumber)
-
-  const taskLossValues = tasks
-    .map(task => task.loss)
     .filter(isFiniteNumber)
   const historyLossValues = history
     .map(point => point.loss)
     .filter(isFiniteNumber)
-
-  const volatilityValues = tasks
-    .map(task => task.p99_p50_ratio)
-    .filter((value): value is number => isFiniteNumber(value) && value > 0)
 
   const avgLatency = latencyValues.length ? average(latencyValues) : average(historyLatencyValues)
   const avgLoss = taskLossValues.length ? average(taskLossValues) : average(historyLossValues)
@@ -264,7 +361,6 @@ export function useNodePingStats(
     enabled?: MaybeRefOrGetter<boolean>
   },
 ) {
-  const rpc = getSharedRpc()
   const stats = ref<NodePingStatsState>(createEmptyStats())
   const loading = ref(false)
   const error = ref<string | null>(null)
@@ -300,16 +396,16 @@ export function useNodePingStats(
       error.value = null
 
       try {
-        const result = await rpc.getClient().call<PingRecordsResponse>('common:getRecords', {
-          uuid: nextUuid,
-          type: 'ping',
-          hours: nextHours,
-        })
+        const sharedEntry = getSharedPingRecordsEntry(nextHours)
+        if (!sharedEntry.data.value) {
+          await loadSharedPingRecords(sharedEntry, nextHours)
+        }
 
         if (cancelled)
           return
 
-        const nextStats = buildStats(result)
+        const nextRecords = sharedEntry.data.value?.recordsByClient.get(nextUuid) ?? []
+        const nextStats = buildStats(nextRecords)
         stats.value = nextStats
         writeStatsCache(nextUuid, nextHours, nextStats)
       }
