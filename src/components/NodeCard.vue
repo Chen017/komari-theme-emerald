@@ -4,6 +4,7 @@ import { Icon } from '@iconify/vue'
 import { computed } from 'vue'
 import { Badge } from '@/components/ui/badge'
 import { CardX } from '@/components/ui/card-x'
+import { DataTooltip } from '@/components/ui/data-tooltip'
 import { ProgressThin } from '@/components/ui/progress-thin'
 import { useNodePingDisplay } from '@/composables/useNodePingDisplay'
 import { useAppStore } from '@/stores/app'
@@ -109,19 +110,17 @@ function hasRegion(region: string | null | undefined): boolean {
   >
     <template #header>
       <div class="flex gap-2 min-w-0 items-center">
-        <div
-          class="group/bar size-2 rounded-full relative"
-          :class="[props.node.online ? 'bg-green-600' : 'bg-red-600']"
+        <DataTooltip
+          placement="right"
+          :content="formatUptime(props.node.uptime ?? 0)"
+          class="size-2 rounded-full" :class="[props.node.online ? 'bg-green-600' : 'bg-red-600']"
+          content-class="whitespace-nowrap"
         >
           <div
             class="animate-ping absolute inset-0 rounded-full opacity-50"
             :class="[props.node.online ? 'bg-green-600' : 'bg-red-600']"
           />
-          <div
-            class="pointer-events-none absolute top-1/2 left-full hidden z-20 ml-2 -translate-y-1/2 whitespace-nowrap rounded bg-foreground/80 p-1 text-[10px] leading-none text-background shadow-lg group-hover/bar:block after:content-[attr(data-tooltip)]"
-            :data-tooltip="formatUptime(props.node.uptime ?? 0)"
-          />
-        </div>
+        </DataTooltip>
         <span class="text-md font-bold flex-1 min-w-0 truncate">{{ props.node.name }}</span>
       </div>
     </template>
@@ -282,16 +281,12 @@ function hasRegion(region: string | null | undefined): boolean {
               class="grid h-full items-end gap-[1px] opacity-80 group-hover/panel:opacity-100 cursor-auto"
               :style="{ gridTemplateColumns: `repeat(${latencyRenderBars.length}, minmax(0, 1fr))` }"
             >
-              <span v-for="bar in latencyRenderBars" :key="bar.key" class="group/bar relative h-full w-full">
+              <DataTooltip v-for="bar in latencyRenderBars" :key="bar.key" placement="top" :content="bar.tooltip" class="h-full w-full">
                 <span
-                  class="block h-full w-full rounded-[1px] transition-transform duration-150 group-hover/bar:scale-y-160 group-hover/panel:opacity-60 group-hover/bar:!opacity-100"
+                  class="block h-full w-full rounded-[1px] transition-transform duration-150 group-hover/data-tooltip:scale-y-160 group-hover/panel:opacity-60 group-hover/data-tooltip:!opacity-100"
                   :class="bar.className"
                 />
-                <span
-                  class="pointer-events-none absolute bottom-full left-1/2 z-20 hidden mb-2 -translate-x-1/2 whitespace-wrap rounded bg-foreground/80 p-1 text-[10px] leading-none text-background shadow-lg group-hover/bar:block after:content-[attr(data-tooltip)]"
-                  :data-tooltip="bar.tooltip"
-                />
-              </span>
+              </DataTooltip>
             </div>
           </div>
           <!-- 丢包 -->
@@ -307,16 +302,12 @@ function hasRegion(region: string | null | undefined): boolean {
               class="grid h-full items-end gap-[1px] opacity-80 group-hover/panel:opacity-100 cursor-auto"
               :style="{ gridTemplateColumns: `repeat(${lossRenderBars.length}, minmax(0, 1fr))` }"
             >
-              <span v-for="bar in lossRenderBars" :key="bar.key" class="group/bar relative h-full w-full">
+              <DataTooltip v-for="bar in lossRenderBars" :key="bar.key" placement="top" :content="bar.tooltip" class="h-full w-full">
                 <span
-                  class="block h-full w-full rounded-[1px] transition-transform duration-150 group-hover/bar:scale-y-160 group-hover/panel:opacity-60 group-hover/bar:!opacity-100"
+                  class="block h-full w-full rounded-[1px] transition-transform duration-150 group-hover/data-tooltip:scale-y-160 group-hover/panel:opacity-60 group-hover/data-tooltip:!opacity-100"
                   :class="bar.className"
                 />
-                <span
-                  class="pointer-events-none absolute bottom-full left-1/2 z-20 hidden mb-2 -translate-x-1/2 whitespace-wrap rounded bg-foreground/80 p-1 text-[10px] leading-none text-background shadow-lg group-hover/bar:block after:content-[attr(data-tooltip)]"
-                  :data-tooltip="bar.tooltip"
-                />
-              </span>
+              </DataTooltip>
             </div>
           </div>
         </div>

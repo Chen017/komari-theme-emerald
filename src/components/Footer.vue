@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { VersionInfo } from '@/utils/api'
 import { computed, onMounted, ref } from 'vue'
+import { DataTooltip } from '@/components/ui/data-tooltip'
 import { useAppStore } from '@/stores/app'
 import { getSharedApi } from '@/utils/api'
 
@@ -33,23 +34,34 @@ const showFiling = computed(() => showIcp.value || showPolice.value)
     <div class="flex flex-row text-xs text-muted-foreground">
       <div class="flex gap-1 items-center">
         Powered by
-        <a
-          href="https://github.com/komari-monitor/komari" target="_blank" rel="noopener noreferrer"
-          class="transition-opacity hover:opacity-80"
-          :title="formattedServerVersion ? formattedServerVersion : undefined"
+        <DataTooltip
+          as="span"
+          placement="top"
+          :content="formattedServerVersion ?? ''"
         >
-          <span class="font-medium text-foreground">Komari Monitor</span>
-        </a>
+          <a
+            href="https://github.com/komari-monitor/komari" target="_blank" rel="noopener noreferrer"
+            class="transition-opacity hover:opacity-80"
+          >
+            <span class="font-medium text-foreground">Komari Monitor</span>
+          </a>
+        </DataTooltip>
       </div>
       <div class="flex-1" />
       <div class="flex flex-wrap gap-1 items-center">
         Theme by
-        <a
-          href="https://github.com/Tokinx/komari-theme-emerald" target="_blank" rel="noopener noreferrer"
-          class="transition-opacity hover:opacity-80" :title="String([buildVersion, buildGitHash])"
+        <DataTooltip
+          as="span"
+          placement="top"
+          :content="`v${buildVersion}\n${buildGitHash}`"
         >
-          <span class="font-medium text-foreground">Komari Emerald</span>
-        </a>
+          <a
+            href="https://github.com/Tokinx/komari-theme-emerald" target="_blank" rel="noopener noreferrer"
+            class="transition-opacity hover:opacity-80"
+          >
+            <span class="font-medium text-foreground">Komari Emerald</span>
+          </a>
+        </DataTooltip>
       </div>
     </div>
 

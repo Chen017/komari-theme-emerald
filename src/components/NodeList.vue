@@ -5,6 +5,7 @@ import { computed, ref } from 'vue'
 import NodePingListCell from '@/components/NodePingListCell.vue'
 import TrafficProgress from '@/components/TrafficProgress.vue'
 import { Badge } from '@/components/ui/badge'
+import { DataTooltip } from '@/components/ui/data-tooltip'
 import { ProgressThin } from '@/components/ui/progress-thin'
 import { useAppStore } from '@/stores/app'
 import { formatBytesPerSecondWithConfig, formatBytesWithConfig, formatDateTime, formatUptimeWithFormat, getStatus } from '@/utils/helper'
@@ -325,7 +326,7 @@ function getCustomTags(node: NodeData): Array<string> {
 
             <!-- 流量 -->
             <div v-else-if="col.key === 'traffic'" class="group">
-              <div class="group/traffic relative flex items-center gap-2">
+              <DataTooltip placement="top" class="flex items-center gap-2" content-class="mb-1.5">
                 <div class="space-y-1 w-full">
                   <div class="text-[10px] text-muted-foreground truncate">
                     <span class="inline group-hover:hidden">
@@ -343,19 +344,17 @@ function getCustomTags(node: NodeData): Array<string> {
                     height="4px"
                   />
                 </div>
-                <div
-                  class="pointer-events-none absolute bottom-full left-1/2 z-20 hidden mb-1.5 -translate-x-1/2 whitespace-nowrap rounded bg-foreground/80 p-1 text-[10px] leading-none text-background shadow-lg group-hover/traffic:block"
-                >
-                  <span class="flex flex-row gap-0.5 items-center">
+                <template #content>
+                  <span class="flex flex-row gap-0.5 items-center whitespace-nowrap">
                     <Icon icon="tabler:chevron-up" width="12" height="12" />
                     {{ formatBytes(node.net_total_up ?? 0) }}
                   </span>
-                  <span class="flex flex-row gap-0.5 items-center">
+                  <span class="flex flex-row gap-0.5 items-center whitespace-nowrap">
                     <Icon icon="tabler:chevron-down" width="12" height="12" />
                     {{ formatBytes(node.net_total_down ?? 0) }}
                   </span>
-                </div>
-              </div>
+                </template>
+              </DataTooltip>
             </div>
 
             <!-- 速率 -->
