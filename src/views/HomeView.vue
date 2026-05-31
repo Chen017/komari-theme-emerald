@@ -131,7 +131,6 @@ function handleNodeClick(node: typeof nodesStore.nodes[number]) {
                 </TabsTrigger>
               </TabsList>
             </div>
-            <div class="md:flex-1" />
             <div class="search flex gap-2 items-center pointer-events-auto">
               <Button
                 variant="outline" size="icon" aria-label="卡片视图"
