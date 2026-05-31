@@ -1,16 +1,9 @@
 <script setup lang="ts">
-import { usePreferredDark } from '@vueuse/core'
 import { computed } from 'vue'
 import { useAppStore } from '@/stores/app'
 
 const appStore = useAppStore()
-const preferredDark = usePreferredDark()
-
-const isDark = computed(() => {
-  if (appStore.themeMode === 'auto')
-    return preferredDark.value
-  return appStore.themeMode === 'dark'
-})
+const isDark = computed(() => appStore.isDark)
 </script>
 
 <template>

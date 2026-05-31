@@ -4,7 +4,7 @@ import { usePreferredDark, useStorageAsync } from '@vueuse/core'
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 
-type ThemeMode = 'auto' | 'light' | 'dark'
+export type ThemeMode = 'auto' | 'light' | 'dark'
 type Lang = 'zh-CN' | 'en-US'
 type NodeViewMode = 'card' | 'list'
 type RpcTransportMode = 'websocket' | 'http'
@@ -16,6 +16,10 @@ const BYTE_DECIMALS: ByteDecimalsConfig = {
   MB: 1,
   GB: 1,
   TB: 2,
+}
+
+function isValidThemeMode(value: unknown): value is ThemeMode {
+  return value === 'auto' || value === 'light' || value === 'dark'
 }
 
 const useAppStore = defineStore('app', () => {
@@ -243,6 +247,12 @@ const useAppStore = defineStore('app', () => {
   // 使用 VueUse 的 usePreferredDark 检测系统主题偏好
   const prefersDark = usePreferredDark()
 
+  watch(themeMode, (mode) => {
+    if (!isValidThemeMode(mode)) {
+      themeMode.value = 'auto'
+    }
+  }, { immediate: true })
+
   // 计算当前是否为暗色模式
   const isDark = computed(() => {
     if (themeMode.value === 'auto') {
@@ -251,9 +261,11 @@ const useAppStore = defineStore('app', () => {
     return themeMode.value === 'dark'
   })
 
+  const resolvedThemeMode = computed<'light' | 'dark'>(() => isDark.value ? 'dark' : 'light')
+
   // 计算属性：当前主题模式下的背景 URL
   const currentBackgroundUrl = computed<string>(() => {
-    if (isDark.value) {
+    if (resolvedThemeMode.value === 'dark') {
       return darkBackgroundUrl.value
     }
     return lightBackgroundUrl.value
@@ -261,7 +273,7 @@ const useAppStore = defineStore('app', () => {
 
   function updateThemeMode(mode?: ThemeMode) {
     if (mode) {
-      themeMode.value = mode
+      themeMode.value = isValidThemeMode(mode) ? mode : 'auto'
       return
     }
 
@@ -271,7 +283,8 @@ const useAppStore = defineStore('app', () => {
       dark: 'auto',
     }
 
-    themeMode.value = nextMode[themeMode.value]
+    const currentMode = isValidThemeMode(themeMode.value) ? themeMode.value : 'auto'
+    themeMode.value = nextMode[currentMode]
   }
 
   function updateLoginState(loggedIn: boolean) {
@@ -282,6 +295,7 @@ const useAppStore = defineStore('app', () => {
     loading,
     themeMode,
     isDark,
+    resolvedThemeMode,
     lang,
     nodeSelectedGroup,
     nodeViewMode,
