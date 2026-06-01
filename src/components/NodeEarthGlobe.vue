@@ -5,7 +5,6 @@ import {
   useDocumentVisibility,
   useElementSize,
   useElementVisibility,
-  usePreferredReducedMotion,
   useRafFn,
 } from '@vueuse/core'
 import createGlobe from 'cobe'
@@ -24,9 +23,8 @@ const { width: containerWidth, height: containerHeight } = useElementSize(contai
 
 const documentVisibility = useDocumentVisibility()
 const elementVisible = useElementVisibility(containerRef)
-const reducedMotion = usePreferredReducedMotion()
 const shouldRender = computed(() => documentVisibility.value === 'visible' && elementVisible.value)
-const shouldAutoRotate = computed(() => reducedMotion.value !== 'reduce' && !appStore.stopEarth)
+const shouldAutoRotate = computed(() => !appStore.stopEarth)
 
 let globe: Globe | null = null
 const INITIAL_THETA = 0.22
