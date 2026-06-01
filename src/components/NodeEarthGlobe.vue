@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Arc, COBEOptions, Globe, Marker } from 'cobe'
+import type { NodeData } from '@/stores/nodes'
 import { Icon } from '@iconify/vue'
 import {
   useDocumentVisibility,
@@ -14,8 +15,13 @@ import { useNodesStore } from '@/stores/nodes'
 import { getCoordByCode, getCountryCodeFromRegion } from '@/utils/geoHelper'
 import { formatBytesPerSecondSplit } from '@/utils/helper'
 
+const props = defineProps<{
+  nodes?: NodeData[]
+}>()
 const appStore = useAppStore()
 const nodesStore = useNodesStore()
+
+const displayNodes = computed(() => props.nodes ?? nodesStore.nodes)
 
 const containerRef = ref<HTMLDivElement>()
 const canvasRef = ref<HTMLCanvasElement>()
@@ -97,7 +103,7 @@ function clusterKey(c: RegionCluster) {
 // 节点按地区聚合
 const regionClusters = computed<RegionCluster[]>(() => {
   const map = new Map<string, RegionCluster>()
-  for (const node of nodesStore.nodes) {
+  for (const node of displayNodes.value) {
     const code = getCountryCodeFromRegion(node.region)
     if (!code)
       continue
@@ -124,7 +130,7 @@ interface RegionRate {
 
 const regionRates = computed<Map<string, RegionRate>>(() => {
   const map = new Map<string, RegionRate>()
-  for (const node of nodesStore.nodes) {
+  for (const node of displayNodes.value) {
     if (!node.online)
       continue
     const code = getCountryCodeFromRegion(node.region)
@@ -525,8 +531,8 @@ function onPointerUp(e: PointerEvent) {
     target.releasePointerCapture(e.pointerId)
 }
 
-const totalServers = computed(() => nodesStore.nodes.length)
-const onlineServers = computed(() => nodesStore.nodes.filter(node => node.online).length)
+const totalServers = computed(() => displayNodes.value.length)
+const onlineServers = computed(() => displayNodes.value.filter(node => node.online).length)
 const offlineServers = computed(() => totalServers.value - onlineServers.value)
 
 function rateFor(code: string): RegionRate {

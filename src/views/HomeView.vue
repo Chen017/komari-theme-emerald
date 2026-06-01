@@ -82,8 +82,12 @@ function isNodeMatchSearch(node: typeof nodesStore.nodes[number], search: string
   return false
 }
 
+const groupNodeList = computed(() => {
+  return nodesStore.nodes.filter(node => isNodeInGroup(node.group, appStore.nodeSelectedGroup))
+})
+
 const nodeList = computed(() => {
-  let filtered = nodesStore.nodes.filter(node => isNodeInGroup(node.group, appStore.nodeSelectedGroup))
+  let filtered = groupNodeList.value
   if (debouncedSearchText.value.trim()) {
     filtered = filtered.filter(n => isNodeMatchSearch(n, debouncedSearchText.value))
   }
@@ -115,7 +119,7 @@ function handleNodeClick(node: typeof nodesStore.nodes[number]) {
       </Alert>
     </div>
 
-    <NodeGeneralCards v-if="!appStore.hideGeneralCard" />
+    <NodeGeneralCards v-if="!appStore.hideGeneralCard" :globe-nodes="groupNodeList" />
 
     <div class="node-info p-4 pt-0 flex flex-col gap-4 relative z-1 pointer-events-none" :class="!!appStore.hideGeneralCard && 'pt-4'">
       <div class="nodes">

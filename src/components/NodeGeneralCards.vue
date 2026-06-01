@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { NodeData } from '@/stores/nodes'
 import { Icon } from '@iconify/vue'
 import { computed } from 'vue'
 import NodeEarthGlobe from '@/components/NodeEarthGlobe.vue'
@@ -7,6 +8,9 @@ import { useAppStore } from '@/stores/app'
 import { useNodesStore } from '@/stores/nodes'
 import { formatBytesPerSecondSplit, formatBytesSplit } from '@/utils/helper'
 
+defineProps<{
+  globeNodes?: NodeData[]
+}>()
 const appStore = useAppStore()
 const nodesStore = useNodesStore()
 
@@ -69,6 +73,7 @@ const cardGridClass = computed(() => showEarth.value
   <div :class="wrapperClass">
     <NodeEarthGlobe
       v-if="showEarth"
+      :nodes="globeNodes"
       class="col-span-12 col-start-1 md:col-span-6 md:col-start-7"
     />
 
