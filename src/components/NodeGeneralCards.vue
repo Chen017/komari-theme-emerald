@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import type { NodeData } from '@/stores/nodes'
+import type { CurrencyCode, ExchangeRateSource } from '@/utils/financeHelper'
 import { Icon } from '@iconify/vue'
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import NodeEarthGlobe from '@/components/NodeEarthGlobe.vue'
 import { CardX } from '@/components/ui/card-x'
+import { DataTooltip } from '@/components/ui/data-tooltip'
 import { useAppStore } from '@/stores/app'
 import { useNodesStore } from '@/stores/nodes'
+import * as financeHelper from '@/utils/financeHelper'
 import { formatBytesPerSecondSplit, formatBytesSplit } from '@/utils/helper'
 
 defineProps<{
@@ -13,6 +16,10 @@ defineProps<{
 }>()
 const appStore = useAppStore()
 const nodesStore = useNodesStore()
+const exchangeRates = ref(financeHelper.DEFAULT_EXCHANGE_RATES)
+const exchangeRateSource = ref<ExchangeRateSource | 'loading'>('loading')
+const financeCurrency = ref<CurrencyCode>('CNY')
+const excludeFreeNodes = ref(true)
 
 const totalSpeed = computed(() => {
   const onlineNodes = nodesStore.nodes.filter(node => node.online)
@@ -29,6 +36,7 @@ const totalTraffic = computed(() => {
 
 const formattedTrafficUp = computed(() => formatBytesSplit(totalTraffic.value.up, appStore.byteDecimals))
 const formattedTrafficDown = computed(() => formatBytesSplit(totalTraffic.value.down, appStore.byteDecimals))
+const totalTrafficTooltip = computed(() => formatBytesSplit(totalTraffic.value.up + totalTraffic.value.down, appStore.byteDecimals))
 
 const formattedSpeedUp = computed(() => formatBytesPerSecondSplit(totalSpeed.value.up, appStore.byteDecimals))
 const formattedSpeedDown = computed(() => formatBytesPerSecondSplit(totalSpeed.value.down, appStore.byteDecimals))
@@ -60,6 +68,29 @@ const formattedMemoryTotal = computed(() => formatBytesSplit(totalMemory.value.t
 const formattedDiskUsed = computed(() => formatBytesSplit(totalDisk.value.used, appStore.byteDecimals))
 const formattedDiskTotal = computed(() => formatBytesSplit(totalDisk.value.total, appStore.byteDecimals))
 
+const remainingValueCNY = computed(() => {
+  return financeHelper.calculateTotalRemainingValueCNY(nodesStore.nodes, exchangeRates.value, excludeFreeNodes.value)
+})
+const remainingValue = computed(() => {
+  const targetRate = exchangeRates.value[financeCurrency.value] || 1
+  return remainingValueCNY.value * targetRate
+})
+const formattedRemainingValue = computed(() => {
+  return financeHelper.formatFinanceAmount(remainingValue.value, financeCurrency.value)
+})
+const totalValueCNY = computed(() => {
+  return financeHelper.calculateTotalValueCNY(nodesStore.nodes, exchangeRates.value, excludeFreeNodes.value)
+})
+const totalValue = computed(() => {
+  const targetRate = exchangeRates.value[financeCurrency.value] || 1
+  return totalValueCNY.value * targetRate
+})
+const formattedTotalValue = computed(() => {
+  return financeHelper.formatFinanceAmount(totalValue.value, financeCurrency.value)
+})
+const totalValueTooltip = computed(() => {
+  return `总价值\n${formattedTotalValue.value.symbol}${formattedTotalValue.value.value} ${formattedTotalValue.value.currency}`
+})
 const showEarth = computed(() => !appStore.hideEarth)
 const wrapperClass = computed(() => showEarth.value
   ? 'p-4 grid grid-cols-12 grid-rows-1 gap-2 h-auto md:h-58'
@@ -67,6 +98,15 @@ const wrapperClass = computed(() => showEarth.value
 const cardGridClass = computed(() => showEarth.value
   ? 'h-42 -mt-42 md:mt-0 col-span-12 row-start-3 z-9 md:h-auto md:col-span-6 md:row-start-1 grid grid-cols-12 grid-rows-2 gap-2'
   : 'col-span-1 grid grid-cols-3 md:grid-cols-6 gap-2')
+
+onMounted(async () => {
+  financeCurrency.value = financeHelper.getStoredFinanceCurrency()
+  excludeFreeNodes.value = financeHelper.shouldExcludeFreeNodes()
+
+  const { rates, source } = await financeHelper.getDailyExchangeRates()
+  exchangeRates.value = rates
+  exchangeRateSource.value = source
+})
 </script>
 
 <template>
@@ -133,18 +173,25 @@ const cardGridClass = computed(() => showEarth.value
       >
         <div class="flex h-full flex-col justify-between gap-1">
           <div class="flex items-start justify-between">
-            <span class="text-xs font-medium tracking-wider text-muted-foreground">累计上行</span>
+            <span class="text-xs font-medium tracking-wider text-muted-foreground">剩余价值</span>
             <Icon
-              icon="tabler:upload" :width="20" :height="20"
+              icon="tabler:cash" :width="20" :height="20"
               class="text-slate-500/20 group-hover:text-slate-500 transition-colors"
             />
           </div>
-          <div class="flex items-baseline gap-1">
-            <span class="text-md md:text-2xl font-bold leading-none tracking-tight">
-              {{ formattedTrafficUp.value }}
-            </span>
-            <span class="text-[11px] md:text-xs font-medium text-muted-foreground">{{ formattedTrafficUp.unit }}</span>
-          </div>
+          <DataTooltip
+            as="span" placement="top" :content="totalValueTooltip" class="min-w-0"
+            content-class="whitespace-pre px-2 py-1 left-0 -translate-x-0 leading-normal"
+          >
+            <div class="flex items-baseline gap-1 min-w-0">
+              <span class="text-md md:text-2xl font-bold leading-none tracking-tight">
+                {{ formattedRemainingValue.symbol }}{{ formattedRemainingValue.value }}
+              </span>
+              <span class="block cursor-help truncate text-[11px] md:text-xs font-medium text-muted-foreground">
+                {{ formattedRemainingValue.currency }}
+              </span>
+            </div>
+          </DataTooltip>
         </div>
       </CardX>
       <CardX
@@ -155,20 +202,28 @@ const cardGridClass = computed(() => showEarth.value
       >
         <div class="flex h-full flex-col justify-between gap-1">
           <div class="flex items-start justify-between">
-            <span class="text-xs font-medium tracking-wider text-muted-foreground">累计下行</span>
+            <span class="text-xs font-medium tracking-wider text-muted-foreground">累计流量</span>
             <Icon
               icon="tabler:download" :width="20" :height="20"
               class="text-slate-500/20 group-hover:text-slate-500 transition-colors"
             />
           </div>
-          <div class="flex items-baseline gap-1">
-            <span class="text-md md:text-2xl font-bold leading-none tracking-tight">
-              {{ formattedTrafficDown.value }}
-            </span>
-            <span class="text-[11px] md:text-xs font-medium text-muted-foreground">
-              {{ formattedTrafficDown.unit }}
-            </span>
-          </div>
+          <DataTooltip
+            as="span"
+            placement="top"
+            :content="`↑ ${formattedTrafficUp.value} ${formattedTrafficUp.unit}\n↓ ${formattedTrafficDown.value} ${formattedTrafficDown.unit}`"
+            class="min-w-0"
+            content-class="whitespace-pre px-2 py-1 left-0 -translate-x-0 leading-normal"
+          >
+            <div class="flex items-baseline gap-1">
+              <span class="inline-block text-md md:text-2xl font-bold leading-none tracking-tight">
+                {{ totalTrafficTooltip.value }}
+              </span>
+              <span class="inline-block text-[11px] md:text-xs font-medium text-muted-foreground">
+                {{ totalTrafficTooltip.unit }}
+              </span>
+            </div>
+          </DataTooltip>
         </div>
       </CardX>
 
