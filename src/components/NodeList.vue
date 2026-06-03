@@ -190,7 +190,7 @@ function getCustomTags(node: NodeData): Array<string> {
 </script>
 
 <template>
-  <div class="overflow-x-auto min-w-0">
+  <div class="overflow-x-auto min-w-0 p-1 -m-1">
     <div class="min-w-fit w-full flex flex-col gap-1">
       <!-- 表头 -->
       <div class="grid p-2 bg-background/60 rounded-lg backdrop-blur-sm gap-2" :style="gridStyle">
@@ -208,8 +208,8 @@ function getCustomTags(node: NodeData): Array<string> {
       <!-- 行 -->
       <div
         v-for="node in sortedNodes" :key="node.uuid"
-        class="flex flex-col relative h-16 justify-center px-2 cursor-pointer bg-background/30 rounded-lg backdrop-blur-sm inset-shadow-[0_0_0_2px] inset-shadow-transparent hover:inset-shadow-green-600/20 hover:bg-background transition-all"
-        :class="[!node.online && '!inset-shadow-red-600/10']" @click="handleClick(node)"
+        class="flex flex-col relative h-16 justify-center px-2 cursor-pointer bg-background/30 rounded-lg backdrop-blur-sm shadow-[0_0_0_2px] shadow-transparent hover:shadow-slate-500/10 hover:bg-background transition-all"
+        :class="[!node.online && '!shadow-red-600/10']" @click="handleClick(node)"
       >
         <div class="grid gap-2 items-center" :style="gridStyle">
           <template v-for="col in columns" :key="col.key">
