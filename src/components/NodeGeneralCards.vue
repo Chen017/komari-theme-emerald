@@ -11,7 +11,8 @@ import { useNodesStore } from '@/stores/nodes'
 import * as financeHelper from '@/utils/financeHelper'
 import { formatBytesPerSecondSplit, formatBytesSplit } from '@/utils/helper'
 
-defineProps<{
+const props = defineProps<{
+  nodes?: NodeData[]
   globeNodes?: NodeData[]
 }>()
 const appStore = useAppStore()
@@ -20,17 +21,18 @@ const exchangeRates = ref(financeHelper.DEFAULT_EXCHANGE_RATES)
 const exchangeRateSource = ref<ExchangeRateSource | 'loading'>('loading')
 const financeCurrency = ref<CurrencyCode>('CNY')
 const excludeFreeNodes = ref(true)
+const summaryNodes = computed(() => props.nodes ?? nodesStore.nodes)
 
 const totalSpeed = computed(() => {
-  const onlineNodes = nodesStore.nodes.filter(node => node.online)
+  const onlineNodes = summaryNodes.value.filter(node => node.online)
   const up = onlineNodes.reduce((sum, node) => sum + (node.net_out || 0), 0)
   const down = onlineNodes.reduce((sum, node) => sum + (node.net_in || 0), 0)
   return { up, down }
 })
 
 const totalTraffic = computed(() => {
-  const up = nodesStore.nodes.reduce((sum, node) => sum + (node.net_total_up || 0), 0)
-  const down = nodesStore.nodes.reduce((sum, node) => sum + (node.net_total_down || 0), 0)
+  const up = summaryNodes.value.reduce((sum, node) => sum + (node.net_total_up || 0), 0)
+  const down = summaryNodes.value.reduce((sum, node) => sum + (node.net_total_down || 0), 0)
   return { up, down }
 })
 
@@ -46,7 +48,7 @@ const formattedSpeedDown = computed(() => formatBytesPerSecondSplit(totalSpeed.v
 const totalMemory = computed(() => {
   let used = 0
   let total = 0
-  for (const node of nodesStore.nodes) {
+  for (const node of summaryNodes.value) {
     used += node.ram || 0
     total += node.mem_total || 0
   }
@@ -56,7 +58,7 @@ const totalMemory = computed(() => {
 const totalDisk = computed(() => {
   let used = 0
   let total = 0
-  for (const node of nodesStore.nodes) {
+  for (const node of summaryNodes.value) {
     used += node.disk || 0
     total += node.disk_total || 0
   }
@@ -69,7 +71,7 @@ const formattedDiskUsed = computed(() => formatBytesSplit(totalDisk.value.used, 
 const formattedDiskTotal = computed(() => formatBytesSplit(totalDisk.value.total, appStore.byteDecimals))
 
 const remainingValueCNY = computed(() => {
-  return financeHelper.calculateTotalRemainingValueCNY(nodesStore.nodes, exchangeRates.value, excludeFreeNodes.value)
+  return financeHelper.calculateTotalRemainingValueCNY(summaryNodes.value, exchangeRates.value, excludeFreeNodes.value)
 })
 const remainingValue = computed(() => {
   const targetRate = exchangeRates.value[financeCurrency.value] || 1
@@ -79,7 +81,7 @@ const formattedRemainingValue = computed(() => {
   return financeHelper.formatFinanceAmount(remainingValue.value, financeCurrency.value)
 })
 const totalValueCNY = computed(() => {
-  return financeHelper.calculateTotalValueCNY(nodesStore.nodes, exchangeRates.value, excludeFreeNodes.value)
+  return financeHelper.calculateTotalValueCNY(summaryNodes.value, exchangeRates.value, excludeFreeNodes.value)
 })
 const totalValue = computed(() => {
   const targetRate = exchangeRates.value[financeCurrency.value] || 1
