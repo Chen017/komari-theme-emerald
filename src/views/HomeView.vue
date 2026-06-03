@@ -20,6 +20,9 @@ const NodeCard = defineAsyncComponent(() => import('@/components/NodeCard.vue'))
 const NodeGeneralCards = defineAsyncComponent(() => import('@/components/NodeGeneralCards.vue'))
 const NodeList = defineAsyncComponent(() => import('@/components/NodeList.vue'))
 
+const nodeItemStaggerMs = 35
+const nodeItemStaggerLimit = 12
+
 const appStore = useAppStore()
 const nodesStore = useNodesStore()
 const router = useRouter()
@@ -97,6 +100,16 @@ const nodeList = computed(() => {
 function handleNodeClick(node: typeof nodesStore.nodes[number]) {
   router.push({ name: 'instance-detail', params: { id: node.uuid } })
 }
+
+function getNodeItemTransitionKey(node: typeof nodesStore.nodes[number]): string {
+  return `${appStore.nodeSelectedGroup}-${node.uuid}`
+}
+
+function getNodeItemTransitionStyle(index: number): Record<string, string> {
+  return {
+    '--node-item-delay': `${Math.min(index, nodeItemStaggerLimit) * nodeItemStaggerMs}ms`,
+  }
+}
 </script>
 
 <template>
@@ -172,14 +185,26 @@ function handleNodeClick(node: typeof nodesStore.nodes[number]) {
             </div>
           </div>
           <TabsContent v-for="g in groups" :key="g.name" :value="g.name" class="pointer-events-auto">
-            <div
+            <TransitionGroup
               v-if="nodeList.length !== 0 && appStore.nodeViewMode === 'card'"
+              appear
+              name="node-card-switch"
+              tag="div"
               class="gap-3 grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(300px,1fr))]"
             >
-              <NodeCard v-for="node in nodeList" :key="node.uuid" :node="node" @click="handleNodeClick(node)" />
-            </div>
+              <div
+                v-for="(node, index) in nodeList"
+                :key="getNodeItemTransitionKey(node)"
+                class="min-w-0"
+                :style="getNodeItemTransitionStyle(index)"
+              >
+                <NodeCard :node="node" @click="handleNodeClick(node)" />
+              </div>
+            </TransitionGroup>
             <NodeList
-              v-else-if="nodeList.length !== 0 && appStore.nodeViewMode === 'list'" :nodes="nodeList"
+              v-else-if="nodeList.length !== 0 && appStore.nodeViewMode === 'list'"
+              :nodes="nodeList"
+              :transition-key="appStore.nodeSelectedGroup"
               @click="handleNodeClick"
             />
             <div v-else class="text-muted-foreground text-center py-8">
@@ -191,3 +216,49 @@ function handleNodeClick(node: typeof nodesStore.nodes[number]) {
     </div>
   </div>
 </template>
+
+<style scoped>
+.node-card-switch-enter-active,
+.node-card-switch-leave-active {
+  transition:
+    opacity 180ms ease,
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 180ms ease;
+}
+
+.node-card-switch-enter-active {
+  transition-delay: var(--node-item-delay, 0ms);
+}
+
+.node-card-switch-move {
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.node-card-switch-enter-from {
+  opacity: 0;
+  transform: translateY(10px) scale(0.985);
+  filter: blur(3px);
+}
+
+.node-card-switch-leave-to {
+  opacity: 0;
+  transform: translateY(-6px) scale(0.99);
+  filter: blur(2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .node-card-switch-enter-active,
+  .node-card-switch-leave-active,
+  .node-card-switch-move {
+    transition: none;
+    transition-delay: 0ms;
+  }
+
+  .node-card-switch-enter-from,
+  .node-card-switch-leave-to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+</style>

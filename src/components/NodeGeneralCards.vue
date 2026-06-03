@@ -27,7 +27,7 @@ const summaryTransitionKey = computed(() => props.transitionKey ?? summaryNodes.
 
 function getMetricSwitchStyle(index: number): Record<string, string> {
   return {
-    '--metric-switch-delay': `${index * 50}ms`,
+    '--metric-switch-delay': `${index * 35}ms`,
   }
 }
 
