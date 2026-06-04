@@ -380,9 +380,9 @@ const { pause: pauseRaf, resume: resumeRaf } = useRafFn(
     const prevPhi = phi
     const prevTheta = theta
     if (!isPointerDown && shouldAutoRotate.value)
-      targetPhi += 0.006
-    phi += (targetPhi - phi) * 0.12
-    theta += (targetTheta - theta) * 0.12
+      targetPhi += 0.005
+    phi += (targetPhi - phi) * 1
+    theta += (targetTheta - theta) * 1
     if (
       Math.abs(phi - prevPhi) < ORIENTATION_IDLE_EPSILON
       && Math.abs(theta - prevTheta) < ORIENTATION_IDLE_EPSILON
@@ -394,7 +394,7 @@ const { pause: pauseRaf, resume: resumeRaf } = useRafFn(
     }
     updateGlobeFrame()
   },
-  { immediate: false, fpsLimit: 60 },
+  { immediate: false, /* fpsLimit: 60 */ },
 )
 
 function startGlobe() {
