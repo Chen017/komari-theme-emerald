@@ -380,7 +380,7 @@ const { pause: pauseRaf, resume: resumeRaf } = useRafFn(
     const prevPhi = phi
     const prevTheta = theta
     if (!isPointerDown && shouldAutoRotate.value)
-      targetPhi += 0.005
+      targetPhi += 0.0025
     phi += (targetPhi - phi) * 1
     theta += (targetTheta - theta) * 1
     if (
@@ -394,7 +394,7 @@ const { pause: pauseRaf, resume: resumeRaf } = useRafFn(
     }
     updateGlobeFrame()
   },
-  { immediate: false, /* fpsLimit: 60 */ },
+  { immediate: false /* fpsLimit: 60 */ },
 )
 
 function startGlobe() {
