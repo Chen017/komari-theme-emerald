@@ -255,7 +255,7 @@ export function getExpireText(expiredAt: string | number | undefined, lang: 'zh-
   }
 
   if (lang === 'zh-CN') {
-    return `${days} 天后过期`
+    return `${days} 天`
   }
   return `Expires in ${days} days`
 }
