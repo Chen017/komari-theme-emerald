@@ -52,22 +52,22 @@ const visitorRows = computed<VisitorInfoRow[]>(() => [
     icon: 'tabler:world-pin',
   },
   {
-    value: ip.value,
-    icon: 'tabler:brand-socket-io',
-  },
-  {
-    value: isp.value,
-    icon: 'tabler:building-skyscraper',
-    expandOnly: true,
-  },
-  {
     value: device.value,
     icon: 'tabler:device-desktop',
     expandOnly: true,
   },
   {
+    value: ip.value,
+    icon: 'tabler:brand-socket-io',
+  },
+  {
     value: browser.value,
     icon: 'tabler:browser',
+  },
+  {
+    value: isp.value,
+    icon: 'tabler:building-skyscraper',
+    expandOnly: true,
   },
   {
     value: visitTime.value,
@@ -263,9 +263,9 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="fixed inset-x-0 bottom-2.5 z-30 flex justify-center">
+  <div class="pointer-events-none fixed inset-x-0 bottom-2.5 z-30 flex justify-center">
     <div
-      class="bg-background/30 p-1.5 px-3 shadow-[-1px_-1px_0_background,0_0_16px_rgba(0,0,0,0.05)] backdrop-blur-sm transition-[border-radius,transform,background-color,box-shadow] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+      class="pointer-events-auto cursor-default bg-background/30 p-1.5 px-3 shadow-[-1px_-1px_0_background,0_0_16px_rgba(0,0,0,0.05)] backdrop-blur-sm transition-[border-radius,transform,background-color,box-shadow] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
       :class="[expand ? 'rounded-lg -translate-y-1 bg-background/38 shadow-[-1px_-1px_0_background,0_10px_28px_rgba(0,0,0,0.08)]' : 'rounded-xl']"
       @click="expand = !expand"
     >
@@ -294,7 +294,7 @@ onMounted(async () => {
             class="min-w-0 transition-[opacity,transform] duration-220 ease-[cubic-bezier(0.22,1,0.36,1)]"
             :class="[expand || !index ? 'block opacity-100 translate-y-0' : 'hidden md:block md:opacity-100', !expand && index ? 'md:translate-y-0' : '']"
           >
-            <div v-if="loading" class="h-2 w-24 animate-pulse rounded-full bg-muted/70" />
+            <div v-if="loading" class="h-2 w-15 animate-pulse rounded-full bg-muted/70" />
             <p v-else class="mt-0.5 max-w-30 truncate text-xs font-medium text-muted-foreground sm:max-w-50">
               {{ item.value }}
             </p>
