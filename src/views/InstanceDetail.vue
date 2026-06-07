@@ -13,7 +13,7 @@ import * as financeHelper from '@/utils/financeHelper'
 import { formatBytesPerSecondWithConfig, formatBytesWithConfig, formatDateTime, formatUptimeWithFormat } from '@/utils/helper'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
 import { getRegionCode, getRegionDisplayName } from '@/utils/regionHelper'
-import { formatPrice, formatPriceWithCycle, getExpireStatus, getExpireText } from '@/utils/tagHelper'
+import { getBillingCycleText, getExpireStatus, getExpireText } from '@/utils/tagHelper'
 
 const LoadChart = defineAsyncComponent(() => import('@/components/LoadChart.vue'))
 const PingChart = defineAsyncComponent(() => import('@/components/PingChart.vue'))
@@ -24,11 +24,11 @@ const router = useRouter()
 const appStore = useAppStore()
 const nodesStore = useNodesStore()
 const exchangeRates = ref(financeHelper.DEFAULT_EXCHANGE_RATES)
-const financeCurrency = ref<CurrencyCode>('CNY')
+const financeBaseCurrency = ref<CurrencyCode>('CNY')
 
 onMounted(async () => {
   window.scrollTo({ top: 0, behavior: 'instant' })
-  financeCurrency.value = financeHelper.getStoredFinanceCurrency()
+  financeBaseCurrency.value = financeHelper.getStoredFinanceCurrency()
 
   const { rates } = await financeHelper.getDailyExchangeRates()
   exchangeRates.value = rates
@@ -54,30 +54,13 @@ interface MetricCard {
   valueClass?: string
 }
 
-const MONTH_DAYS = 30
 const EXPIRES_IN_SUFFIX_REGEX = /^(\d+)\s*(天|days?)$/i
 const CURRENCY_SUFFIX_REGEX = /^(\S.*\S)\s+([A-Z]{3})$/
 
-function formatNodeAmount(amount: number, currency: string): string {
-  if (!Number.isFinite(amount) || amount <= 0)
-    return formatPrice(0, currency, appStore.lang)
-
-  const fractionDigits = Math.abs(amount) >= 100 ? 0 : 2
-  const normalizedAmount = Number(amount.toFixed(fractionDigits))
-  return formatPrice(normalizedAmount, currency, appStore.lang)
-}
-
-function calculateMonthlyAverageCost(price: number, billingCycle: number): number | null {
-  const normalizedPrice = Number(price)
-  const normalizedCycle = Number(billingCycle)
-
-  if (!Number.isFinite(normalizedPrice) || normalizedPrice <= 0)
-    return 0
-
-  if (!Number.isFinite(normalizedCycle) || normalizedCycle <= 0)
-    return null
-
-  return normalizedPrice / normalizedCycle * MONTH_DAYS
+function formatFinanceMetricValue(amountCNY: number, currency: CurrencyCode): string {
+  const targetRate = exchangeRates.value[currency] || 1
+  const formattedValue = financeHelper.formatFinanceAmount(amountCNY * targetRate, currency)
+  return `${formattedValue.symbol}${formattedValue.value} ${formattedValue.currency}`
 }
 
 function splitMetricValue(value: string): { value: string, unit?: string } {
@@ -112,21 +95,22 @@ const nodePriceText = computed(() => {
   if (!data.value)
     return '-'
 
-  if (Number(data.value.price) <= 0)
-    return formatPrice(0, data.value.currency, appStore.lang)
+  const priceCNY = financeHelper.calculateValueCNY(data.value, exchangeRates.value)
+  if (priceCNY <= 0)
+    return formatFinanceMetricValue(0, financeBaseCurrency.value)
 
-  return formatPriceWithCycle(data.value.price, data.value.billing_cycle, data.value.currency, appStore.lang)
+  return `${formatFinanceMetricValue(priceCNY, financeBaseCurrency.value)} / ${getBillingCycleText(data.value.billing_cycle, appStore.lang)}`
 })
 
 const monthlyAverageCostText = computed(() => {
   if (!data.value)
     return '-'
 
-  const monthlyAverageCost = calculateMonthlyAverageCost(data.value.price, data.value.billing_cycle)
-  if (monthlyAverageCost === null)
+  if (Number(data.value.billing_cycle) <= 0)
     return appStore.lang === 'zh-CN' ? '不适用' : 'N/A'
 
-  return `${formatNodeAmount(monthlyAverageCost, data.value.currency)} / 月`
+  const monthlyAverageCost = financeHelper.calculateMonthlyAverageCostCNY(data.value, exchangeRates.value)
+  return `${formatFinanceMetricValue(monthlyAverageCost, financeBaseCurrency.value)} / 月`
 })
 
 const remainingTimeText = computed(() => {
@@ -141,10 +125,7 @@ const remainingValueText = computed(() => {
     return '-'
 
   const remainingValueCNY = financeHelper.calculateRemainingValueCNY(data.value, exchangeRates.value)
-  const targetRate = exchangeRates.value[financeCurrency.value] || 1
-  const formattedValue = financeHelper.formatFinanceAmount(remainingValueCNY * targetRate, financeCurrency.value)
-
-  return `${formattedValue.symbol}${formattedValue.value} ${formattedValue.currency}`
+  return formatFinanceMetricValue(remainingValueCNY, financeBaseCurrency.value)
 })
 
 const remainingTimeValueClass = computed(() => {

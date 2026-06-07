@@ -14,6 +14,7 @@ interface ExchangeRatesCache {
 const CACHE_KEY = 'komari_finance_exchange_rates_cny_v1'
 const REQUIRED_CURRENCIES: CurrencyCode[] = ['CNY', 'USD', 'HKD', 'EUR', 'GBP', 'JPY']
 const MS_PER_DAY = 24 * 60 * 60 * 1000
+const MONTH_DAYS = 30
 const LONG_TERM_YEARS = 100
 
 export const DEFAULT_EXCHANGE_RATES: ExchangeRates = {
@@ -28,7 +29,7 @@ export const DEFAULT_EXCHANGE_RATES: ExchangeRates = {
 export const CURRENCY_SYMBOLS: Record<CurrencyCode, string> = {
   CNY: '¥',
   USD: '$',
-  HKD: 'HK$',
+  HKD: '$',
   EUR: '€',
   GBP: '£',
   JPY: '¥',
@@ -78,6 +79,10 @@ export function getStoredFinanceCurrency(): CurrencyCode {
   return normalizeCurrency(getLocalStorageItem('fin_currency') || 'CNY')
 }
 
+export function setStoredFinanceCurrency(currency: CurrencyCode): void {
+  setLocalStorageItem('fin_currency', currency)
+}
+
 export function calculateTotalRemainingValueCNY(
   nodes: NodeData[],
   exchangeRates: ExchangeRates,
@@ -103,6 +108,41 @@ export function calculateTotalValueCNY(
 
     return sum + getPriceCNY(node, exchangeRates)
   }, 0)
+}
+
+export function calculateValueCNY(
+  node: NodeData,
+  exchangeRates: ExchangeRates,
+): number {
+  return getPriceCNY(node, exchangeRates)
+}
+
+export function calculateTotalMonthlyAverageCostCNY(
+  nodes: NodeData[],
+  exchangeRates: ExchangeRates,
+  excludeFreeTags = true,
+): number {
+  return nodes.reduce((sum, node) => {
+    if (excludeFreeTags && node.tags?.includes('白嫖中'))
+      return sum
+
+    return sum + calculateMonthlyAverageCostCNY(node, exchangeRates)
+  }, 0)
+}
+
+export function calculateMonthlyAverageCostCNY(
+  node: NodeData,
+  exchangeRates: ExchangeRates,
+): number {
+  const priceCNY = getPriceCNY(node, exchangeRates)
+  if (priceCNY <= 0)
+    return 0
+
+  const billingCycle = Number(node.billing_cycle)
+  if (!Number.isFinite(billingCycle) || billingCycle <= 0)
+    return 0
+
+  return priceCNY / billingCycle * MONTH_DAYS
 }
 
 export function calculateRemainingValueCNY(
