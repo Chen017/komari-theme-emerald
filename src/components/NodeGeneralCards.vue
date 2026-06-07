@@ -256,8 +256,7 @@ onMounted(async () => {
             </div>
             <Transition v-bind="metricSwitchTransitionProps">
               <div
-                :key="`remaining-value-${summaryTransitionKey}`"
-                class="flex items-baseline gap-1 min-w-0"
+                :key="`remaining-value-${summaryTransitionKey}`" class="flex items-baseline gap-1 min-w-0"
                 :style="getMetricSwitchStyle(2)"
               >
                 <span class="text-md md:text-2xl font-bold leading-none tracking-tight">
@@ -276,20 +275,25 @@ onMounted(async () => {
           :class="openFinanceCard ? 'opacity-100 scale-100  -translate-y-[5%]' : 'opacity-0 pointer-events-none scale-50'"
           content-class="h-full !p-4" @click="openFinanceCard = false"
         >
-          <div class="flex h-full min-w-0 flex-col overflow-x-hidden overflow-y-auto">
-            <div class="shrink-0 grid grid-cols-3 gap-1">
-              <div v-for="item in financeSummaryItems" :key="item.label" class="min-w-0">
-                <div class="flex items-center text-xs font-medium text-muted-foreground">
+          <div class="flex h-full min-w-0 flex-col overflow-hidden">
+            <div class="shrink-0 grid grid-cols-3 gap-1.5">
+              <div v-for="(item, index) in financeSummaryItems" :key="item.label" class="min-w-0">
+                <div class="flex mb-1.5 items-center text-xs font-medium text-muted-foreground">
                   {{ item.label }}
                 </div>
-                <div class="flex min-w-0 mt-1 items-baseline truncate">
-                  <span class="shrink-0 text-xs mr-0.5 font-semibold leading-none text-muted-foreground">
-                    {{ item.symbol }}
-                  </span>
-                  <span class=" text-sm md:text-lg font-bold leading-none tracking-tight">
-                    {{ item.value }}
-                  </span>
-                </div>
+                <Transition v-bind="metricSwitchTransitionProps">
+                  <div
+                    :key="`remaining-value-${summaryTransitionKey}-${exchangeRateBaseCurrency}-${openFinanceCard}`" class="flex min-w-0 items-baseline truncate"
+                    :style="getMetricSwitchStyle(index)"
+                  >
+                    <span class="shrink-0 text-xs mr-0.5 font-semibold leading-none text-muted-foreground">
+                      {{ item.symbol }}
+                    </span>
+                    <span class=" text-sm md:text-lg font-bold leading-none tracking-tight">
+                      {{ item.value }}
+                    </span>
+                  </div>
+                </Transition>
               </div>
             </div>
             <div class="flex-1" />
@@ -311,15 +315,19 @@ onMounted(async () => {
               <div class="flex-1" />
               <div class="grid grid-cols-2 gap-y-1 gap-x-4">
                 <div
-                  v-for="row in exchangeRateRows" :key="row.currency"
-                  class="text-[11px] flex items-center justify-between"
+                  v-for="(row, index) in exchangeRateRows" :key="row.currency"
+                  class="text-[11px] flex items-center "
                 >
-                  <span class="text-muted-foreground">
-                    {{ row.currency }}
-                  </span>
-                  <span>
-                    {{ row.targetSymbol }}{{ row.rate }}
-                  </span>
+                  <Transition v-bind="metricSwitchTransitionProps">
+                    <div :key="`remaining-value-${exchangeRateBaseCurrency}-${openFinanceCard}`" class="flex-1 flex justify-between" :style="getMetricSwitchStyle(index)">
+                      <span class="text-muted-foreground">
+                        {{ row.currency }}
+                      </span>
+                      <span>
+                        {{ row.targetSymbol }}{{ row.rate }}
+                      </span>
+                    </div>
+                  </Transition>
                 </div>
               </div>
             </div>
