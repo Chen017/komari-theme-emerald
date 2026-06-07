@@ -1,0 +1,291 @@
+<script setup lang="ts">
+import { Icon } from '@iconify/vue'
+import { computed, onMounted, ref } from 'vue'
+
+interface VisitorGeoData {
+  ip: string
+  isp: string
+  location: string
+  countryCode: string
+}
+
+interface VisitorClientData {
+  device: string
+  browser: string
+}
+
+interface VisitorInfoRow {
+  value: string
+  icon: string
+  expandOnly?: boolean
+}
+
+const ANDROID_REGEX = /android/i
+const IPHONE_OR_IPOD_REGEX = /iphone|ipod/i
+const IPAD_REGEX = /ipad/i
+const TABLET_REGEX = /tablet/i
+const EDGE_VERSION_REGEX = /Edg\/(\d+)/i
+const OPERA_VERSION_REGEX = /OPR\/(\d+)/i
+const CHROME_VERSION_REGEX = /Chrome\/(\d+)/i
+const EDGE_OR_OPERA_REGEX = /Edg|OPR/i
+const FIREFOX_VERSION_REGEX = /Firefox\/(\d+)/i
+const SAFARI_REGEX = /Safari/i
+const CHROME_REGEX = /Chrome/i
+
+const loading = ref(true)
+const device = ref('检测中')
+const browser = ref('检测中')
+const ip = ref('获取中')
+const isp = ref('获取中')
+const location = ref('正在定位访客来源')
+const countryCode = ref('')
+const visitTime = ref(formatVisitTime(new Date()))
+const flagVisible = ref(true)
+const expand = ref(false)
+
+const subtitle = computed(() => loading.value ? '检测中' : location.value || '网络访客')
+const flagSrc = computed(() => countryCode.value ? `/images/flags/${countryCode.value}.svg` : '')
+
+const visitorRows = computed<VisitorInfoRow[]>(() => [
+  {
+    value: subtitle.value,
+    icon: 'tabler:world-pin',
+  },
+  {
+    value: ip.value,
+    icon: 'tabler:brand-socket-io',
+  },
+  {
+    value: isp.value,
+    icon: 'tabler:building-skyscraper',
+    expandOnly: true,
+  },
+  {
+    value: device.value,
+    icon: 'tabler:device-desktop',
+    expandOnly: true,
+  },
+  {
+    value: browser.value,
+    icon: 'tabler:browser',
+  },
+  {
+    value: visitTime.value,
+    icon: 'tabler:clock-hour-4',
+    expandOnly: true,
+  },
+])
+
+function formatVisitTime(date: Date): string {
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date)
+}
+
+function detectClient(): VisitorClientData {
+  const ua = navigator.userAgent
+
+  let detectedDevice = '桌面设备'
+  if (ANDROID_REGEX.test(ua))
+    detectedDevice = 'Android 手机'
+  else if (IPHONE_OR_IPOD_REGEX.test(ua))
+    detectedDevice = 'iPhone'
+  else if (IPAD_REGEX.test(ua))
+    detectedDevice = 'iPad'
+  else if (TABLET_REGEX.test(ua))
+    detectedDevice = '平板电脑'
+
+  let detectedBrowser = '未知浏览器'
+  const edgeMatch = ua.match(EDGE_VERSION_REGEX)
+  const operaMatch = ua.match(OPERA_VERSION_REGEX)
+  const chromeMatch = ua.match(CHROME_VERSION_REGEX)
+  const firefoxMatch = ua.match(FIREFOX_VERSION_REGEX)
+
+  if (edgeMatch) {
+    detectedBrowser = 'Edge'
+  }
+  else if (operaMatch) {
+    detectedBrowser = 'Opera'
+  }
+  else if (chromeMatch && !EDGE_OR_OPERA_REGEX.test(ua)) {
+    detectedBrowser = 'Chrome'
+  }
+  else if (firefoxMatch) {
+    detectedBrowser = 'Firefox'
+  }
+  else if (SAFARI_REGEX.test(ua) && !CHROME_REGEX.test(ua)) {
+    detectedBrowser = 'Safari'
+  }
+
+  return {
+    device: detectedDevice,
+    browser: detectedBrowser,
+  }
+}
+
+async function fetchJson<T>(url: string, timeoutMs: number): Promise<T> {
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    const response = await fetch(url, { signal: controller.signal })
+    if (!response.ok) {
+      throw new Error(`Request failed: ${response.status}`)
+    }
+    return await response.json() as T
+  }
+  finally {
+    window.clearTimeout(timeoutId)
+  }
+}
+
+async function fetchVisitorGeo(): Promise<VisitorGeoData | null> {
+  const loaders = [
+    async (): Promise<VisitorGeoData> => {
+      const data = await fetchJson<{
+        status: string
+        country?: string
+        countryCode?: string
+        regionName?: string
+        city?: string
+        query?: string
+        isp?: string
+      }>('https://ip-api.com/json/?lang=zh-CN&fields=status,country,countryCode,regionName,city,query,isp', 4000)
+
+      if (data.status !== 'success' || !data.query) {
+        throw new Error('ip-api unavailable')
+      }
+
+      return {
+        ip: data.query,
+        isp: data.isp || '未知运营商',
+        location: [data.country, data.city || data.regionName].filter(Boolean).join(' · ') || '未知位置',
+        countryCode: data.countryCode || '',
+      }
+    },
+    async (): Promise<VisitorGeoData> => {
+      const data = await fetchJson<{
+        error?: boolean
+        reason?: string
+        ip?: string
+        org?: string
+        country_name?: string
+        country_code?: string
+        region?: string
+        city?: string
+      }>('https://ipapi.co/json/', 4000)
+
+      if (data.error || !data.ip) {
+        throw new Error(data.reason || 'ipapi unavailable')
+      }
+
+      return {
+        ip: data.ip,
+        isp: data.org || '未知运营商',
+        location: [data.country_name, data.city || data.region].filter(Boolean).join(' · ') || '未知位置',
+        countryCode: data.country_code || '',
+      }
+    },
+    async (): Promise<VisitorGeoData> => {
+      const data = await fetchJson<{
+        code: number
+        data?: {
+          ip?: string
+          isp?: string
+          country?: string
+          province?: string
+          city?: string
+          countryCode?: string
+        }
+      }>('https://api.vore.top/api/IPdata', 5000)
+
+      if (data.code !== 0 || !data.data?.ip) {
+        throw new Error('vore unavailable')
+      }
+
+      return {
+        ip: data.data.ip,
+        isp: data.data.isp || '未知运营商',
+        location: [data.data.country, data.data.city || data.data.province].filter(Boolean).join(' · ') || '未知位置',
+        countryCode: data.data.countryCode || '',
+      }
+    },
+  ]
+
+  for (const load of loaders) {
+    try {
+      return await load()
+    }
+    catch {
+    }
+  }
+
+  return null
+}
+
+function handleFlagError(): void {
+  flagVisible.value = false
+}
+
+onMounted(async () => {
+  const client = detectClient()
+  device.value = client.device
+  browser.value = client.browser
+  visitTime.value = formatVisitTime(new Date())
+
+  const geo = await fetchVisitorGeo()
+  if (geo) {
+    ip.value = geo.ip
+    isp.value = geo.isp
+    location.value = geo.location
+    countryCode.value = geo.countryCode.toUpperCase()
+  }
+  else {
+    ip.value = '暂无法获取'
+    isp.value = '网络信息不可用'
+    location.value = '网络访客'
+  }
+
+  loading.value = false
+})
+</script>
+
+<template>
+  <div class="fixed inset-x-0 bottom-2.5 z-30 flex justify-center">
+    <div
+      class="backdrop-blur-sm p-1.5 px-3 shadow-[-1px_-1px_0_background,0_0_16px_rgba(0,0,0,0.05)] bg-background/30 transition-all" :class="[expand ? 'rounded-lg' : 'rounded-xl']"
+      @click="expand = !expand"
+    >
+      <div
+        class="flex flex-nowrap items-center justify-center gap-x-3 gap-y-1" :class="[expand ? 'grid grid-cols-2 justify-start items-start' : '']"
+      >
+        <div
+          v-for="(item, index) in visitorRows" v-show="!item.expandOnly || expand" :key="item.icon"
+          class="flex min-w-0 items-center gap-1 rounded-full"
+        >
+          <img
+            v-if="item.icon === 'tabler:world-pin' && flagSrc && flagVisible" :src="flagSrc" :alt="countryCode"
+            class="h-4 w-4 object-cover" @error="handleFlagError"
+          >
+          <div
+            v-else
+            class="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-emerald-500/10 text-emerald-600"
+          >
+            <Icon :icon="item.icon" :width="14" :height="14" />
+          </div>
+          <div class="hidden md:block min-w-0" :class="[expand && '!block', !index && '!block']">
+            <div v-if="loading" class="h-2 w-24 animate-pulse rounded-full bg-muted/70" />
+            <p v-else class="mt-0.5 max-w-30 truncate text-xs font-medium text-muted-foreground sm:max-w-50">
+              {{ item.value }}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
