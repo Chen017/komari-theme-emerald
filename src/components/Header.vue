@@ -4,7 +4,7 @@ import { computed, inject, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { DataTooltip } from '@/components/ui/data-tooltip'
 import { useAppStore } from '@/stores/app'
 
 const router = useRouter()
@@ -62,18 +62,13 @@ const sitename = computed(() => appStore.publicSettings?.sitename || 'Komari Mon
           {{ sitename }}
         </h3>
       </div>
-      <TooltipProvider :delay-duration="200">
-        <div class="flex items-center gap-2">
-          <Tooltip v-for="button in actionButtons" :key="button.action">
-            <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon-sm" @click="handleButtonClick(button.action)">
-                <Icon :icon="button.icon" :width="18" :height="18" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{{ button.title }}</TooltipContent>
-          </Tooltip>
-        </div>
-      </TooltipProvider>
+      <div class="flex items-center gap-2">
+        <DataTooltip v-for="button in actionButtons" :key="button.action" :content="button.title" placement="left" content-class="whitespace-nowrap text-[11px] px-2">
+          <Button variant="ghost" size="icon-sm" @click="handleButtonClick(button.action)">
+            <Icon :icon="button.icon" :width="18" :height="18" />
+          </Button>
+        </DataTooltip>
+      </div>
     </div>
   </div>
 </template>
