@@ -142,6 +142,7 @@ const error = ref<string | null>(null)
 // 任务选择
 const selectedTaskIds = ref<number[]>([])
 const cutPeak = ref(false)
+const showDelay = ref(true)
 const showLoss = ref(true)
 const isTouchTooltipMode = ref(false)
 const activeTaskTooltipId = ref<number | null>(null)
@@ -474,11 +475,11 @@ const pingChartOption = computed(() => {
       name: task.name,
       type: 'line' as const,
       data: data.map(d => d[task.id] as number | null ?? null),
-      smooth: cutPeak.value ? 0.6 : 0.1,
+      smooth: showDelay.value ? (cutPeak.value ? 0.6 : 0.1) : 0,
       showSymbol: false,
       connectNulls: false,
-      lineStyle: { width: 1.5, color, cap: 'round' as const },
-      itemStyle: { color }, // 确保 symbol 颜色一致
+      lineStyle: { width: showDelay.value ? 1.5 : 0, color, cap: 'round' as const },
+      itemStyle: { color, opacity: showDelay.value ? 1 : 0 },
       markLine: showLoss.value && lossMarkerIndexes.length
         ? {
             silent: true,
@@ -758,12 +759,19 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="flex flex-wrap gap-2 items-center py-2">
+          <!-- 延迟可视化开关 -->
+          <Button
+            variant="ghost" size="xs" class="h-7 rounded-sm bg-background/50 hover:bg-background border-none"
+            :class="showDelay && 'shadow-[0_0_0_2px] shadow-green-600/10 text-green-600'" @click="showDelay = !showDelay"
+          >
+            延迟
+          </Button>
           <!-- 丢包可视化开关 -->
           <Button
             variant="ghost" size="xs" class="h-7 rounded-sm bg-background/50 hover:bg-background border-none"
             :class="showLoss && 'shadow-[0_0_0_2px] shadow-green-600/10 text-green-600'" @click="showLoss = !showLoss"
           >
-            丢包可视化
+            丢包
           </Button>
           <!-- 平滑峰值开关 -->
           <TooltipProvider>
