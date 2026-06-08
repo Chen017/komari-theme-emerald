@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import dayjs from 'dayjs'
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import VChart from 'vue-echarts'
 import { Button } from '@/components/ui/button'
+import { DataTooltip } from '@/components/ui/data-tooltip'
 import { Empty } from '@/components/ui/empty'
 import { Spinner } from '@/components/ui/spinner'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAppStore } from '@/stores/app'
 import { cutPeakValues, interpolateNullsLinear } from '@/utils/recordHelper'
 import { getSharedRpc } from '@/utils/rpc'
@@ -144,12 +144,7 @@ const selectedTaskIds = ref<number[]>([])
 const cutPeak = ref(false)
 const showDelay = ref(true)
 const showLoss = ref(true)
-const isTouchTooltipMode = ref(false)
-const activeTaskTooltipId = ref<number | null>(null)
-const smoothInfoTooltipOpen = ref(false)
-
 const chartMargin = { top: 30, right: 24, bottom: 52, left: 56 }
-let coarsePointerMediaQuery: MediaQueryList | null = null
 
 const mergeToleranceMs = computed(() => {
   const taskIntervals = tasks.value
@@ -162,39 +157,6 @@ const mergeToleranceMs = computed(() => {
     Math.max(800, Math.floor(fallbackIntervalSec * 1000 * 0.25)),
   )
 })
-
-function syncTouchTooltipMode() {
-  if (typeof window === 'undefined') {
-    isTouchTooltipMode.value = false
-    return
-  }
-
-  const hasCoarsePointer = window.matchMedia('(pointer: coarse)').matches
-  const hasTouchPoints = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0
-  isTouchTooltipMode.value = hasCoarsePointer || hasTouchPoints
-}
-
-function setTaskTooltipOpen(taskId: number, open: boolean) {
-  activeTaskTooltipId.value = open ? taskId : activeTaskTooltipId.value === taskId ? null : activeTaskTooltipId.value
-}
-
-function toggleTaskTooltip(taskId: number) {
-  if (!isTouchTooltipMode.value)
-    return
-
-  activeTaskTooltipId.value = activeTaskTooltipId.value === taskId ? null : taskId
-  smoothInfoTooltipOpen.value = false
-}
-
-function toggleSmoothInfoTooltip() {
-  if (!isTouchTooltipMode.value)
-    return
-
-  smoothInfoTooltipOpen.value = !smoothInfoTooltipOpen.value
-  if (smoothInfoTooltipOpen.value) {
-    activeTaskTooltipId.value = null
-  }
-}
 
 // ==================== 数据获取 ====================
 
@@ -603,25 +565,15 @@ watch(() => props.uuid, () => {
   remoteData.value = []
   tasks.value = []
   selectedTaskIds.value = []
-  activeTaskTooltipId.value = null
-  smoothInfoTooltipOpen.value = false
   fetchRecords()
 })
 
 onMounted(() => {
-  syncTouchTooltipMode()
-  coarsePointerMediaQuery = window.matchMedia('(pointer: coarse)')
-  coarsePointerMediaQuery.addEventListener('change', syncTouchTooltipMode)
-
   const firstView = availableViews.value[0]
   if (firstView && !selectedView.value) {
     selectedView.value = firstView.label
   }
   fetchRecords()
-})
-
-onBeforeUnmount(() => {
-  coarsePointerMediaQuery?.removeEventListener('change', syncTouchTooltipMode)
 })
 </script>
 
@@ -682,67 +634,60 @@ onBeforeUnmount(() => {
             @click="toggleTask(task.id)"
           >
             <div class="flex-1 min-w-0">
-              <TooltipProvider>
-                <div class="flex gap-2 items-center">
-                  <div class="rounded h-4 w-1" :style="{ backgroundColor: task.color }" />
-                  <span class="text-sm font-semibold truncate">{{ task.name }}</span>
-                  <div class="flex-1" />
-                  <Tooltip
-                    :open="isTouchTooltipMode ? activeTaskTooltipId === task.id : undefined"
-                    @update:open="(open) => setTaskTooltipOpen(task.id, open)"
-                  >
-                    <TooltipTrigger as-child>
-                      <Button variant="ghost" size="icon-xs" class="text-slate-500" @click.stop="toggleTaskTooltip(task.id)">
-                        <Icon icon="carbon:information" :width="14" :height="14" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent class="!rounded p-3">
-                      <div class="text-xs gap-x-4 gap-y-1.5 grid grid-cols-4">
-                        <template v-if="task.min !== undefined">
-                          <span class="text-muted-foreground">最小</span>
-                          <span class="font-medium">{{ Math.round(task.min) }} ms</span>
-                        </template>
-                        <template v-if="task.max !== undefined">
-                          <span class="text-muted-foreground">最大</span>
-                          <span class="font-medium">{{ Math.round(task.max) }} ms</span>
-                        </template>
-                        <template v-if="task.avg !== undefined">
-                          <span class="text-muted-foreground">平均</span>
-                          <span class="font-medium">{{ Math.round(task.avg) }} ms</span>
-                        </template>
-                        <template v-if="task.latest !== undefined">
-                          <span class="text-muted-foreground">最新</span>
-                          <span class="font-medium">{{ Math.round(task.latest) }} ms</span>
-                        </template>
-                        <template v-if="task.p50 !== undefined">
-                          <span class="text-muted-foreground">P50</span>
-                          <span class="font-medium">{{ Math.round(task.p50) }} ms</span>
-                        </template>
-                        <template v-if="task.p99 !== undefined">
-                          <span class="text-muted-foreground">P99</span>
-                          <span class="font-medium">{{ Math.round(task.p99) }} ms</span>
-                        </template>
-                        <template v-if="task.p99_p50_ratio !== undefined">
-                          <span class="text-muted-foreground">波动率</span>
-                          <span class="font-medium">{{ task.p99_p50_ratio.toFixed(2) }}</span>
-                        </template>
-                        <template v-if="task.interval !== undefined">
-                          <span class="text-muted-foreground">间隔</span>
-                          <span class="font-medium">{{ task.interval }}s</span>
-                        </template>
-                        <template v-if="task.type">
-                          <span class="text-muted-foreground">类型</span>
-                          <span class="font-medium">{{ task.type.toUpperCase() }}</span>
-                        </template>
-                        <template v-if="task.total !== undefined">
-                          <span class="text-muted-foreground">总数</span>
-                          <span class="font-medium">{{ task.total }}</span>
-                        </template>
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-              </TooltipProvider>
+              <div class="flex gap-2 items-center">
+                <div class="rounded h-4 w-1" :style="{ backgroundColor: task.color }" />
+                <span class="text-sm font-semibold truncate">{{ task.name }}</span>
+                <div class="flex-1" />
+                <DataTooltip placement="left" content-class="!rounded p-3 w-60 backdrop-blur-xs">
+                  <Button variant="ghost" size="icon-xs" class="text-slate-500" @click.stop>
+                    <Icon icon="carbon:information" :width="14" :height="14" />
+                  </Button>
+                  <template #content>
+                    <div class="text-xs gap-x-4 gap-y-1.5 grid grid-cols-4">
+                      <template v-if="task.min !== undefined">
+                        <span class="text-muted-foreground">最小</span>
+                        <span class="font-medium">{{ Math.round(task.min) }} ms</span>
+                      </template>
+                      <template v-if="task.max !== undefined">
+                        <span class="text-muted-foreground">最大</span>
+                        <span class="font-medium">{{ Math.round(task.max) }} ms</span>
+                      </template>
+                      <template v-if="task.avg !== undefined">
+                        <span class="text-muted-foreground">平均</span>
+                        <span class="font-medium">{{ Math.round(task.avg) }} ms</span>
+                      </template>
+                      <template v-if="task.latest !== undefined">
+                        <span class="text-muted-foreground">最新</span>
+                        <span class="font-medium">{{ Math.round(task.latest) }} ms</span>
+                      </template>
+                      <template v-if="task.p50 !== undefined">
+                        <span class="text-muted-foreground">P50</span>
+                        <span class="font-medium">{{ Math.round(task.p50) }} ms</span>
+                      </template>
+                      <template v-if="task.p99 !== undefined">
+                        <span class="text-muted-foreground">P99</span>
+                        <span class="font-medium">{{ Math.round(task.p99) }} ms</span>
+                      </template>
+                      <template v-if="task.p99_p50_ratio !== undefined">
+                        <span class="text-muted-foreground">波动率</span>
+                        <span class="font-medium">{{ task.p99_p50_ratio.toFixed(2) }}</span>
+                      </template>
+                      <template v-if="task.interval !== undefined">
+                        <span class="text-muted-foreground">间隔</span>
+                        <span class="font-medium">{{ task.interval }}s</span>
+                      </template>
+                      <template v-if="task.type">
+                        <span class="text-muted-foreground">类型</span>
+                        <span class="font-medium">{{ task.type.toUpperCase() }}</span>
+                      </template>
+                      <template v-if="task.total !== undefined">
+                        <span class="text-muted-foreground">总数</span>
+                        <span class="font-medium">{{ task.total }}</span>
+                      </template>
+                    </div>
+                  </template>
+                </DataTooltip>
+              </div>
               <div class="text-xs mt-1 flex gap-1.5 items-center text-muted-foreground">
                 <span class="font-medium" title="平均延迟">
                   {{ task.avg !== undefined ? `${Math.round(task.avg)}ms` : '-' }}
@@ -774,29 +719,19 @@ onBeforeUnmount(() => {
             丢包
           </Button>
           <!-- 平滑峰值开关 -->
-          <TooltipProvider>
-            <div class="flex gap-2 items-center">
-              <Button
-                variant="ghost" size="xs" class="h-7 rounded-sm bg-background/50 hover:bg-background border-none"
-                :class="cutPeak && 'shadow-[0_0_0_2px] shadow-green-600/10 text-green-600'" @click="cutPeak = !cutPeak"
-              >
-                平滑峰值
+          <div class="flex gap-2 items-center">
+            <Button
+              variant="ghost" size="xs" class="h-7 rounded-sm bg-background/50 hover:bg-background border-none"
+              :class="cutPeak && 'shadow-[0_0_0_2px] shadow-green-600/10 text-green-600'" @click="cutPeak = !cutPeak"
+            >
+              平滑峰值
+            </Button>
+            <DataTooltip content="使用 EWMA 算法平滑数据并过滤突变值" placement="top" content-class="whitespace-nowrap text-[11px]">
+              <Button variant="ghost" size="icon-xs" class="text-slate-500">
+                <Icon icon="carbon:information" :width="14" :height="14" />
               </Button>
-              <Tooltip
-                :open="isTouchTooltipMode ? smoothInfoTooltipOpen : undefined"
-                @update:open="(open) => smoothInfoTooltipOpen = open"
-              >
-                <TooltipTrigger as-child>
-                  <Button variant="ghost" size="icon-xs" class="text-slate-500" @click.stop="toggleSmoothInfoTooltip">
-                    <Icon icon="carbon:information" :width="14" :height="14" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <span>使用 EWMA 算法平滑数据并过滤突变值</span>
-                </TooltipContent>
-              </Tooltip>
-            </div>
-          </TooltipProvider>
+            </DataTooltip>
+          </div>
         </div>
 
         <!-- 图表 -->
