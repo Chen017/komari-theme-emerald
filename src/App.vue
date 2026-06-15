@@ -41,7 +41,7 @@ onUnmounted(() => {
       <LoadingCover v-if="appStore.loading" />
     </Transition>
     <Header />
-    <main v-if="!appStore.loading" class="min-h-screen overflow-hidden">
+    <main v-if="!appStore.loading" class="flex-1 overflow-hidden">
       <div class="max-w-[1280px] mx-auto">
         <RouterView v-slot="{ Component }">
           <Transition
