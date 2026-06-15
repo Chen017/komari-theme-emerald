@@ -271,7 +271,7 @@ onMounted(async () => {
         </CardX>
         <CardX
           hoverable
-          class="absolute top-0 left-1/2 -translate-x-[50%] -translate-y-[25%] z-20 w-[260%] max-w-88 h-42 group bg-background/50 rounded-lg shadow-xl border-none backdrop-blur-lg transition-all ease-[cubic-bezier(0.175,0.885,0.32,1.275)]"
+          class="absolute top-0 left-1/2 -translate-x-[50%] -translate-y-[25%] z-20 w-[260%] max-w-88 h-42 group bg-background/50 rounded-lg shadow-xl border-none backdrop-blur-lg transition-all"
           :class="openFinanceCard ? 'opacity-100 scale-100  -translate-y-[5%]' : 'opacity-0 pointer-events-none scale-50'"
           content-class="h-full !p-4" @click="openFinanceCard = false"
         >
