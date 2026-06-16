@@ -69,14 +69,20 @@ const EXCHANGE_RATE_APIS = [
     parse: (data: unknown) => (data as { rates?: unknown }).rates,
   },
 ] as const
-const CURRENCY_ALIASES: Record<string, CurrencyCode> = {
+const EXPLICIT_CURRENCY_ALIASES: Record<string, CurrencyCode> = {
   '$': 'USD',
+  'US$': 'USD',
+  'CA$': 'CAD',
+  'CN¥': 'CNY',
+  'RMB': 'CNY',
   'HK$': 'HKD',
   '€': 'EUR',
   '£': 'GBP',
   '¥': 'CNY',
   '￥': 'CNY',
+  'JP¥': 'JPY',
 }
+const CURRENCY_SYMBOL_ALIASES = createCurrencySymbolAliases()
 
 export function normalizeCurrency(currency: string | null | undefined): CurrencyCode {
   const value = String(currency || 'CNY').trim().toUpperCase()
@@ -84,11 +90,30 @@ export function normalizeCurrency(currency: string | null | undefined): Currency
   if (isSupportedCurrency(value))
     return value
 
-  return CURRENCY_ALIASES[value] || 'CNY'
+  return EXPLICIT_CURRENCY_ALIASES[value] || CURRENCY_SYMBOL_ALIASES[value] || 'CNY'
 }
 
 export function isSupportedCurrency(currency: string): currency is CurrencyCode {
   return (SUPPORTED_FINANCE_CURRENCIES as readonly string[]).includes(currency)
+}
+
+function createCurrencySymbolAliases(): Record<string, CurrencyCode> {
+  const symbolEntries = Object.entries(FINANCE_CURRENCY_CONFIG).map(([currency, config]) => [
+    config.symbol.trim().toUpperCase(),
+    currency as CurrencyCode,
+  ] as const)
+
+  const symbolCounts = symbolEntries.reduce<Record<string, number>>((counts, [symbol]) => {
+    counts[symbol] = (counts[symbol] || 0) + 1
+    return counts
+  }, {})
+
+  return symbolEntries.reduce<Record<string, CurrencyCode>>((aliases, [symbol, currency]) => {
+    if (symbol && symbolCounts[symbol] === 1)
+      aliases[symbol] = currency
+
+    return aliases
+  }, {})
 }
 
 export function getTodayDateKey(date = new Date()): string {
