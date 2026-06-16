@@ -8,6 +8,8 @@ export type ThemeMode = 'auto' | 'light' | 'dark'
 type Lang = 'zh-CN' | 'en-US'
 type NodeViewMode = 'card' | 'list'
 type RpcTransportMode = 'websocket' | 'http'
+type EarthViewMode = 'earth' | 'earth-stop' | 'maps' | 'hide'
+type ResolvedEarthViewMode = EarthViewMode | 'cards'
 
 /** 固定的字节精度配置 */
 const BYTE_DECIMALS: ByteDecimalsConfig = {
@@ -20,6 +22,10 @@ const BYTE_DECIMALS: ByteDecimalsConfig = {
 
 function isValidThemeMode(value: unknown): value is ThemeMode {
   return value === 'auto' || value === 'light' || value === 'dark'
+}
+
+function isValidEarthViewMode(value: unknown): value is EarthViewMode {
+  return value === 'earth' || value === 'earth-stop' || value === 'maps' || value === 'hide'
 }
 
 const useAppStore = defineStore('app', () => {
@@ -110,29 +116,28 @@ const useAppStore = defineStore('app', () => {
     return ''
   })
 
-  const stopEarth = computed<boolean>(() => {
+  const earthViewMode = computed<ResolvedEarthViewMode>(() => {
     const settings = publicSettings.value?.theme_settings
-    if (settings && typeof settings.stopEarth === 'boolean') {
-      return settings.stopEarth
+    if (settings && typeof settings.earthViewMode === 'string' && isValidEarthViewMode(settings.earthViewMode)) {
+      return settings.earthViewMode
     }
-    return false
+
+    const stopEarth = settings && typeof settings.stopEarth === 'boolean' ? settings.stopEarth : false
+    const hideEarth = settings && typeof settings.hideEarth === 'boolean' ? settings.hideEarth : false
+    const hideGeneralCard = settings && typeof settings.hideGeneralCard === 'boolean' ? settings.hideGeneralCard : false
+
+    if (hideGeneralCard)
+      return 'hide'
+    if (hideEarth)
+      return 'cards'
+    if (stopEarth)
+      return 'earth-stop'
+    return 'earth'
   })
 
-  const hideEarth = computed<boolean>(() => {
-    const settings = publicSettings.value?.theme_settings
-    if (settings && typeof settings.hideEarth === 'boolean') {
-      return settings.hideEarth
-    }
-    return false
-  })
-
-  const hideGeneralCard = computed<boolean>(() => {
-    const settings = publicSettings.value?.theme_settings
-    if (settings && typeof settings.hideGeneralCard === 'boolean') {
-      return settings.hideGeneralCard
-    }
-    return false
-  })
+  const stopEarth = computed<boolean>(() => earthViewMode.value === 'earth-stop')
+  const hideEarth = computed<boolean>(() => earthViewMode.value === 'cards' || earthViewMode.value === 'hide')
+  const hideGeneralCard = computed<boolean>(() => earthViewMode.value === 'hide')
 
   const visitorInfoCardEnabled = computed<boolean>(() => {
     const settings = publicSettings.value?.theme_settings
@@ -329,6 +334,7 @@ const useAppStore = defineStore('app', () => {
     alertEnabled,
     alertTitle,
     alertContent,
+    earthViewMode,
     stopEarth,
     hideEarth,
     hideGeneralCard,

@@ -155,13 +155,13 @@ function getNodeItemTransitionStyle(index: number): Record<string, string> {
     </div>
 
     <NodeGeneralCards
-      v-if="!appStore.hideGeneralCard"
+      v-if="appStore.earthViewMode !== 'hide'"
       :nodes="groupNodeList"
       :globe-nodes="groupNodeList"
       :transition-key="appStore.nodeSelectedGroup"
     />
 
-    <div class="node-info p-4 pt-0 flex flex-col gap-4 relative z-1 md:pointer-events-none" :class="!!appStore.hideGeneralCard && 'pt-4'">
+    <div class="node-info p-4 pt-0 flex flex-col gap-4 relative z-1 md:pointer-events-none" :class="appStore.earthViewMode === 'hide' && 'pt-4'">
       <div class="nodes">
         <Tabs v-model="appStore.nodeSelectedGroup" class="w-full flex-col gap-4">
           <div class="flex gap-2 items-center flex-nowrap">
