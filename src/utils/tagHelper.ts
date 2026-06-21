@@ -173,7 +173,7 @@ export function getDaysUntilExpired(expiredAt: string | number | undefined): num
   if (!expiredDate.isValid())
     return 0
 
-  return expiredDate.diff(now, 'day')
+  return Math.round(expiredDate.diff(now, 'day', true))
 }
 
 /**
