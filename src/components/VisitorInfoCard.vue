@@ -31,6 +31,7 @@ const EDGE_OR_OPERA_REGEX = /Edg|OPR/i
 const FIREFOX_VERSION_REGEX = /Firefox\/(\d+)/i
 const SAFARI_REGEX = /Safari/i
 const CHROME_REGEX = /Chrome/i
+const IPV4_SEGMENT_REGEX = /^\d+$/
 
 const loading = ref(true)
 const device = ref('检测中')
@@ -45,6 +46,7 @@ const expand = ref(false)
 
 const subtitle = computed(() => loading.value ? '检测中' : location.value || '网络访客')
 const flagSrc = computed(() => countryCode.value ? `/images/flags/${countryCode.value}.svg` : '')
+const displayIp = computed(() => expand.value ? ip.value : maskIpForCollapsedState(ip.value))
 
 const visitorRows = computed<VisitorInfoRow[]>(() => [
   {
@@ -57,7 +59,7 @@ const visitorRows = computed<VisitorInfoRow[]>(() => [
     expandOnly: true,
   },
   {
-    value: ip.value,
+    value: displayIp.value,
     icon: 'tabler:brand-socket-io',
   },
   {
@@ -92,6 +94,22 @@ function formatVisitTime(date: Date): string {
     minute: '2-digit',
     hour12: false,
   }).format(date)
+}
+
+function maskIpForCollapsedState(value: string): string {
+  const segments = value.split('.')
+  if (segments.length !== 4 || segments.some(segment => !IPV4_SEGMENT_REGEX.test(segment))) {
+    return value
+  }
+
+  const [first, second, third, fourth] = segments as [string, string, string, string]
+
+  return [
+    first,
+    '*'.repeat(second.length),
+    '*'.repeat(third.length),
+    fourth,
+  ].join('.')
 }
 
 function detectClient(): VisitorClientData {
