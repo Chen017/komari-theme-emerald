@@ -294,6 +294,10 @@ const useAppStore = defineStore('app', () => {
 
   // 计算属性：当前主题模式下的背景 URL
   const currentBackgroundUrl = computed<string>(() => {
+    if (!backgroundEnabled.value) {
+      return ''
+    }
+
     if (resolvedThemeMode.value === 'dark') {
       return darkBackgroundUrl.value
     }

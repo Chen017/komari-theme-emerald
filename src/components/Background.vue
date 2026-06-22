@@ -8,7 +8,7 @@ const isLoaded = ref(false)
 const hasError = ref(false)
 
 const showBackground = computed(() => appStore.backgroundEnabled)
-const currentUrl = computed(() => appStore.currentBackgroundUrl)
+const currentUrl = computed(() => showBackground.value ? appStore.currentBackgroundUrl : '')
 const backgroundType = computed(() => appStore.backgroundType)
 const hasCustomBackground = computed(() => showBackground.value && !!currentUrl.value)
 const showBackgroundOverlay = computed(() => hasCustomBackground.value && appStore.backgroundOverlay > 0)
@@ -88,6 +88,19 @@ function loadImage(url: string) {
 
 const videoRef = ref<HTMLVideoElement | null>(null)
 
+function resetBackgroundState() {
+  clearImageLoader()
+
+  if (videoRef.value) {
+    videoRef.value.pause()
+    videoRef.value.removeAttribute('src')
+    videoRef.value.load()
+  }
+
+  isLoaded.value = false
+  hasError.value = false
+}
+
 function handleVideoLoaded() {
   isLoaded.value = true
   hasError.value = false
@@ -97,7 +110,12 @@ function handleVideoError() {
   hasError.value = true
 }
 
-watch([currentUrl, backgroundType], ([url, type]) => {
+watch([showBackground, currentUrl, backgroundType], ([enabled, url, type]) => {
+  if (!enabled || !url) {
+    resetBackgroundState()
+    return
+  }
+
   if (url && type === 'image') {
     loadImage(url)
   }
@@ -106,15 +124,10 @@ watch([currentUrl, backgroundType], ([url, type]) => {
     isLoaded.value = false
     hasError.value = false
   }
-  else {
-    clearImageLoader()
-    isLoaded.value = false
-    hasError.value = false
-  }
 }, { immediate: true })
 
 onUnmounted(() => {
-  clearImageLoader()
+  resetBackgroundState()
 })
 </script>
 
