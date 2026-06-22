@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { Toaster } from '@/components/ui/sonner'
 import { useAppStore } from '@/stores/app'
 import { destroyInitManager, initApp } from '@/utils/init'
@@ -12,6 +12,17 @@ import Provider from './components/Provider.vue'
 const appStore = useAppStore()
 
 const isReady = ref(false)
+const pageTransitionProps = computed(() => appStore.disablePageAnimation
+  ? { css: false as const }
+  : {
+      enterActiveClass: 'transition-all duration-200 ease-out',
+      enterFromClass: 'opacity-0 translate-y-2',
+      enterToClass: 'opacity-100 translate-y-0',
+      leaveActiveClass: 'transition-all duration-200 ease-in',
+      leaveFromClass: 'opacity-100 translate-y-0',
+      leaveToClass: 'opacity-0 -translate-y-2',
+      mode: 'out-in' as const,
+    })
 
 onMounted(async () => {
   try {
@@ -44,12 +55,7 @@ onUnmounted(() => {
     <main v-if="!appStore.loading" class="flex-1">
       <div class="max-w-[1280px] mx-auto">
         <RouterView v-slot="{ Component }">
-          <Transition
-            enter-active-class="transition-all duration-200 ease-out"
-            enter-from-class="opacity-0 translate-y-2" enter-to-class="opacity-100 translate-y-0"
-            leave-active-class="transition-all duration-200 ease-in" leave-from-class="opacity-100 translate-y-0"
-            leave-to-class="opacity-0 -translate-y-2" mode="out-in"
-          >
+          <Transition v-bind="pageTransitionProps">
             <KeepAlive :include="['HomeView']">
               <component :is="Component" />
             </KeepAlive>

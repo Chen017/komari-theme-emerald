@@ -123,7 +123,6 @@ const useAppStore = defineStore('app', () => {
     return 'earth'
   })
 
-
   const visitorInfoCardEnabled = computed<boolean>(() => {
     const settings = publicSettings.value?.theme_settings
     if (settings && typeof settings.visitorInfoCardEnabled === 'boolean') {
