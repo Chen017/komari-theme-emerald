@@ -32,6 +32,8 @@ const FIREFOX_VERSION_REGEX = /Firefox\/(\d+)/i
 const SAFARI_REGEX = /Safari/i
 const CHROME_REGEX = /Chrome/i
 const IPV4_SEGMENT_REGEX = /^\d+$/
+const IPV6_SEGMENT_REGEX = /^[\dA-F]{1,4}$/i
+const IPV6_DOUBLE_COLON = '::'
 
 const loading = ref(true)
 const device = ref('检测中')
@@ -97,9 +99,13 @@ function formatVisitTime(date: Date): string {
 }
 
 function maskIpForCollapsedState(value: string): string {
+  return maskIpv4Address(value) ?? maskIpv6Address(value) ?? value
+}
+
+function maskIpv4Address(value: string): string | null {
   const segments = value.split('.')
   if (segments.length !== 4 || segments.some(segment => !IPV4_SEGMENT_REGEX.test(segment))) {
-    return value
+    return null
   }
 
   const [first, second, third, fourth] = segments as [string, string, string, string]
@@ -110,6 +116,60 @@ function maskIpForCollapsedState(value: string): string {
     '*'.repeat(third.length),
     fourth,
   ].join('.')
+}
+
+function maskIpv6Address(value: string): string | null {
+  const percentIndex = value.indexOf('%')
+  const address = percentIndex >= 0 ? value.slice(0, percentIndex) : value
+  const scope = percentIndex >= 0 ? value.slice(percentIndex + 1) : ''
+  if (!address.includes(':') || address.includes(':::')) {
+    return null
+  }
+
+  const doubleColonCount = address.split(IPV6_DOUBLE_COLON).length - 1
+  if (doubleColonCount > 1) {
+    return null
+  }
+
+  const segments = address.split(':')
+  if (segments.some((segment, index) => !isValidIpv6Segment(segment, index, segments))) {
+    return null
+  }
+
+  const visibleIndexes = segments
+    .map((segment, index) => segment ? index : -1)
+    .filter(index => index >= 0)
+
+  if (visibleIndexes.length === 0) {
+    return null
+  }
+
+  const firstVisibleIndex = visibleIndexes[0]
+  const lastVisibleIndex = visibleIndexes.at(-1)
+  if (firstVisibleIndex === undefined || lastVisibleIndex === undefined) {
+    return null
+  }
+
+  const maskedAddress = segments
+    .map((segment, index) => {
+      if (!segment || index === firstVisibleIndex || index === lastVisibleIndex) {
+        return segment
+      }
+      return '*'.repeat(segment.length)
+    })
+    .join(':')
+
+  return scope ? `${maskedAddress}%${scope}` : maskedAddress
+}
+
+function isValidIpv6Segment(segment: string, index: number, segments: string[]): boolean {
+  if (!segment) {
+    return true
+  }
+  if (segment.includes('.')) {
+    return index === segments.length - 1 && maskIpv4Address(segment) !== null
+  }
+  return IPV6_SEGMENT_REGEX.test(segment)
 }
 
 function detectClient(): VisitorClientData {
