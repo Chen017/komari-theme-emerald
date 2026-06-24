@@ -9,7 +9,7 @@ import {
   useRafFn,
 } from '@vueuse/core'
 import createGlobe from 'cobe'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useNodesStore } from '@/stores/nodes'
 import { getCoordByCode, getCountryCodeFromRegion } from '@/utils/geoHelper'
@@ -38,6 +38,9 @@ const MIN_THETA = -0.65
 const MAX_THETA = 0.65
 const CHINA_COORD = getCoordByCode('CN') ?? [35.8617, 104.1954]
 const DEFAULT_PHI = normalizePhi(-Math.PI / 2 - CHINA_COORD[1] * Math.PI / 180)
+const GLOBE_RADIUS = 0.8
+const GLOBE_SCALE = 1
+const MARKER_ELEVATION = 0
 let phi = DEFAULT_PHI
 let targetPhi = phi
 let theta = INITIAL_THETA
@@ -147,148 +150,78 @@ const regionRates = computed<Map<string, RegionRate>>(() => {
   return map
 })
 
-function markerId(code: string): string {
-  return `cdn-${code.toLowerCase()}`
-}
+const clusterOverlayEls = new Map<string, HTMLDivElement>()
 
-// 挂载 marker
-const anchorRefs = shallowRef<ReadonlyMap<string, HTMLDivElement>>(new Map())
-
-function getAnchorEl(code: string): HTMLDivElement | undefined {
-  return anchorRefs.value.get(markerId(code))
-}
-
-// 容器尺寸缓存
-let cachedContainerW = 0
-let cachedContainerH = 0
-function refreshContainerSizeCache() {
-  cachedContainerW = containerWidth.value || canvasRef.value?.clientWidth || 320
-  cachedContainerH = containerHeight.value || canvasRef.value?.clientHeight || cachedContainerW
-}
-
-const patchedAnchors = new WeakSet<HTMLElement>()
-
-interface AnchorCtx {
-  xPx: number
-  yPx: number
-}
-const anchorCtxs = new WeakMap<HTMLDivElement, AnchorCtx>()
-const dirtyAnchors = new Set<HTMLDivElement>()
-
-// 批量 flush 锚点位置
-function flushDirtyAnchors() {
-  if (dirtyAnchors.size === 0)
-    return
-  for (const el of dirtyAnchors) {
-    const ctx = anchorCtxs.get(el)
-    if (ctx)
-      el.style.transform = `translate3d(${ctx.xPx}px, ${ctx.yPx}px, 0)`
-  }
-  dirtyAnchors.clear()
-}
-
-// 锚点定位改为性能更优、支持 GPU 加速的 transform
-// 异常回落到 cobe 默认行为
-function patchAnchorTransform(el: HTMLDivElement) {
-  if (patchedAnchors.has(el))
-    return
-  refreshContainerSizeCache()
-  const ctx: AnchorCtx = {
-    xPx: ((Number.parseFloat(el.style.left) || 0) / 100) * cachedContainerW,
-    yPx: ((Number.parseFloat(el.style.top) || 0) / 100) * cachedContainerH,
-  }
-  anchorCtxs.set(el, ctx)
-  el.style.left = '0px'
-  el.style.top = '0px'
-  el.style.transform = `translate3d(${ctx.xPx}px, ${ctx.yPx}px, 0)`
-  el.style.willChange = 'transform'
-  try {
-    Object.defineProperty(el.style, 'left', {
-      configurable: true,
-      enumerable: true,
-      get() { return '0px' },
-      set(v: string) {
-        const next = ((Number.parseFloat(v) || 0) / 100) * cachedContainerW
-        if (next === ctx.xPx)
-          return
-        ctx.xPx = next
-        dirtyAnchors.add(el)
-      },
-    })
-    Object.defineProperty(el.style, 'top', {
-      configurable: true,
-      enumerable: true,
-      get() { return '0px' },
-      set(v: string) {
-        const next = ((Number.parseFloat(v) || 0) / 100) * cachedContainerH
-        if (next === ctx.yPx)
-          return
-        ctx.yPx = next
-        dirtyAnchors.add(el)
-      },
-    })
-    patchedAnchors.add(el)
-  }
-  catch (err) {
-    console.warn('[NodeEarthGlobe] anchor transform patch failed, falling back to cobe default', err)
-  }
-}
-
-function patchAllAnchors() {
-  if (!canvasRef.value)
-    return
-  const wrapper = canvasRef.value.parentElement
-  if (!wrapper)
-    return
-  const anchors = wrapper.querySelectorAll<HTMLDivElement>('div[style*="--cobe-"]')
-  anchors.forEach(patchAnchorTransform)
-}
-
-// hook wrapper.append：在 cobe 写入新锚点的第一个 left/top 之前完成 patch
-const COBE_HOOK_FLAG = Symbol('cobeAppendHooked')
-type HookableWrapper = HTMLElement & { [COBE_HOOK_FLAG]?: boolean }
-
-function hookWrapperAppend() {
-  if (!canvasRef.value)
-    return
-  const wrapper = canvasRef.value.parentElement as HookableWrapper | null
-  if (!wrapper || wrapper[COBE_HOOK_FLAG])
-    return
-  wrapper[COBE_HOOK_FLAG] = true
-  const origAppend = wrapper.append.bind(wrapper)
-  wrapper.append = (...nodes: (Node | string)[]) => {
-    const ret = origAppend(...nodes)
-    for (const node of nodes) {
-      if (node instanceof HTMLDivElement && node.style.cssText.includes('--cobe-'))
-        patchAnchorTransform(node)
-    }
-    return ret
-  }
-}
-
-function syncAnchorRefs() {
-  if (!canvasRef.value) {
-    anchorRefs.value = new Map()
+function setClusterOverlayEl(code: string, el: unknown) {
+  if (el instanceof HTMLDivElement) {
+    el.style.transform = 'translate3d(0px, 0px, 0)'
+    el.style.opacity = '0'
+    el.style.filter = 'blur(20px)'
+    el.style.willChange = 'transform, opacity, filter'
+    clusterOverlayEls.set(code, el)
     return
   }
-  const wrapper = canvasRef.value.parentElement
-  if (!wrapper) {
-    anchorRefs.value = new Map()
+  clusterOverlayEls.delete(code)
+}
+
+function coordToGlobePoint([lat, lon]: [number, number]): [number, number, number] {
+  const latRad = lat * Math.PI / 180
+  const lonRad = lon * Math.PI / 180 - Math.PI
+  const cosLat = Math.cos(latRad)
+  return [
+    -cosLat * Math.cos(lonRad),
+    Math.sin(latRad),
+    cosLat * Math.sin(lonRad),
+  ]
+}
+
+function getRenderSize() {
+  const width = containerWidth.value || canvasRef.value?.clientWidth || 320
+  const height = containerHeight.value || canvasRef.value?.clientHeight || width
+  return { width, height }
+}
+
+// iOS Safari 对 cobe 内部 marker anchor 的 DOM/style 行为不稳定，
+// overlay 改为组件内自行投影定位，避免回落到容器左上角。
+function syncClusterOverlayPositions() {
+  const { width, height } = getRenderSize()
+  if (width <= 0 || height <= 0)
     return
-  }
-  const next = new Map<string, HTMLDivElement>()
+
+  const aspect = width / height
+  const cosTheta = Math.cos(theta)
+  const sinTheta = Math.sin(theta)
+  const cosPhi = Math.cos(phi)
+  const sinPhi = Math.sin(phi)
+  const markerRadius = GLOBE_RADIUS + MARKER_ELEVATION
+  const visibleThreshold = GLOBE_RADIUS * GLOBE_RADIUS
+
   for (const cluster of regionClusters.value) {
-    const id = markerId(cluster.code)
-    const el = wrapper.querySelector<HTMLDivElement>(`div[style*="--cobe-${id}"]`)
-    if (el)
-      next.set(id, el)
+    const el = clusterOverlayEls.get(cluster.code)
+    if (!el)
+      continue
+
+    const [baseX, baseY, baseZ] = coordToGlobePoint(cluster.coord)
+    const x = baseX * markerRadius
+    const y = baseY * markerRadius
+    const z = baseZ * markerRadius
+    const screenX = cosPhi * x + sinPhi * z
+    const screenY = sinPhi * sinTheta * x + cosTheta * y - cosPhi * sinTheta * z
+    const visible = (
+      -sinPhi * cosTheta * x + sinTheta * y + cosPhi * cosTheta * z >= 0
+      || screenX * screenX + screenY * screenY >= visibleThreshold
+    )
+    const xPx = ((screenX / aspect) * GLOBE_SCALE + 1) * width / 2
+    const yPx = ((-screenY) * GLOBE_SCALE + 1) * height / 2
+
+    el.style.transform = `translate3d(${xPx}px, ${yPx}px, 0)`
+    el.style.opacity = visible ? '1' : '0'
+    el.style.filter = visible ? 'blur(0px)' : 'blur(20px)'
   }
-  anchorRefs.value = next
 }
 
 const markers = computed<Marker[]>(() => {
   return regionClusters.value.map(cluster => ({
-    id: markerId(cluster.code),
     location: cluster.coord,
     size: 0, // 不渲染圆点
   }))
@@ -329,12 +262,6 @@ const themeColors = computed(() => {
   }
 })
 
-function getRenderSize() {
-  const width = containerWidth.value || canvasRef.value?.clientWidth || 320
-  const height = containerHeight.value || canvasRef.value?.clientHeight || width
-  return { width, height }
-}
-
 function buildInitialOptions(): COBEOptions {
   const colors = themeColors.value
   const { width, height } = getRenderSize()
@@ -356,22 +283,19 @@ function buildInitialOptions(): COBEOptions {
     arcColor: colors.arcColor,
     arcWidth: 0.75,
     arcHeight: 0.3,
-    markerElevation: 0,
+    markerElevation: MARKER_ELEVATION,
   }
 }
 
-function updateGlobeFrame(forceSyncAnchors = false) {
+function updateGlobeFrame() {
   if (!globe)
     return
-  refreshContainerSizeCache()
   const { width, height } = getRenderSize()
   globe.update({ phi, theta, width, height })
-  if (forceSyncAnchors)
-    syncAnchorRefs()
-  flushDirtyAnchors()
+  syncClusterOverlayPositions()
 }
 
-// phi 收敛/静止时整帧跳过 globe.update，WebGL + 锚点写入双双归零
+// phi 收敛/静止时整帧跳过 globe.update，WebGL + overlay 位置更新双双归零
 const ORIENTATION_IDLE_EPSILON = 1e-5
 const { pause: pauseRaf, resume: resumeRaf } = useRafFn(
   () => {
@@ -387,9 +311,8 @@ const { pause: pauseRaf, resume: resumeRaf } = useRafFn(
       Math.abs(phi - prevPhi) < ORIENTATION_IDLE_EPSILON
       && Math.abs(theta - prevTheta) < ORIENTATION_IDLE_EPSILON
     ) {
-      if (!shouldAutoRotate.value && shouldKeepStaticRedraw()) {
-        updateGlobeFrame(true)
-      }
+      if (!shouldAutoRotate.value && shouldKeepStaticRedraw())
+        updateGlobeFrame()
       return
     }
     updateGlobeFrame()
@@ -405,13 +328,10 @@ function startGlobe() {
     triggerStaticRedrawWindow()
   }
   globe = createGlobe(canvasRef.value, buildInitialOptions())
-  refreshContainerSizeCache()
-  hookWrapperAppend()
-  patchAllAnchors()
-  syncAnchorRefs()
+  syncClusterOverlayPositions()
   // 静止地球没有自转帧，首帧需要在实际尺寸稳定后主动重绘一次。
   requestAnimationFrame(() => {
-    updateGlobeFrame(true)
+    updateGlobeFrame()
   })
   // documentVisibility 同步可读；useElementVisibility 需等 IntersectionObserver 首回调
   // 先按"前台"启动，若实际不可见，shouldRender 的 watch 会在下一帧 pause
@@ -419,13 +339,9 @@ function startGlobe() {
     resumeRaf()
 }
 
-// 必须先清空 anchorRefs 让 Teleport 把 marker 移回 wrapper，再 destroy；
-// 否则 destroy 时锚点 div 被移除会连带 marker 一起被剥离。
-// cobe 也不会清理自己创建的 wrapper Z，这里手动收尾。
-async function stopGlobe() {
+// cobe 不会清理自己创建的 wrapper，这里手动收尾。
+function stopGlobe() {
   pauseRaf()
-  anchorRefs.value = new Map()
-  await nextTick()
   globe?.destroy()
   globe = null
   if (canvasRef.value && containerRef.value) {
@@ -437,8 +353,8 @@ async function stopGlobe() {
   }
 }
 
-async function rebuildGlobe() {
-  await stopGlobe()
+function rebuildGlobe() {
+  stopGlobe()
   startGlobe()
 }
 
@@ -447,14 +363,12 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  pauseRaf()
-  globe?.destroy()
-  globe = null
+  stopGlobe()
 })
 
 // 切换主题时重建 globe
-watch(() => appStore.isDark, async () => {
-  await rebuildGlobe()
+watch(() => appStore.isDark, () => {
+  rebuildGlobe()
 })
 
 watch(
@@ -464,7 +378,7 @@ watch(
       return
     if (!shouldAutoRotate.value)
       triggerStaticRedrawWindow(600)
-    updateGlobeFrame(true)
+    updateGlobeFrame()
   },
 )
 
@@ -474,23 +388,21 @@ watch(
     if (mode === 'earth-stop')
       resetStoppedView()
     triggerStaticRedrawWindow()
-    updateGlobeFrame(true)
+    updateGlobeFrame()
   },
 )
 
 // 仅地区集合或在线状态变化时才推送 markers/arcs；速率推送不触发
 watch(
   () => regionClusters.value.map(clusterKey).join(','),
-  () => {
+  async () => {
     if (!globe)
       return
-    refreshContainerSizeCache()
     globe.update({ markers: markers.value, arcs: arcs.value })
-    syncAnchorRefs()
+    await nextTick()
+    syncClusterOverlayPositions()
     if (!shouldAutoRotate.value)
       triggerStaticRedrawWindow(600)
-    // phi 静止时 RAF 跳帧会漏掉这次 flush，手动补一次
-    flushDirtyAnchors()
   },
 )
 
@@ -554,30 +466,25 @@ function formatRate(bytesPerSec: number): string {
     />
 
     <template v-for="cluster in regionClusters" :key="cluster.code">
-      <Teleport :to="getAnchorEl(cluster.code) ?? containerRef!" :disabled="!getAnchorEl(cluster.code)">
-        <div
-          class="absolute -top-7.5 left-0 transition-[opacity,filter] duration-500 rounded backdrop-blur-[2px]"
-          :style="{
-            opacity: `var(--cobe-visible-${markerId(cluster.code)}, 0)`,
-            filter: `blur(calc((1 - var(--cobe-visible-${markerId(cluster.code)}, 0)) * 20px))`,
-          }"
+      <div
+        :ref="el => setClusterOverlayEl(cluster.code, el)"
+        class="absolute -top-7.5 left-0 pointer-events-none rounded backdrop-blur-sm transition-[opacity,filter] duration-500"
+      >
+        <img
+          :src="`/images/flags/${cluster.code}.svg`" :alt="cluster.code"
+          class="size-4 block absolute -bottom-2 -left-2 z-1"
         >
-          <img
-            :src="`/images/flags/${cluster.code}.svg`" :alt="cluster.code"
-            class="size-4 block absolute -bottom-2 -left-2 z-1"
-          >
-          <div
-            class="relative z-2 bg-background/60 rounded py-0.5 px-1 text-xs zoom-80 items-start justify-center text-nowrap"
-          >
-            <div class="text-green-600 flex flex-row items-center gap-0.5">
-              <Icon icon="tabler:chevron-up" width="12" height="12" /> {{ formatRate(rateFor(cluster.code).up) }}
-            </div>
-            <div class="text-blue-600 flex flex-row items-center gap-0.5">
-              <Icon icon="tabler:chevron-down" width="12" height="12" /> {{ formatRate(rateFor(cluster.code).down) }}
-            </div>
+        <div
+          class="relative z-2 bg-background/60 rounded py-0.5 px-1 text-xs zoom-80 items-start justify-center text-nowrap"
+        >
+          <div class="text-green-600 flex flex-row items-center gap-0.5">
+            <Icon icon="tabler:chevron-up" width="12" height="12" /> {{ formatRate(rateFor(cluster.code).up) }}
+          </div>
+          <div class="text-blue-600 flex flex-row items-center gap-0.5">
+            <Icon icon="tabler:chevron-down" width="12" height="12" /> {{ formatRate(rateFor(cluster.code).down) }}
           </div>
         </div>
-      </Teleport>
+      </div>
     </template>
 
     <div
