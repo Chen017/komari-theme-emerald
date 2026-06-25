@@ -1,6 +1,6 @@
 import type { MaybeRefOrGetter } from 'vue'
 import { computed } from 'vue'
-import { useNodePingStats } from '@/composables/useNodePingStats'
+import { NODE_PING_BAR_COUNT, useNodePingStats } from '@/composables/useNodePingStats'
 import { useAppStore } from '@/stores/app'
 import { formatDateTime } from '@/utils/helper'
 
@@ -18,8 +18,6 @@ interface UseNodePingDisplayOptions {
   loadingPanelTooltipText?: Partial<Record<NodePingMetric, string>>
   emptyPanelTooltipText?: Partial<Record<NodePingMetric, string>>
 }
-
-const EMPTY_PING_BAR_COUNT = 20
 
 function getLatencyToneClass(latency: number): string {
   if (latency <= 60)
@@ -104,7 +102,7 @@ export function useNodePingDisplay(
               ? 'N/A'
               : 'N/A'
 
-    return Array.from({ length: EMPTY_PING_BAR_COUNT }, (_, index) => ({
+    return Array.from({ length: NODE_PING_BAR_COUNT }, (_, index) => ({
       key: `${metric}-empty-${index}`,
       className: 'bg-muted-foreground/10',
       tooltip,

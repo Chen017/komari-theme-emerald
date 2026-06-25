@@ -42,7 +42,7 @@ interface SharedPingRecordsEntry {
   lastFetchedAt: number
 }
 
-const HISTORY_BUCKET_COUNT = 20
+export const NODE_PING_BAR_COUNT = 20
 const CACHE_VERSION = 5
 const CACHE_KEY_PREFIX = 'komari-theme-emerald:node-ping-stats'
 const FULL_LOSS_EPSILON = 1e-6
@@ -291,7 +291,7 @@ function buildPingHistory(records: PingRecord[]): NodePingHistoryPoint[] {
 
   const firstTime = sortedRecords[0]?.timestamp ?? 0
   const lastTime = sortedRecords.at(-1)?.timestamp ?? firstTime
-  const bucketCount = Math.min(HISTORY_BUCKET_COUNT, sortedRecords.length)
+  const bucketCount = Math.min(NODE_PING_BAR_COUNT, sortedRecords.length)
   const bucketSize = Math.max(1, (lastTime - firstTime) / bucketCount)
 
   return Array.from({ length: bucketCount }, (_, index) => {
