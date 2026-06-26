@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { COBEOptions, Globe, Marker } from 'cobe'
+import type { ComponentPublicInstance } from 'vue'
 import type { NodeData } from '@/stores/nodes'
 import { Icon } from '@iconify/vue'
 import {
@@ -150,18 +151,7 @@ const regionRates = computed<Map<string, RegionRate>>(() => {
 })
 
 const clusterOverlayEls = new Map<string, HTMLDivElement>()
-
-function setClusterOverlayEl(code: string, el: unknown) {
-  if (el instanceof HTMLDivElement) {
-    el.style.transform = 'translate3d(0px, 0px, 0)'
-    el.style.opacity = '0'
-    el.style.filter = 'blur(20px)'
-    el.style.willChange = 'transform, opacity, filter'
-    clusterOverlayEls.set(code, el)
-    return
-  }
-  clusterOverlayEls.delete(code)
-}
+const clusterOverlayRefBinders = new Map<string, (el: Element | ComponentPublicInstance | null) => void>()
 
 function coordToGlobePoint([lat, lon]: [number, number]): [number, number, number] {
   const latRad = lat * Math.PI / 180
@@ -182,10 +172,13 @@ function getRenderSize() {
 
 // iOS Safari 对 cobe 内部 marker anchor 的 DOM/style 行为不稳定，
 // overlay 改为组件内自行投影定位，避免回落到容器左上角。
-function syncClusterOverlayPositions() {
+function syncClusterOverlayPosition(cluster: RegionCluster, el: HTMLDivElement) {
   const { width, height } = getRenderSize()
-  if (width <= 0 || height <= 0)
+  if (width <= 0 || height <= 0) {
+    el.style.opacity = '0'
+    el.style.filter = 'blur(20px)'
     return
+  }
 
   const aspect = width / height
   const cosTheta = Math.cos(theta)
@@ -194,29 +187,60 @@ function syncClusterOverlayPositions() {
   const sinPhi = Math.sin(phi)
   const markerRadius = GLOBE_RADIUS + MARKER_ELEVATION
   const visibleThreshold = GLOBE_RADIUS * GLOBE_RADIUS
+  const [baseX, baseY, baseZ] = coordToGlobePoint(cluster.coord)
+  const x = baseX * markerRadius
+  const y = baseY * markerRadius
+  const z = baseZ * markerRadius
+  const screenX = cosPhi * x + sinPhi * z
+  const screenY = sinPhi * sinTheta * x + cosTheta * y - cosPhi * sinTheta * z
+  const visible = (
+    -sinPhi * cosTheta * x + sinTheta * y + cosPhi * cosTheta * z >= 0
+    || screenX * screenX + screenY * screenY >= visibleThreshold
+  )
+  const xPx = ((screenX / aspect) * GLOBE_SCALE + 1) * width / 2
+  const yPx = ((-screenY) * GLOBE_SCALE + 1) * height / 2
 
+  el.style.transform = `translate3d(${xPx}px, ${yPx}px, 0)`
+  el.style.opacity = visible ? '1' : '0'
+  el.style.filter = visible ? 'blur(0px)' : 'blur(20px)'
+}
+
+function syncClusterOverlayPositions() {
   for (const cluster of regionClusters.value) {
     const el = clusterOverlayEls.get(cluster.code)
     if (!el)
       continue
-
-    const [baseX, baseY, baseZ] = coordToGlobePoint(cluster.coord)
-    const x = baseX * markerRadius
-    const y = baseY * markerRadius
-    const z = baseZ * markerRadius
-    const screenX = cosPhi * x + sinPhi * z
-    const screenY = sinPhi * sinTheta * x + cosTheta * y - cosPhi * sinTheta * z
-    const visible = (
-      -sinPhi * cosTheta * x + sinTheta * y + cosPhi * cosTheta * z >= 0
-      || screenX * screenX + screenY * screenY >= visibleThreshold
-    )
-    const xPx = ((screenX / aspect) * GLOBE_SCALE + 1) * width / 2
-    const yPx = ((-screenY) * GLOBE_SCALE + 1) * height / 2
-
-    el.style.transform = `translate3d(${xPx}px, ${yPx}px, 0)`
-    el.style.opacity = visible ? '1' : '0'
-    el.style.filter = visible ? 'blur(0px)' : 'blur(20px)'
+    syncClusterOverlayPosition(cluster, el)
   }
+}
+
+function setClusterOverlayEl(code: string, el: Element | ComponentPublicInstance | null) {
+  if (el instanceof HTMLDivElement) {
+    el.style.willChange = 'transform, opacity, filter'
+    clusterOverlayEls.set(code, el)
+
+    const cluster = regionClusters.value.find(item => item.code === code)
+    if (cluster) {
+      syncClusterOverlayPosition(cluster, el)
+    }
+    else {
+      el.style.opacity = '0'
+      el.style.filter = 'blur(20px)'
+    }
+    return
+  }
+
+  clusterOverlayEls.delete(code)
+}
+
+function bindClusterOverlayRef(code: string): (el: Element | ComponentPublicInstance | null) => void {
+  const existingBinder = clusterOverlayRefBinders.get(code)
+  if (existingBinder)
+    return existingBinder
+
+  const binder = (el: Element | ComponentPublicInstance | null) => setClusterOverlayEl(code, el)
+  clusterOverlayRefBinders.set(code, binder)
+  return binder
 }
 
 const markers = computed<Marker[]>(() => {
@@ -444,7 +468,7 @@ function formatRate(bytesPerSec: number): string {
 
     <template v-for="cluster in regionClusters" :key="cluster.code">
       <div
-        :ref="el => setClusterOverlayEl(cluster.code, el)"
+        :ref="bindClusterOverlayRef(cluster.code)"
         class="absolute -top-7.5 left-0 pointer-events-none rounded backdrop-blur-sm transition-[opacity,filter] duration-500"
       >
         <img
