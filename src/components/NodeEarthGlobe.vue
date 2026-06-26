@@ -88,7 +88,7 @@ function shouldKeepStaticRedraw(): boolean {
 function getCappedDpr(): number {
   if (typeof window === 'undefined')
     return 1
-  return window.devicePixelRatio || 1
+  return Math.min(window.devicePixelRatio || 1, 2)
 }
 
 interface RegionCluster {
