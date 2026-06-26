@@ -298,6 +298,20 @@ const { pause: pauseRaf, resume: resumeRaf } = useRafFn(
   { immediate: false }, // , fpsLimit: 30
 )
 
+function syncRafState() {
+  if (!globe)
+    return
+
+  if (shouldRender.value && (shouldAutoRotate.value || isPointerDown)) {
+    resumeRaf()
+    return
+  }
+
+  pauseRaf()
+  if (shouldRender.value)
+    updateGlobeFrame()
+}
+
 function startGlobe() {
   if (!canvasRef.value)
     return
@@ -313,8 +327,7 @@ function startGlobe() {
   })
   // documentVisibility 同步可读；useElementVisibility 需等 IntersectionObserver 首回调
   // 先按"前台"启动，若实际不可见，shouldRender 的 watch 会在下一帧 pause
-  if (documentVisibility.value === 'visible' && shouldAutoRotate.value)
-    resumeRaf()
+  syncRafState()
 }
 
 // cobe 不会清理自己创建的 wrapper，这里手动收尾。
@@ -364,7 +377,7 @@ watch(
     if (mode === 'earth-stop')
       resetStoppedView()
     triggerStaticRedrawWindow()
-    updateGlobeFrame()
+    syncRafState()
   },
 )
 
@@ -382,17 +395,10 @@ watch(
   },
 )
 
-watch(shouldRender, (visible) => {
+watch(shouldRender, () => {
   if (!globe)
     return
-  if (visible && shouldAutoRotate.value) {
-    resumeRaf()
-    return
-  }
-
-  pauseRaf()
-  if (visible)
-    updateGlobeFrame()
+  syncRafState()
 })
 
 function onPointerDown(e: PointerEvent) {
@@ -401,6 +407,7 @@ function onPointerDown(e: PointerEvent) {
   lastPointerY = e.clientY
   const target = e.currentTarget as HTMLElement
   target.setPointerCapture(e.pointerId)
+  syncRafState()
 }
 function onPointerMove(e: PointerEvent) {
   if (!isPointerDown)
@@ -417,6 +424,7 @@ function onPointerUp(e: PointerEvent) {
   const target = e.currentTarget as HTMLElement
   if (target.hasPointerCapture(e.pointerId))
     target.releasePointerCapture(e.pointerId)
+  syncRafState()
 }
 
 const totalServers = computed(() => displayNodes.value.length)
