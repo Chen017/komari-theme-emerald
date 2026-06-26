@@ -26,7 +26,7 @@ const exchangeRateBaseCurrency = ref<CurrencyCode>('CNY')
 const excludeFreeNodes = ref(true)
 const financeRateCurrencies: readonly CurrencyCode[] = financeHelper.DISPLAY_FINANCE_CURRENCIES
 const summaryNodes = computed(() => props.nodes ?? nodesStore.nodes)
-const summaryTransitionKey = computed(() => props.transitionKey ?? summaryNodes.value.map(node => node.uuid).join('|'))
+const summaryTransitionKey = computed(() => props.transitionKey ?? 'all')
 const metricSwitchTransitionProps = computed(() => ({
   ...(appStore.disablePageAnimation
     ? { css: false }

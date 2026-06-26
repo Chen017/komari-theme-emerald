@@ -1,4 +1,4 @@
-import type { Client, NodeStatus } from '@/utils/rpc'
+import type { Client, NodeStatus, NodeStatusPing } from '@/utils/rpc'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { parseNodeGroups } from '@/utils/groupHelper'
@@ -60,6 +60,7 @@ export interface NodeData {
   connections: number
   connections_udp: number
   uptime: number
+  ping?: Record<string, NodeStatusPing>
 }
 
 /** WebSocket 连接状态 */
@@ -86,6 +87,7 @@ interface StatusData {
   connections: number
   connections_udp: number
   uptime: number
+  ping?: Record<string, NodeStatusPing>
 }
 
 const useNodesStore = defineStore('nodes', () => {
@@ -177,6 +179,7 @@ const useNodesStore = defineStore('nodes', () => {
       connections: 0,
       connections_udp: 0,
       uptime: 0,
+      ping: undefined,
     }
   }
 
@@ -205,6 +208,7 @@ const useNodesStore = defineStore('nodes', () => {
       connections: status.connections,
       connections_udp: status.connections_udp,
       uptime: status.uptime,
+      ping: status.ping,
     }
   }
 
@@ -342,6 +346,7 @@ const useNodesStore = defineStore('nodes', () => {
           connections: currentNode.connections,
           connections_udp: currentNode.connections_udp,
           uptime: currentNode.uptime,
+          ping: currentNode.ping,
         })
       }
       else {

@@ -309,11 +309,6 @@ function getCustomTags(node: NodeData): Array<string> {
                 </div>
               </div>
 
-              <!-- 延迟/丢包 -->
-              <!-- <div v-else-if="col.key === 'ping'">
-              <NodePingListCell :uuid="node.uuid" :online="node.online" />
-            </div> -->
-
               <!-- 运行时间 -->
               <div v-else-if="col.key === 'uptime'" class="flex flex-col gap-0.5">
                 <span class="text-[10px] text-muted-foreground truncate">

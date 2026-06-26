@@ -30,6 +30,7 @@ const slots = useSlots()
 
 const rootRef = ref<HTMLElement | null>(null)
 const isOpen = ref(false)
+const isHoverOpen = ref(false)
 let lastTouchOpenAt = 0
 let shouldStopNextClick = false
 
@@ -61,6 +62,7 @@ function isTouchLikePointer(event: PointerEvent) {
 
 function closeTooltip() {
   isOpen.value = false
+  isHoverOpen.value = false
 }
 
 function removeDocumentListeners() {
@@ -100,6 +102,15 @@ function handleClick(event: MouseEvent) {
   shouldStopNextClick = false
 }
 
+function openHoverTooltip() {
+  if (hasTooltip.value)
+    isHoverOpen.value = true
+}
+
+function closeHoverTooltip() {
+  isHoverOpen.value = false
+}
+
 watch(isOpen, (open) => {
   if (typeof document === 'undefined')
     return
@@ -129,11 +140,15 @@ onBeforeUnmount(removeDocumentListeners)
     :data-state="isOpen ? 'open' : 'closed'"
     :class="cn('group/data-tooltip relative inline-block', props.class)"
     @pointerdown.capture="handlePointerDown"
+    @pointerenter="openHoverTooltip"
+    @pointerleave="closeHoverTooltip"
+    @focusin="openHoverTooltip"
+    @focusout="closeHoverTooltip"
     @click="handleClick"
   >
     <slot />
     <span
-      v-if="hasTooltip"
+      v-if="hasTooltip && (isOpen || isHoverOpen)"
       role="tooltip"
       :class="cn(
         'pointer-events-none absolute z-20 hidden rounded bg-foreground/80 p-1 text-[10px] leading-none text-background shadow-lg group-hover/data-tooltip:block group-focus-within/data-tooltip:block whitespace-normal break-words',

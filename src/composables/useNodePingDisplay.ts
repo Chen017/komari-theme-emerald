@@ -1,5 +1,5 @@
 import type { MaybeRefOrGetter } from 'vue'
-import { computed } from 'vue'
+import { computed, toValue } from 'vue'
 import { NODE_PING_BAR_COUNT, useNodePingStats } from '@/composables/useNodePingStats'
 import { useAppStore } from '@/stores/app'
 import { formatDateTime } from '@/utils/helper'
@@ -13,6 +13,7 @@ export interface NodePingBar {
 }
 
 interface UseNodePingDisplayOptions {
+  enabled?: MaybeRefOrGetter<boolean>
   loadingDisplayText?: string
   emptyDisplayText?: string
   loadingPanelTooltipText?: Partial<Record<NodePingMetric, string>>
@@ -50,6 +51,8 @@ export function useNodePingDisplay(
   const appStore = useAppStore()
 
   const pingStatsEnabled = computed(() => {
+    if (options.enabled !== undefined && !toValue(options.enabled))
+      return false
     if (appStore.publicSettings?.record_enabled === false)
       return false
     return appStore.publicSettings?.ping_record_preserve_time !== 0
