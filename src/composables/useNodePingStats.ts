@@ -222,6 +222,7 @@ async function loadSharedPingRecords(entry: SharedPingRecordsEntry, hours: numbe
     try {
       const result = await rpc.getClient().call<SharedPingRecordsResponse>('common:getRecords', {
         type: 'ping',
+        // 新版 getRecords 可能只返回近期可用样本，hours 仅作为服务端查询窗口。
         hours,
       })
 
@@ -435,7 +436,7 @@ export function useNodePingStats(
     syncSharedRecordsSubscription(null)
   })
 
-  // stats 由共享 getRecords 结果派生；共享记录每分钟刷新一次后会自动重算。
+  // stats 由共享 getRecords 的近期样本派生，不将结果视为完整的 hours 时段数据。
   const stats = computed<NodePingStatsState>(() => {
     const { uuid: nodeUuid, hours, enabled } = resolved.value
     if (!enabled || !nodeUuid.trim())

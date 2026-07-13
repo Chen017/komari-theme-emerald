@@ -6,6 +6,9 @@ import { formatDateTime } from '@/utils/helper'
 
 export type NodePingMetric = 'latency' | 'loss'
 
+// getRecords 在新版主控中返回的是近期可用样本，不保证覆盖完整 1 小时。
+const RECENT_PING_RECORDS_QUERY_HOURS = 1
+
 export interface NodePingBar {
   key: string
   className: string
@@ -58,15 +61,10 @@ export function useNodePingDisplay(
     return appStore.publicSettings?.ping_record_preserve_time !== 0
   })
 
-  const pingStatsHours = computed(() => {
-    const preserveTime = appStore.publicSettings?.ping_record_preserve_time
-    if (typeof preserveTime === 'number' && preserveTime > 0)
-      return Math.min(preserveTime, 1)
-    return 1
-  })
+  const pingRecordsQueryHours = computed(() => RECENT_PING_RECORDS_QUERY_HOURS)
 
   const pingStats = useNodePingStats(uuid, {
-    hours: pingStatsHours,
+    hours: pingRecordsQueryHours,
     enabled: pingStatsEnabled,
   })
 
@@ -158,7 +156,7 @@ export function useNodePingDisplay(
   return {
     pingStats,
     pingStatsEnabled,
-    pingStatsHours,
+    pingRecordsQueryHours,
     latencyRenderBars,
     lossRenderBars,
     latencyDisplay,
