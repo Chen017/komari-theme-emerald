@@ -11,7 +11,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useBackgroundSurface } from '@/composables/useBackgroundSurface'
 import { useAppStore } from '@/stores/app'
 import { cutPeakValues, interpolateNullsLinear } from '@/utils/recordHelper'
-import { getSharedRpc } from '@/utils/rpc'
+import { getSharedRpc, RpcError } from '@/utils/rpc'
 import '@/utils/echarts' // 共享 ECharts 配置
 
 const props = defineProps<{
@@ -163,12 +163,23 @@ interface PingMetricStatsResponse {
   stats: PingMetricTaskStats[]
 }
 
+interface PingRecordsResponse {
+  records: PingRecord[]
+  tasks?: TaskInfo[]
+}
+
+interface PingChartData {
+  records: PingRecord[]
+  tasks: TaskInfo[]
+}
+
 // 数据状态
 const remoteData = shallowRef<PingRecord[]>([])
 const tasks = shallowRef<TaskInfo[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
 let fetchRequestId = 0
+let metricRpcSupported: boolean | null = null
 
 // 任务选择
 const selectedTaskIds = ref<number[]>([])
@@ -191,6 +202,81 @@ const mergeToleranceMs = computed(() => {
 
 // ==================== 数据获取 ====================
 
+function isMethodNotFoundError(err: unknown): boolean {
+  return err instanceof RpcError && err.code === -32601
+}
+
+async function fetchMetricRecords(uuid: string, hours: number): Promise<PingChartData> {
+  const [metricResult, statsResult] = await Promise.all([
+    rpc.getClient().call<MetricQueryResponse>('public:queryMetrics', {
+      metric_keys: ['ping.latency_ms', 'ping.loss'],
+      entity_id: uuid,
+      hours,
+      downsample: true,
+      max_points: 500,
+      aggregation: 'avg',
+    }),
+    rpc.getClient().call<PingMetricStatsResponse>('public:getPingMetricStats', {
+      uuid,
+      hours,
+      max_points: 500,
+    }),
+  ])
+
+  const records: PingRecord[] = []
+  for (const series of metricResult?.series ?? []) {
+    const taskId = Number(series.tags?.task_id ?? series.tag?.task_id)
+    if (!Number.isInteger(taskId))
+      continue
+
+    for (const point of series.points ?? []) {
+      if (point.value === null)
+        continue
+
+      if (series.metric_key === 'ping.loss' && point.value <= 0)
+        continue
+
+      records.push({
+        client: uuid,
+        task_id: taskId,
+        time: point.time,
+        value: series.metric_key === 'ping.loss' ? -1 : point.value,
+      })
+    }
+  }
+
+  const metricTasks = (statsResult?.stats ?? []).map(task => ({
+    id: Number(task.task_id),
+    name: task.name || `Ping ${task.task_id}`,
+    interval: task.interval ?? 60,
+    loss: task.loss,
+    p99: task.p99,
+    p50: task.p50,
+    p99_p50_ratio: task.p99_p50_ratio,
+    min: task.min,
+    max: task.max,
+    avg: task.avg,
+    latest: task.latest,
+    total: task.total,
+    type: task.type,
+  })).filter(task => Number.isInteger(task.id))
+
+  return { records, tasks: metricTasks }
+}
+
+async function fetchLegacyRecords(uuid: string, hours: number): Promise<PingChartData> {
+  const result = await rpc.getClient().call<PingRecordsResponse>('common:getRecords', {
+    type: 'ping',
+    uuid,
+    hours,
+  })
+
+  return {
+    records: result?.records ?? [],
+    tasks: result?.tasks ?? [],
+  }
+}
+
 async function fetchRecords() {
   if (!props.uuid)
     return
@@ -203,64 +289,32 @@ async function fetchRecords() {
   error.value = null
 
   try {
-    const [metricResult, statsResult] = await Promise.all([
-      rpc.getClient().call<MetricQueryResponse>('public:queryMetrics', {
-        metric_keys: ['ping.latency_ms', 'ping.loss'],
-        entity_id: uuid,
-        hours,
-        downsample: true,
-        max_points: 500,
-        aggregation: 'avg',
-      }),
-      rpc.getClient().call<PingMetricStatsResponse>('public:getPingMetricStats', {
-        uuid,
-        hours,
-        max_points: 500,
-      }),
-    ])
+    let result: PingChartData
+    if (metricRpcSupported === false) {
+      result = await fetchLegacyRecords(uuid, hours)
+    }
+    else {
+      try {
+        result = await fetchMetricRecords(uuid, hours)
+        metricRpcSupported = true
+      }
+      catch (err) {
+        if (!isMethodNotFoundError(err))
+          throw err
+
+        metricRpcSupported = false
+        result = await fetchLegacyRecords(uuid, hours)
+      }
+    }
 
     if (requestId !== fetchRequestId)
       return
 
-    const records: PingRecord[] = []
-    for (const series of metricResult?.series ?? []) {
-      const taskId = Number(series.tags?.task_id ?? series.tag?.task_id)
-      if (!Number.isInteger(taskId))
-        continue
-
-      for (const point of series.points ?? []) {
-        if (point.value === null)
-          continue
-
-        if (series.metric_key === 'ping.loss' && point.value <= 0)
-          continue
-
-        records.push({
-          client: uuid,
-          task_id: taskId,
-          time: point.time,
-          value: series.metric_key === 'ping.loss' ? -1 : point.value,
-        })
-      }
-    }
+    const records = result.records
     records.sort((a, b) => dayjs(a.time).valueOf() - dayjs(b.time).valueOf())
 
     remoteData.value = records
-    tasks.value = (statsResult?.stats ?? []).map(task => ({
-      id: Number(task.task_id),
-      name: task.name || `Ping ${task.task_id}`,
-      interval: task.interval ?? 60,
-      loss: task.loss,
-      p99: task.p99,
-      p50: task.p50,
-      p99_p50_ratio: task.p99_p50_ratio,
-      min: task.min,
-      max: task.max,
-      avg: task.avg,
-      latest: task.latest,
-      total: task.total,
-      type: task.type,
-    })).filter(task => Number.isInteger(task.id))
+    tasks.value = result.tasks
 
     if (tasks.value.length > 0 && selectedTaskIds.value.length === 0) {
       selectedTaskIds.value = tasks.value.map(t => t.id)
