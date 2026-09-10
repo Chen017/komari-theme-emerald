@@ -223,42 +223,71 @@ function getMetricTaskId(series: MetricSeries, point: MetricPoint): number | nul
   return Number.isInteger(taskId) ? taskId : null
 }
 
+// 与官方 komari-web HISTORY_MAX_POINTS 对齐；过小会导致长范围间隔过大、曲线断点过多
+const HISTORY_MAX_POINTS = 700
+
+/**
+ * 将 metrics 延迟点转为图表记录。
+ * 官方在 fill_empty=true 时会把丢包采样（latency=-1）转成 null；
+ * 这里统一用 value=-1 表示断点/丢包，供合并与丢包标记复用。
+ * 不要把 ping.loss 的聚合平均值（0~1）当成整点丢包写入延迟序列，
+ * 否则 7 天等长范围会出现大量伪断点，曲线断断续续。
+ */
+function pushLatencyMetricPoint(
+  records: PingRecord[],
+  uuid: string,
+  taskId: number,
+  point: MetricPoint,
+) {
+  if (point.value === null || point.value < 0) {
+    records.push({
+      client: uuid,
+      task_id: taskId,
+      time: point.time,
+      value: -1,
+    })
+    return
+  }
+
+  records.push({
+    client: uuid,
+    task_id: taskId,
+    time: point.time,
+    value: point.value,
+  })
+}
+
 async function fetchMetricRecords(uuid: string, hours: number): Promise<PingChartData> {
   const [metricResult, statsResult] = await Promise.all([
     rpc.getClient().call<MetricQueryResponse>('public:queryMetrics', {
-      metric_keys: ['ping.latency_ms', 'ping.loss'],
+      // 与官方主题一致：延迟曲线只吃 ping.latency_ms；丢包率走 getPingMetricStats
+      metric_keys: ['ping.latency_ms'],
       entity_id: uuid,
       hours,
-      downsample: true,
-      max_points: 500,
+      max_points: HISTORY_MAX_POINTS,
       aggregation: 'avg',
+      // 官方默认开启：空桶补 null，并把 latency=-1 规范为 null
+      fill_empty: true,
     }),
     rpc.getClient().call<PingMetricStatsResponse>('public:getPingMetricStats', {
+      entity_id: uuid,
       uuid,
       hours,
-      max_points: 500,
+      max_points: HISTORY_MAX_POINTS,
     }),
   ])
 
   const records: PingRecord[] = []
   for (const series of metricResult?.series ?? []) {
+    if (series.metric_key !== 'ping.latency_ms')
+      continue
+
     for (const point of series.points ?? []) {
       const taskId = getMetricTaskId(series, point)
       if (taskId === null)
         continue
 
-      if (point.value === null)
-        continue
-
-      if (series.metric_key === 'ping.loss' && point.value <= 0)
-        continue
-
-      records.push({
-        client: uuid,
-        task_id: taskId,
-        time: point.time,
-        value: series.metric_key === 'ping.loss' ? -1 : point.value,
-      })
+      pushLatencyMetricPoint(records, uuid, taskId, point)
     }
   }
 
@@ -423,10 +452,12 @@ const chartData = computed(() => {
   }
 
   if (selectedKeys.length > 0 && data.length > 0) {
+    // 长范围降采样后桶间隔会变大，按查询跨度放宽插值上限，避免 7 天+ 曲线被硬截断
+    const bucketMs = Math.ceil((selectedHours.value * 3600_000) / HISTORY_MAX_POINTS)
     data = interpolateNullsLinear(data, selectedKeys, {
       maxGapMultiplier: 6,
       minCapMs: 2 * 60_000,
-      maxCapMs: 30 * 60_000,
+      maxCapMs: Math.max(30 * 60_000, bucketMs * 6),
     })
   }
 
@@ -499,6 +530,8 @@ const packetLossMarkers = computed(() => {
   if (!data.length || !selectedTasks.value.length)
     return markers
 
+  // 长范围 fill_empty 可能产生大量空桶，限制标记数量避免 markLine 过密拖垮渲染
+  const MAX_LOSS_MARKERS_PER_TASK = 200
   const chartTimes = data.map(item => dayjs(item.time as string).valueOf())
   const toleranceMs = mergeToleranceMs.value
 
@@ -507,6 +540,9 @@ const packetLossMarkers = computed(() => {
     const taskLossRecords = remoteData.value.filter(rec => rec.task_id === task.id && rec.value < 0)
 
     for (const record of taskLossRecords) {
+      if (points.size >= MAX_LOSS_MARKERS_PER_TASK)
+        break
+
       const lossTs = dayjs(record.time).valueOf()
       let matchedIndex = -1
 
