@@ -646,6 +646,14 @@ const packetLossMarkers = computed(() => {
   return markers
 })
 
+const totalLossMarkersCount = computed(() => {
+  let count = 0
+  for (const task of selectedTasks.value) {
+    count += (packetLossMarkers.value.get(task.id) || []).length
+  }
+  return count
+})
+
 // 切换任务选中状态
 function toggleTask(taskId: number) {
   if (selectedTaskIds.value.includes(taskId)) {
@@ -732,8 +740,19 @@ const pingChartOption = computed(() => {
           const loss = lossMap.get(idx)
           if (loss === undefined || loss <= 0)
             return null
-          // 丢包率数值 0~100，对应右侧 Y 轴 0%~100%
-          return Number((loss * 100).toFixed(1))
+          const val = Number((loss * 100).toFixed(1))
+          if (loss >= 0.99) {
+            // 100% 全损严重断网，柱体采用报警红强化警示
+            return {
+              value: val,
+              itemStyle: {
+                color: '#ef4444',
+                opacity: 1,
+                borderRadius: [2, 2, 0, 0] as [number, number, number, number],
+              },
+            }
+          }
+          return val
         })
 
         return {
@@ -742,6 +761,7 @@ const pingChartOption = computed(() => {
           xAxisIndex: 1,
           yAxisIndex: 1,
           barWidth: 2,
+          barMinHeight: 3, // 微小丢包保底 3px 高度，保证清晰可见不漏看
           barGap: '10%',
           itemStyle: {
             color,
@@ -765,19 +785,23 @@ const pingChartOption = computed(() => {
   // Grid 布局：双通道 vs 单通道
   const gridConfig = showLoss.value
     ? [
-        // 上通道：延迟折线（约 52% 高度，极致清爽）
+        // 上通道：延迟折线（黄金分割 56% 高度，极致清爽舒展）
         {
           left: 56,
           right: 56,
           top: 24,
-          height: '52%',
+          height: '56%',
         },
-        // 下通道：专属丢包通道（约 18% 高度）
+        // 下通道：专属丢包泳道（19% 高度，独立微弱背景与细边框）
         {
           left: 56,
           right: 56,
-          top: '67%',
-          height: '18%',
+          top: '68%',
+          height: '19%',
+          show: true,
+          backgroundColor: isDark.value ? 'rgba(255, 255, 255, 0.015)' : 'rgba(0, 0, 0, 0.012)',
+          borderColor: chartThemeColors.value.borderColor,
+          borderWidth: 1,
         },
       ]
     : [
@@ -867,7 +891,7 @@ const pingChartOption = computed(() => {
             },
           },
         },
-        // 下通道 Y 轴：丢包率 (%)，标在右侧
+        // 下通道 Y 轴：丢包率 (%)，标在右侧轴线外，与 100%/50%/0% 垂直居齐
         {
           type: 'value' as const,
           gridIndex: 1,
@@ -878,7 +902,8 @@ const pingChartOption = computed(() => {
           position: 'right' as const,
           nameTextStyle: {
             color: chartThemeColors.value.textSecondary,
-            align: 'right' as const,
+            align: 'left' as const,
+            padding: [0, 0, 0, 8],
           },
           axisLabel: {
             fontSize: 10,
@@ -937,6 +962,21 @@ const pingChartOption = computed(() => {
         },
       ],
     },
+    graphic: (showLoss.value && totalLossMarkersCount.value === 0 && data.length > 0)
+      ? [
+          {
+            type: 'text',
+            left: 'center',
+            top: '76%',
+            style: {
+              text: '✓ 当前时段无丢包 · 网络质量优异',
+              fill: isDark.value ? 'rgba(52, 211, 153, 0.65)' : 'rgba(16, 185, 129, 0.75)',
+              fontSize: 11,
+              fontWeight: 500,
+            },
+          },
+        ]
+      : [],
     tooltip: {
       ...baseTooltipConfig.value,
       formatter: (params: unknown) => {

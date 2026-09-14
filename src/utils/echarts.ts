@@ -7,6 +7,7 @@ import { BarChart, LineChart, MapChart, ScatterChart } from 'echarts/charts'
 import {
   DataZoomComponent,
   GeoComponent,
+  GraphicComponent,
   GridComponent,
   LegendComponent,
   MarkLineComponent,
@@ -24,6 +25,7 @@ use([
   ScatterChart,
   GridComponent,
   GeoComponent,
+  GraphicComponent,
   TooltipComponent,
   LegendComponent,
   MarkLineComponent,
