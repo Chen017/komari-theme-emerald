@@ -205,7 +205,12 @@ const selectedTaskIds = ref<number[]>([])
 const cutPeak = ref(false)
 const showDelay = ref(true)
 const showLoss = ref(true)
-const chartMargin = { top: 30, right: 24, bottom: 52, left: 56 }
+const chartMargin = computed(() => ({
+  top: 30,
+  right: showLoss.value ? 56 : 24,
+  bottom: 52,
+  left: 56,
+}))
 
 const mergeToleranceMs = computed(() => {
   const taskIntervals = tasks.value
@@ -702,56 +707,59 @@ const pingChartOption = computed(() => {
   const data = chartData.value
   const hours = selectedHours.value
 
-  // 计算当前显示的所有任务中的最大有效延迟，用作丢包竖线高度基准（100% 丢包时高度）
-  let maxLatency = 0
-  for (const row of data) {
-    for (const task of taskList) {
-      const val = row[task.id]
-      if (typeof val === 'number' && Number.isFinite(val) && val > maxLatency) {
-        maxLatency = val
-      }
-    }
-  }
-  const benchmarkY = maxLatency > 0 ? maxLatency : 100
-
-  // 构建 series，确保颜色与卡片一致
-  const series = taskList.map((task) => {
+  // 1. 延迟折线 series（位于顶层 z: 3）
+  const lineSeries = taskList.map((task) => {
     const color = getTaskColor(task.id)
-    const lossMarkers = packetLossMarkers.value.get(task.id) || []
     return {
       name: task.name,
       type: 'line' as const,
-      data: data.map(d => d[task.id] as number | null ?? null),
+      yAxisIndex: 0,
+      z: 3,
+      data: data.map(d => (showDelay.value ? (d[task.id] as number | null ?? null) : null)),
       smooth: showDelay.value ? (cutPeak.value ? 0.6 : 0.1) : 0,
       showSymbol: false,
       connectNulls: false,
       lineStyle: { width: showDelay.value ? 1.5 : 0, color, cap: 'round' as const },
       itemStyle: { color, opacity: showDelay.value ? 1 : 0 },
-      markLine: showLoss.value && lossMarkers.length
-        ? {
-            silent: true,
-            symbol: ['none', 'none'],
-            animation: false,
-            label: { show: false },
-            lineStyle: {
-              color,
-              width: 1.5,
-              type: 'solid' as const,
-              opacity: 0.65,
-            },
-            // 按丢包率比例绘制竖线长短（起于 yAxis: 0，高至 benchmarkY * loss）
-            data: lossMarkers.map((marker) => {
-              const heightRatio = Math.max(0.06, Math.min(1, marker.loss))
-              const targetY = benchmarkY * heightRatio
-              return [
-                { xAxis: marker.index, yAxis: 0 },
-                { xAxis: marker.index, yAxis: targetY },
-              ]
-            }),
-          }
-        : undefined,
     }
   })
+
+  // 2. 丢包柱状 series（位于底层 z: 1，绑定右侧 Y 轴 yAxisIndex: 1，各节点独立色彩并排展示）
+  const barSeries = showLoss.value
+    ? taskList.map((task) => {
+        const color = getTaskColor(task.id)
+        const lossMarkers = packetLossMarkers.value.get(task.id) || []
+        const lossMap = new Map<number, number>()
+        for (const m of lossMarkers) {
+          lossMap.set(m.index, m.loss)
+        }
+
+        const lossBarData = data.map((_, idx) => {
+          const loss = lossMap.get(idx)
+          if (loss === undefined || loss <= 0)
+            return null
+          // 丢包率数值 0~100，对应右侧 Y 轴 0%~100%
+          return Number((loss * 100).toFixed(1))
+        })
+
+        return {
+          name: `${task.name} 丢包`,
+          type: 'bar' as const,
+          yAxisIndex: 1,
+          z: 1,
+          barWidth: 3,
+          barGap: '20%',
+          itemStyle: {
+            color,
+            opacity: 0.55,
+            borderRadius: [2, 2, 0, 0] as [number, number, number, number],
+          },
+          data: lossBarData,
+        }
+      })
+    : []
+
+  const series = [...lineSeries, ...barSeries]
 
   // 颜色映射表（用于 Tooltip）
   const colorMap = new Map<number, string>()
@@ -785,24 +793,39 @@ const pingChartOption = computed(() => {
         let html = `<div style="font-weight:600;margin-bottom:6px;color:${chartThemeColors.value.textSecondary}">${timeStr}</div>`
         html += '<div style="display:flex;flex-direction:column;gap:4px">'
 
-        // 按延迟值排序显示
-        const sortedParams = [...p].sort((a, b) => (a.value ?? 0) - (b.value ?? 0))
-
-        for (const item of sortedParams) {
-          const task = tasks.value.find(t => t.name === item.seriesName)
-          const color = task ? colorMap.get(task.id) || chartColors[0] : chartColors[0]
-          const colorDot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:8px;flex-shrink:0"></span>`
-          const taskLossMarkers = task ? packetLossMarkers.value.get(task.id) : undefined
-          const currentMarker = taskLossMarkers?.find(m => m.index === firstParam.dataIndex)
-
-          if (item.value !== null && item.value !== undefined) {
-            const lossText = currentMarker
-              ? `<span style="margin-left:6px;color:#ef4444;font-size:11px;font-weight:500">(${(currentMarker.loss * 100).toFixed(currentMarker.loss < 0.01 ? 1 : 0)}% 丢包)</span>`
-              : ''
-            html += `<div style="display:flex;align-items:center">${colorDot}<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item.seriesName}</span>${lossText}<span style="margin-left:auto;font-weight:600;margin-left:16px;font-variant-numeric:tabular-nums">${Math.round(item.value)} ms</span></div>`
+        // 整理每个选中的任务在该时间点的延迟与丢包率
+        const taskRows = taskList.map((task) => {
+          const delayParam = p.find(item => item.seriesName === task.name)
+          const delayVal = (delayParam && typeof delayParam.value === 'number') ? delayParam.value : null
+          const taskLossMarkers = packetLossMarkers.value.get(task.id)
+          const marker = taskLossMarkers?.find(m => m.index === firstParam.dataIndex)
+          return {
+            task,
+            delayVal,
+            loss: marker?.loss,
           }
-          else if (currentMarker) {
-            html += `<div style="display:flex;align-items:center">${colorDot}<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item.seriesName}</span><span style="margin-left:auto;font-weight:600;margin-left:16px;color:#ef4444;font-variant-numeric:tabular-nums">${(currentMarker.loss * 100).toFixed(currentMarker.loss < 0.01 ? 1 : 0)}% 丢包</span></div>`
+        }).sort((a, b) => {
+          if (a.delayVal === null && b.delayVal === null)
+            return 0
+          if (a.delayVal === null)
+            return 1
+          if (b.delayVal === null)
+            return -1
+          return (a.delayVal ?? 0) - (b.delayVal ?? 0)
+        })
+
+        for (const { task, delayVal, loss } of taskRows) {
+          const color = colorMap.get(task.id) || chartColors[0]!
+          const colorDot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:8px;flex-shrink:0"></span>`
+
+          if (delayVal !== null) {
+            const lossText = (loss !== undefined && loss > 0)
+              ? `<span style="margin-left:6px;color:${color};font-size:11px;font-weight:600">(${(loss * 100).toFixed(loss < 0.01 ? 1 : 0)}% 丢包)</span>`
+              : ''
+            html += `<div style="display:flex;align-items:center">${colorDot}<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${task.name}</span>${lossText}<span style="margin-left:auto;font-weight:600;margin-left:16px;font-variant-numeric:tabular-nums">${Math.round(delayVal)} ms</span></div>`
+          }
+          else if (loss !== undefined && loss > 0) {
+            html += `<div style="display:flex;align-items:center">${colorDot}<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${task.name}</span><span style="margin-left:auto;font-weight:600;margin-left:16px;color:${color};font-variant-numeric:tabular-nums">${(loss * 100).toFixed(loss < 0.01 ? 1 : 0)}% 丢包</span></div>`
           }
         }
         html += '</div>'
@@ -819,7 +842,7 @@ const pingChartOption = computed(() => {
       textStyle: { fontSize: 11, color: chartThemeColors.value.textSecondary },
       data: taskList.map(t => t.name),
     },
-    grid: chartMargin,
+    grid: chartMargin.value,
     xAxis: {
       type: 'category',
       data: data.map(d => formatTime(d.time as string, showDateInAxis.value)),
@@ -835,26 +858,51 @@ const pingChartOption = computed(() => {
       axisTick: { show: false },
       boundaryGap: false,
     },
-    yAxis: {
-      type: 'value',
-      name: '延迟 (ms)',
-      min: 0,
-      nameTextStyle: { color: chartThemeColors.value.textSecondary },
-      axisLabel: { fontSize: 11, color: chartThemeColors.value.textSecondary, formatter: '{value}' },
-      axisLine: { show: false },
-      axisTick: { show: false },
-      axisPointer: {
-        lineStyle: { opacity: 0 },
-        crossStyle: { opacity: 0 },
-        label: { show: false },
-      },
-      splitLine: {
-        lineStyle: {
-          color: chartThemeColors.value.splitLineColor,
-          type: 'dashed' as const,
+    yAxis: [
+      {
+        type: 'value',
+        name: '延迟 (ms)',
+        min: 0,
+        nameTextStyle: { color: chartThemeColors.value.textSecondary },
+        axisLabel: { fontSize: 11, color: chartThemeColors.value.textSecondary, formatter: '{value}' },
+        axisLine: { show: false },
+        axisTick: { show: false },
+        axisPointer: {
+          lineStyle: { opacity: 0 },
+          crossStyle: { opacity: 0 },
+          label: { show: false },
+        },
+        splitLine: {
+          lineStyle: {
+            color: chartThemeColors.value.splitLineColor,
+            type: 'dashed' as const,
+          },
         },
       },
-    },
+      {
+        type: 'value',
+        name: '丢包率 (%)',
+        min: 0,
+        max: 100,
+        interval: 25,
+        position: 'right',
+        show: showLoss.value,
+        nameTextStyle: { color: chartThemeColors.value.textSecondary },
+        axisLabel: {
+          fontSize: 11,
+          color: chartThemeColors.value.textSecondary,
+          formatter: '{value}%',
+        },
+        axisLine: { show: false },
+        axisTick: { show: false },
+        axisPointer: {
+          lineStyle: { opacity: 0 },
+          crossStyle: { opacity: 0 },
+          label: { show: false },
+        },
+        splitLine: { show: false },
+      },
+    ],
     series,
   }
 })
