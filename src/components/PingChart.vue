@@ -174,13 +174,26 @@ interface PingRecordsResponse {
   tasks?: TaskInfo[]
 }
 
+interface LossRecord {
+  task_id: number
+  time: string
+  loss: number
+}
+
+interface LossMarkerPoint {
+  index: number
+  loss: number
+}
+
 interface PingChartData {
   records: PingRecord[]
   tasks: TaskInfo[]
+  lossRecords?: LossRecord[]
 }
 
 // 数据状态
 const remoteData = shallowRef<PingRecord[]>([])
+const lossRecordsData = shallowRef<LossRecord[]>([])
 const tasks = shallowRef<TaskInfo[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
@@ -258,7 +271,7 @@ function pushLatencyMetricPoint(
 }
 
 async function fetchMetricRecords(uuid: string, hours: number): Promise<PingChartData> {
-  const [metricResult, statsResult] = await Promise.all([
+  const [metricResult, statsResult, lossResult] = await Promise.all([
     rpc.getClient().call<MetricQueryResponse>('public:queryMetrics', {
       // 与官方主题一致：延迟曲线只吃 ping.latency_ms；丢包率走 getPingMetricStats
       metric_keys: ['ping.latency_ms'],
@@ -275,6 +288,15 @@ async function fetchMetricRecords(uuid: string, hours: number): Promise<PingChar
       hours,
       max_points: HISTORY_MAX_POINTS,
     }),
+    // 独立拉取 ping.loss 时序数据，仅供丢包标记与比例绘制使用，不污染延迟曲线
+    rpc.getClient().call<MetricQueryResponse>('public:queryMetrics', {
+      metric_keys: ['ping.loss'],
+      entity_id: uuid,
+      hours,
+      max_points: HISTORY_MAX_POINTS,
+      aggregation: 'avg',
+      fill_empty: true,
+    }).catch(() => null),
   ])
 
   const records: PingRecord[] = []
@@ -288,6 +310,29 @@ async function fetchMetricRecords(uuid: string, hours: number): Promise<PingChar
         continue
 
       pushLatencyMetricPoint(records, uuid, taskId, point)
+    }
+  }
+
+  const lossRecords: LossRecord[] = []
+  for (const series of lossResult?.series ?? []) {
+    if (series.metric_key !== 'ping.loss')
+      continue
+
+    for (const point of series.points ?? []) {
+      const taskId = getMetricTaskId(series, point)
+      if (taskId === null || point.value === null || point.value <= 0)
+        continue
+
+      const rawVal = point.value
+      // 兼容 0~1 小数或 0~100 百分比
+      const loss = rawVal > 1 ? Math.min(1, rawVal / 100) : Math.min(1, Math.max(0, rawVal))
+      if (loss > 0) {
+        lossRecords.push({
+          task_id: taskId,
+          time: point.time,
+          loss,
+        })
+      }
     }
   }
 
@@ -307,7 +352,7 @@ async function fetchMetricRecords(uuid: string, hours: number): Promise<PingChar
     type: task.type,
   })).filter(task => Number.isInteger(task.id))
 
-  return { records, tasks: metricTasks }
+  return { records, tasks: metricTasks, lossRecords }
 }
 
 async function fetchLegacyRecords(uuid: string, hours: number): Promise<PingChartData> {
@@ -360,6 +405,7 @@ async function fetchRecords() {
     records.sort((a, b) => dayjs(a.time).valueOf() - dayjs(b.time).valueOf())
 
     remoteData.value = records
+    lossRecordsData.value = result.lossRecords ?? []
     tasks.value = result.tasks
 
     if (tasks.value.length > 0 && selectedTaskIds.value.length === 0) {
@@ -372,6 +418,7 @@ async function fetchRecords() {
 
     error.value = err instanceof Error ? err.message : '获取数据失败'
     remoteData.value = []
+    lossRecordsData.value = []
     tasks.value = []
   }
   finally {
@@ -525,7 +572,7 @@ const selectedTasks = computed(() => {
 
 const packetLossMarkers = computed(() => {
   const data = mergedData.value
-  const markers = new Map<number, number[]>()
+  const markers = new Map<number, LossMarkerPoint[]>()
 
   if (!data.length || !selectedTasks.value.length)
     return markers
@@ -536,13 +583,11 @@ const packetLossMarkers = computed(() => {
   const toleranceMs = mergeToleranceMs.value
 
   for (const task of selectedTasks.value) {
-    const points = new Set<number>()
-    const taskLossRecords = remoteData.value.filter(rec => rec.task_id === task.id && rec.value < 0)
+    const indexLossMap = new Map<number, number>()
 
-    for (const record of taskLossRecords) {
-      if (points.size >= MAX_LOSS_MARKERS_PER_TASK)
-        break
-
+    // 来源 1：短周期原始探测点中延迟为 null / < 0（单次探测丢包，视为 100% 丢包）
+    const taskLatencyLossRecords = remoteData.value.filter(rec => rec.task_id === task.id && rec.value < 0)
+    for (const record of taskLatencyLossRecords) {
       const lossTs = dayjs(record.time).valueOf()
       let matchedIndex = -1
 
@@ -558,11 +603,45 @@ const packetLossMarkers = computed(() => {
       }
 
       if (matchedIndex >= 0) {
-        points.add(matchedIndex)
+        indexLossMap.set(matchedIndex, Math.max(indexLossMap.get(matchedIndex) ?? 0, 1))
       }
     }
 
-    markers.set(task.id, Array.from(points).sort((a, b) => a - b))
+    // 来源 2：长周期聚合分桶的 ping.loss 时序数据（真实分桶丢包率 0~1）
+    const taskLossRecords = lossRecordsData.value.filter(rec => rec.task_id === task.id && rec.loss > 0)
+    for (const record of taskLossRecords) {
+      const lossTs = dayjs(record.time).valueOf()
+      let matchedIndex = -1
+
+      for (let i = 0; i < chartTimes.length; i++) {
+        const chartTs = chartTimes[i]
+        if (chartTs === undefined)
+          continue
+
+        if (Math.abs(chartTs - lossTs) <= toleranceMs) {
+          matchedIndex = i
+          break
+        }
+      }
+
+      if (matchedIndex >= 0) {
+        indexLossMap.set(matchedIndex, Math.max(indexLossMap.get(matchedIndex) ?? 0, record.loss))
+      }
+    }
+
+    let points: LossMarkerPoint[] = Array.from(indexLossMap.entries()).map(([index, loss]) => ({
+      index,
+      loss,
+    }))
+
+    if (points.length > MAX_LOSS_MARKERS_PER_TASK) {
+      // 超限时优先保留丢包率最高的严重事件
+      points.sort((a, b) => b.loss - a.loss)
+      points = points.slice(0, MAX_LOSS_MARKERS_PER_TASK)
+    }
+
+    points.sort((a, b) => a.index - b.index)
+    markers.set(task.id, points)
   }
 
   return markers
@@ -623,10 +702,22 @@ const pingChartOption = computed(() => {
   const data = chartData.value
   const hours = selectedHours.value
 
+  // 计算当前显示的所有任务中的最大有效延迟，用作丢包竖线高度基准（100% 丢包时高度）
+  let maxLatency = 0
+  for (const row of data) {
+    for (const task of taskList) {
+      const val = row[task.id]
+      if (typeof val === 'number' && Number.isFinite(val) && val > maxLatency) {
+        maxLatency = val
+      }
+    }
+  }
+  const benchmarkY = maxLatency > 0 ? maxLatency : 100
+
   // 构建 series，确保颜色与卡片一致
   const series = taskList.map((task) => {
     const color = getTaskColor(task.id)
-    const lossMarkerIndexes = packetLossMarkers.value.get(task.id) || []
+    const lossMarkers = packetLossMarkers.value.get(task.id) || []
     return {
       name: task.name,
       type: 'line' as const,
@@ -636,7 +727,7 @@ const pingChartOption = computed(() => {
       connectNulls: false,
       lineStyle: { width: showDelay.value ? 1.5 : 0, color, cap: 'round' as const },
       itemStyle: { color, opacity: showDelay.value ? 1 : 0 },
-      markLine: showLoss.value && lossMarkerIndexes.length
+      markLine: showLoss.value && lossMarkers.length
         ? {
             silent: true,
             symbol: ['none', 'none'],
@@ -644,13 +735,19 @@ const pingChartOption = computed(() => {
             label: { show: false },
             lineStyle: {
               color,
-              width: 1,
+              width: 1.5,
               type: 'solid' as const,
-              opacity: 0.55,
+              opacity: 0.65,
             },
-            data: lossMarkerIndexes.map(index => ({
-              xAxis: index,
-            })),
+            // 按丢包率比例绘制竖线长短（起于 yAxis: 0，高至 benchmarkY * loss）
+            data: lossMarkers.map((marker) => {
+              const heightRatio = Math.max(0.06, Math.min(1, marker.loss))
+              const targetY = benchmarkY * heightRatio
+              return [
+                { xAxis: marker.index, yAxis: 0 },
+                { xAxis: marker.index, yAxis: targetY },
+              ]
+            }),
           }
         : undefined,
     }
@@ -692,12 +789,20 @@ const pingChartOption = computed(() => {
         const sortedParams = [...p].sort((a, b) => (a.value ?? 0) - (b.value ?? 0))
 
         for (const item of sortedParams) {
+          const task = tasks.value.find(t => t.name === item.seriesName)
+          const color = task ? colorMap.get(task.id) || chartColors[0] : chartColors[0]
+          const colorDot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:8px;flex-shrink:0"></span>`
+          const taskLossMarkers = task ? packetLossMarkers.value.get(task.id) : undefined
+          const currentMarker = taskLossMarkers?.find(m => m.index === firstParam.dataIndex)
+
           if (item.value !== null && item.value !== undefined) {
-            // 通过任务名找到对应的任务ID，再获取颜色
-            const task = tasks.value.find(t => t.name === item.seriesName)
-            const color = task ? colorMap.get(task.id) || chartColors[0] : chartColors[0]
-            const colorDot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:8px;flex-shrink:0"></span>`
-            html += `<div style="display:flex;align-items:center">${colorDot}<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item.seriesName}</span><span style="margin-left:auto;font-weight:600;margin-left:16px;font-variant-numeric:tabular-nums">${Math.round(item.value)} ms</span></div>`
+            const lossText = currentMarker
+              ? `<span style="margin-left:6px;color:#ef4444;font-size:11px;font-weight:500">(${(currentMarker.loss * 100).toFixed(currentMarker.loss < 0.01 ? 1 : 0)}% 丢包)</span>`
+              : ''
+            html += `<div style="display:flex;align-items:center">${colorDot}<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item.seriesName}</span>${lossText}<span style="margin-left:auto;font-weight:600;margin-left:16px;font-variant-numeric:tabular-nums">${Math.round(item.value)} ms</span></div>`
+          }
+          else if (currentMarker) {
+            html += `<div style="display:flex;align-items:center">${colorDot}<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item.seriesName}</span><span style="margin-left:auto;font-weight:600;margin-left:16px;color:#ef4444;font-variant-numeric:tabular-nums">${(currentMarker.loss * 100).toFixed(currentMarker.loss < 0.01 ? 1 : 0)}% 丢包</span></div>`
           }
         }
         html += '</div>'
@@ -733,6 +838,7 @@ const pingChartOption = computed(() => {
     yAxis: {
       type: 'value',
       name: '延迟 (ms)',
+      min: 0,
       nameTextStyle: { color: chartThemeColors.value.textSecondary },
       axisLabel: { fontSize: 11, color: chartThemeColors.value.textSecondary, formatter: '{value}' },
       axisLine: { show: false },
@@ -762,6 +868,7 @@ watch(selectedView, () => {
 
 watch(() => props.uuid, () => {
   remoteData.value = []
+  lossRecordsData.value = []
   tasks.value = []
   selectedTaskIds.value = []
   fetchRecords()
