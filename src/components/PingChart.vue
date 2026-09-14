@@ -205,12 +205,6 @@ const selectedTaskIds = ref<number[]>([])
 const cutPeak = ref(false)
 const showDelay = ref(true)
 const showLoss = ref(true)
-const chartMargin = computed(() => ({
-  top: 30,
-  right: showLoss.value ? 56 : 24,
-  bottom: 52,
-  left: 56,
-}))
 
 const mergeToleranceMs = computed(() => {
   const taskIntervals = tasks.value
@@ -707,14 +701,14 @@ const pingChartOption = computed(() => {
   const data = chartData.value
   const hours = selectedHours.value
 
-  // 1. 延迟折线 series（位于顶层 z: 3）
+  // 1. 上通道：延迟折线 series（绑定 gridIndex: 0, yAxisIndex: 0）
   const lineSeries = taskList.map((task) => {
     const color = getTaskColor(task.id)
     return {
       name: task.name,
       type: 'line' as const,
+      xAxisIndex: 0,
       yAxisIndex: 0,
-      z: 3,
       data: data.map(d => (showDelay.value ? (d[task.id] as number | null ?? null) : null)),
       smooth: showDelay.value ? (cutPeak.value ? 0.6 : 0.1) : 0,
       showSymbol: false,
@@ -724,7 +718,7 @@ const pingChartOption = computed(() => {
     }
   })
 
-  // 2. 丢包柱状 series（位于底层 z: 1，绑定右侧 Y 轴 yAxisIndex: 1，各节点独立色彩并排展示）
+  // 2. 下通道：丢包柱状 series（绑定 gridIndex: 1, yAxisIndex: 1，各节点独立色彩细柱，并排陈列）
   const barSeries = showLoss.value
     ? taskList.map((task) => {
         const color = getTaskColor(task.id)
@@ -745,14 +739,14 @@ const pingChartOption = computed(() => {
         return {
           name: `${task.name} 丢包`,
           type: 'bar' as const,
+          xAxisIndex: 1,
           yAxisIndex: 1,
-          z: 1,
-          barWidth: 3,
-          barGap: '20%',
+          barWidth: 2,
+          barGap: '10%',
           itemStyle: {
             color,
-            opacity: 0.55,
-            borderRadius: [2, 2, 0, 0] as [number, number, number, number],
+            opacity: 0.85,
+            borderRadius: [1, 1, 0, 0] as [number, number, number, number],
           },
           data: lossBarData,
         }
@@ -768,13 +762,181 @@ const pingChartOption = computed(() => {
     colorMap.set(task.id, chartColors[safeIdx]!)
   })
 
+  // Grid 布局：双通道 vs 单通道
+  const gridConfig = showLoss.value
+    ? [
+        // 上通道：延迟折线（约 52% 高度，极致清爽）
+        {
+          left: 56,
+          right: 56,
+          top: 24,
+          height: '52%',
+        },
+        // 下通道：专属丢包通道（约 18% 高度）
+        {
+          left: 56,
+          right: 56,
+          top: '67%',
+          height: '18%',
+        },
+      ]
+    : [
+        {
+          left: 56,
+          right: 24,
+          top: 24,
+          bottom: 48,
+        },
+      ]
+
+  // X 轴配置（联动对齐）
+  const xAxisConfig = showLoss.value
+    ? [
+        // 上通道 X 轴（隐藏刻度文字，消除杂乱）
+        {
+          type: 'category' as const,
+          gridIndex: 0,
+          data: data.map(d => formatTime(d.time as string, showDateInAxis.value)),
+          axisLabel: { show: false },
+          axisLine: {
+            show: true,
+            lineStyle: { color: chartThemeColors.value.borderColor, width: 1 },
+          },
+          axisTick: { show: false },
+          boundaryGap: false,
+        },
+        // 下通道 X 轴（显示时间刻度）
+        {
+          type: 'category' as const,
+          gridIndex: 1,
+          data: data.map(d => formatTime(d.time as string, showDateInAxis.value)),
+          axisLabel: {
+            fontSize: 11,
+            color: chartThemeColors.value.textSecondary,
+            margin: 6,
+          },
+          axisLine: {
+            show: true,
+            lineStyle: { color: chartThemeColors.value.borderColor, width: 1 },
+          },
+          axisTick: { show: false },
+          boundaryGap: false,
+        },
+      ]
+    : [
+        {
+          type: 'category' as const,
+          gridIndex: 0,
+          data: data.map(d => formatTime(d.time as string, showDateInAxis.value)),
+          axisLabel: {
+            fontSize: 11,
+            color: chartThemeColors.value.textSecondary,
+            margin: 12,
+          },
+          axisLine: {
+            show: true,
+            lineStyle: { color: chartThemeColors.value.borderColor, width: 1 },
+          },
+          axisTick: { show: false },
+          boundaryGap: false,
+        },
+      ]
+
+  // Y 轴配置
+  const yAxisConfig = showLoss.value
+    ? [
+        // 上通道 Y 轴：延迟 (ms)
+        {
+          type: 'value' as const,
+          gridIndex: 0,
+          name: '延迟 (ms)',
+          min: 0,
+          nameTextStyle: { color: chartThemeColors.value.textSecondary },
+          axisLabel: { fontSize: 11, color: chartThemeColors.value.textSecondary, formatter: '{value}' },
+          axisLine: { show: false },
+          axisTick: { show: false },
+          axisPointer: {
+            lineStyle: { opacity: 0 },
+            crossStyle: { opacity: 0 },
+            label: { show: false },
+          },
+          splitLine: {
+            lineStyle: {
+              color: chartThemeColors.value.splitLineColor,
+              type: 'dashed' as const,
+            },
+          },
+        },
+        // 下通道 Y 轴：丢包率 (%)，标在右侧
+        {
+          type: 'value' as const,
+          gridIndex: 1,
+          name: '丢包率 (%)',
+          min: 0,
+          max: 100,
+          interval: 50,
+          position: 'right' as const,
+          nameTextStyle: {
+            color: chartThemeColors.value.textSecondary,
+            align: 'right' as const,
+          },
+          axisLabel: {
+            fontSize: 10,
+            color: chartThemeColors.value.textSecondary,
+            formatter: '{value}%',
+          },
+          axisLine: { show: false },
+          axisTick: { show: false },
+          axisPointer: {
+            lineStyle: { opacity: 0 },
+            crossStyle: { opacity: 0 },
+            label: { show: false },
+          },
+          splitLine: {
+            lineStyle: {
+              color: chartThemeColors.value.splitLineColor,
+              type: 'dashed' as const,
+            },
+          },
+        },
+      ]
+    : [
+        {
+          type: 'value' as const,
+          gridIndex: 0,
+          name: '延迟 (ms)',
+          min: 0,
+          nameTextStyle: { color: chartThemeColors.value.textSecondary },
+          axisLabel: { fontSize: 11, color: chartThemeColors.value.textSecondary, formatter: '{value}' },
+          axisLine: { show: false },
+          axisTick: { show: false },
+          axisPointer: {
+            lineStyle: { opacity: 0 },
+            crossStyle: { opacity: 0 },
+            label: { show: false },
+          },
+          splitLine: {
+            lineStyle: {
+              color: chartThemeColors.value.splitLineColor,
+              type: 'dashed' as const,
+            },
+          },
+        },
+      ]
+
   return {
     animation: false,
-    // 全局颜色设置（用于图例等）
     color: tasks.value.map((_, idx) => {
       const safeIdx = Math.max(0, idx % chartColors.length)
       return chartColors[safeIdx]!
     }),
+    axisPointer: {
+      link: [
+        {
+          xAxisIndex: 'all',
+        },
+      ],
+    },
     tooltip: {
       ...baseTooltipConfig.value,
       formatter: (params: unknown) => {
@@ -784,7 +946,8 @@ const pingChartOption = computed(() => {
         const firstParam = p[0]
         if (!firstParam)
           return ''
-        const rowData = data[firstParam.dataIndex]
+        const dataIndex = firstParam.dataIndex
+        const rowData = data[dataIndex]
         if (!rowData)
           return ''
 
@@ -795,10 +958,11 @@ const pingChartOption = computed(() => {
 
         // 整理每个选中的任务在该时间点的延迟与丢包率
         const taskRows = taskList.map((task) => {
-          const delayParam = p.find(item => item.seriesName === task.name)
-          const delayVal = (delayParam && typeof delayParam.value === 'number') ? delayParam.value : null
+          const delayVal = (showDelay.value && typeof rowData[task.id] === 'number')
+            ? rowData[task.id] as number
+            : null
           const taskLossMarkers = packetLossMarkers.value.get(task.id)
-          const marker = taskLossMarkers?.find(m => m.index === firstParam.dataIndex)
+          const marker = taskLossMarkers?.find(m => m.index === dataIndex)
           return {
             task,
             delayVal,
@@ -842,67 +1006,9 @@ const pingChartOption = computed(() => {
       textStyle: { fontSize: 11, color: chartThemeColors.value.textSecondary },
       data: taskList.map(t => t.name),
     },
-    grid: chartMargin.value,
-    xAxis: {
-      type: 'category',
-      data: data.map(d => formatTime(d.time as string, showDateInAxis.value)),
-      axisLabel: {
-        fontSize: 11,
-        color: chartThemeColors.value.textSecondary,
-        margin: 12,
-      },
-      axisLine: {
-        show: true,
-        lineStyle: { color: chartThemeColors.value.borderColor, width: 1 },
-      },
-      axisTick: { show: false },
-      boundaryGap: false,
-    },
-    yAxis: [
-      {
-        type: 'value',
-        name: '延迟 (ms)',
-        min: 0,
-        nameTextStyle: { color: chartThemeColors.value.textSecondary },
-        axisLabel: { fontSize: 11, color: chartThemeColors.value.textSecondary, formatter: '{value}' },
-        axisLine: { show: false },
-        axisTick: { show: false },
-        axisPointer: {
-          lineStyle: { opacity: 0 },
-          crossStyle: { opacity: 0 },
-          label: { show: false },
-        },
-        splitLine: {
-          lineStyle: {
-            color: chartThemeColors.value.splitLineColor,
-            type: 'dashed' as const,
-          },
-        },
-      },
-      {
-        type: 'value',
-        name: '丢包率 (%)',
-        min: 0,
-        max: 100,
-        interval: 25,
-        position: 'right',
-        show: showLoss.value,
-        nameTextStyle: { color: chartThemeColors.value.textSecondary },
-        axisLabel: {
-          fontSize: 11,
-          color: chartThemeColors.value.textSecondary,
-          formatter: '{value}%',
-        },
-        axisLine: { show: false },
-        axisTick: { show: false },
-        axisPointer: {
-          lineStyle: { opacity: 0 },
-          crossStyle: { opacity: 0 },
-          label: { show: false },
-        },
-        splitLine: { show: false },
-      },
-    ],
+    grid: gridConfig,
+    xAxis: xAxisConfig,
+    yAxis: yAxisConfig,
     series,
   }
 })
@@ -1096,8 +1202,11 @@ onMounted(() => {
 
         <!-- 图表 -->
         <div
-          class="h-80 rounded-md p-4 transition-all"
-          :class="pickSurfaceClass('bg-background/60 hover:bg-background', 'bg-background/50 hover:bg-background backdrop-blur-xl')"
+          class="rounded-md p-4 transition-all"
+          :class="[
+            showLoss ? 'h-96' : 'h-80',
+            pickSurfaceClass('bg-background/60 hover:bg-background', 'bg-background/50 hover:bg-background backdrop-blur-xl'),
+          ]"
         >
           <VChart :option="pingChartOption" autoresize />
         </div>
