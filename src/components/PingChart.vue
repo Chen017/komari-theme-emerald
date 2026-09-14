@@ -726,54 +726,83 @@ const pingChartOption = computed(() => {
     }
   })
 
-  // 2. 下通道：丢包柱状 series（绑定 gridIndex: 1, yAxisIndex: 1，各节点独立色彩细柱，并排陈列）
-  const barSeries = showLoss.value
+  // 预先统计各时间点存在丢包的任务，用于多任务同时丢包时的精准对称并排
+  const lossTasksByTime = new Map<number, number[]>()
+  if (showLoss.value) {
+    for (const task of taskList) {
+      const lossMarkers = packetLossMarkers.value.get(task.id) || []
+      for (const m of lossMarkers) {
+        if (m.loss > 0) {
+          const list = lossTasksByTime.get(m.index) || []
+          list.push(task.id)
+          lossTasksByTime.set(m.index, list)
+        }
+      }
+    }
+  }
+
+  // 2. 下通道：丢包 series（使用 custom series 严格基于 category tick 对齐，彻底解决 bar 偏移错位）
+  const lossSeries = showLoss.value
     ? taskList.map((task) => {
         const color = getTaskColor(task.id)
         const lossMarkers = packetLossMarkers.value.get(task.id) || []
-        const lossMap = new Map<number, number>()
-        for (const m of lossMarkers) {
-          lossMap.set(m.index, m.loss)
-        }
 
-        const lossBarData = data.map((_, idx) => {
-          const loss = lossMap.get(idx)
-          if (loss === undefined || loss <= 0)
-            return null
-          const val = Number((loss * 100).toFixed(1))
-          if (loss >= 0.99) {
-            // 100% 全损严重断网，柱体采用报警红强化警示
-            return {
-              value: val,
-              itemStyle: {
-                color: '#ef4444',
-                opacity: 1,
-                borderRadius: [2, 2, 0, 0] as [number, number, number, number],
-              },
-            }
+        const customLossData: [number, number][] = []
+        for (const m of lossMarkers) {
+          if (m.loss > 0) {
+            customLossData.push([m.index, Number((m.loss * 100).toFixed(1))])
           }
-          return val
-        })
+        }
 
         return {
           name: `${task.name} 丢包`,
-          type: 'bar' as const,
+          type: 'custom' as const,
           xAxisIndex: 1,
           yAxisIndex: 1,
-          barWidth: 2,
-          barMinHeight: 3, // 微小丢包保底 3px 高度，保证清晰可见不漏看
-          barGap: '10%',
-          itemStyle: {
-            color,
-            opacity: 0.85,
-            borderRadius: [1, 1, 0, 0] as [number, number, number, number],
+          clip: true,
+          renderItem: (_params: unknown, api: {
+            value: (dim: number) => number
+            coord: (pt: [number, number]) => [number, number]
+          }) => {
+            const xIndex = api.value(0)
+            const lossVal = api.value(1)
+            if (lossVal === null || lossVal === undefined || lossVal <= 0)
+              return
+
+            const coordTop = api.coord([xIndex, lossVal])
+            const coordBottom = api.coord([xIndex, 0])
+
+            const activeTaskIds = lossTasksByTime.get(xIndex) || []
+            const count = activeTaskIds.length
+            const subIndex = activeTaskIds.indexOf(task.id)
+            const barWidth = 2
+            // 单任务丢包时严格居中在 tick 轴线上（offsetX = 0，与上方折线点 100% 垂直对齐）；多任务时对称并排
+            const offsetX = count > 1 ? (subIndex - (count - 1) / 2) * (barWidth + 1) : 0
+
+            const isAlert = lossVal >= 99
+            const barHeight = Math.max(3, coordBottom[1] - coordTop[1])
+
+            return {
+              type: 'rect' as const,
+              shape: {
+                x: coordBottom[0] + offsetX - barWidth / 2,
+                y: coordBottom[1] - barHeight,
+                width: barWidth,
+                height: barHeight,
+                r: [1, 1, 0, 0],
+              },
+              style: {
+                fill: isAlert ? '#ef4444' : color,
+                opacity: 0.85,
+              },
+            }
           },
-          data: lossBarData,
+          data: customLossData,
         }
       })
     : []
 
-  const series = [...lineSeries, ...barSeries]
+  const series = [...lineSeries, ...lossSeries]
 
   // 颜色映射表（用于 Tooltip）
   const colorMap = new Map<number, string>()
