@@ -747,12 +747,16 @@ const pingChartOption = computed(() => {
         const color = getTaskColor(task.id)
         const lossMarkers = packetLossMarkers.value.get(task.id) || []
 
-        const customLossData: [number, number][] = []
+        const lossMap = new Map<number, number>()
         for (const m of lossMarkers) {
           if (m.loss > 0) {
-            customLossData.push([m.index, Number((m.loss * 100).toFixed(1))])
+            lossMap.set(m.index, Number((m.loss * 100).toFixed(1)))
           }
         }
+        const customLossData: [number, number][] = data.map((_, idx) => [
+          idx,
+          lossMap.get(idx) ?? 0,
+        ])
 
         return {
           name: `${task.name} 丢包`,
@@ -817,14 +821,14 @@ const pingChartOption = computed(() => {
         // 上通道：延迟折线（黄金分割 56% 高度，极致清爽舒展）
         {
           left: 56,
-          right: 56,
+          right: 60,
           top: 24,
           height: '56%',
         },
         // 下通道：专属丢包泳道（19% 高度，独立微弱背景与细边框）
         {
           left: 56,
-          right: 56,
+          right: 60,
           top: '68%',
           height: '19%',
           show: true,
@@ -923,7 +927,7 @@ const pingChartOption = computed(() => {
             },
           },
         },
-        // 下通道 Y 轴：丢包率 (%) 刻度，标在右侧轴线外（100%/50%/0%）
+        // 下通道 Y 轴：丢包率 (%) 刻度，标在右侧轴线外（方案二：100% 丢包自解释）
         {
           type: 'value' as const,
           gridIndex: 1,
@@ -933,8 +937,9 @@ const pingChartOption = computed(() => {
           position: 'right' as const,
           axisLabel: {
             fontSize: 10,
+            margin: 4,
             color: chartThemeColors.value.textSecondary,
-            formatter: '{value}%',
+            formatter: (val: number) => (val === 100 ? '100% 丢包' : `${val}%`),
           },
           axisLine: { show: false },
           axisTick: { show: false },
@@ -989,21 +994,6 @@ const pingChartOption = computed(() => {
       ],
     },
     graphic: [
-      // 下通道右侧标题：丢包率 (%)
-      ...(showLoss.value
-        ? [
-            {
-              type: 'text' as const,
-              right: 6,
-              top: '65.5%',
-              style: {
-                text: '丢包率 (%)',
-                fill: chartThemeColors.value.textSecondary,
-                fontSize: 10,
-              },
-            },
-          ]
-        : []),
       // 无丢包时的状态反馈提示
       ...(showLoss.value && totalLossMarkersCount.value === 0 && data.length > 0
         ? [
@@ -1024,13 +1014,33 @@ const pingChartOption = computed(() => {
     tooltip: {
       ...baseTooltipConfig.value,
       formatter: (params: unknown) => {
-        const p = params as Array<{ seriesName: string, value: number | null, dataIndex: number }>
+        const p = params as Array<{
+          seriesName: string
+          seriesType?: string
+          value: unknown
+          dataIndex: number
+        }>
         if (!p.length)
           return ''
-        const firstParam = p[0]
-        if (!firstParam)
+
+        // 优先从 line 系列获取当前指针对应的时间点数据索引；若指针在下通道 custom 系列上，从 value[0] 或 dataIndex 获取
+        const lineParam = p.find(item => item.seriesType === 'line')
+        let dataIndex = lineParam ? lineParam.dataIndex : -1
+        if (dataIndex < 0) {
+          const firstParam = p[0]
+          if (firstParam) {
+            const val = firstParam.value
+            if (Array.isArray(val) && typeof val[0] === 'number') {
+              dataIndex = val[0]
+            }
+            else if (typeof firstParam.dataIndex === 'number') {
+              dataIndex = firstParam.dataIndex
+            }
+          }
+        }
+        if (dataIndex < 0)
           return ''
-        const dataIndex = firstParam.dataIndex
+
         const rowData = data[dataIndex]
         if (!rowData)
           return ''
