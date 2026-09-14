@@ -174,13 +174,21 @@ interface PingRecordsResponse {
   tasks?: TaskInfo[]
 }
 
+interface LossRecord {
+  task_id: number
+  time: string
+  loss: number
+}
+
 interface PingChartData {
   records: PingRecord[]
   tasks: TaskInfo[]
+  lossRecords?: LossRecord[]
 }
 
 // 数据状态
 const remoteData = shallowRef<PingRecord[]>([])
+const lossRecordsData = shallowRef<LossRecord[]>([])
 const tasks = shallowRef<TaskInfo[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
@@ -258,7 +266,7 @@ function pushLatencyMetricPoint(
 }
 
 async function fetchMetricRecords(uuid: string, hours: number): Promise<PingChartData> {
-  const [metricResult, statsResult] = await Promise.all([
+  const [metricResult, statsResult, lossResult] = await Promise.all([
     rpc.getClient().call<MetricQueryResponse>('public:queryMetrics', {
       // 与官方主题一致：延迟曲线只吃 ping.latency_ms；丢包率走 getPingMetricStats
       metric_keys: ['ping.latency_ms'],
@@ -275,6 +283,15 @@ async function fetchMetricRecords(uuid: string, hours: number): Promise<PingChar
       hours,
       max_points: HISTORY_MAX_POINTS,
     }),
+    // 超过 6 小时后延迟降采样不再含负数，独立查询 ping.loss 供丢包标记使用
+    rpc.getClient().call<MetricQueryResponse>('public:queryMetrics', {
+      metric_keys: ['ping.loss'],
+      entity_id: uuid,
+      hours,
+      max_points: HISTORY_MAX_POINTS,
+      aggregation: 'avg',
+      fill_empty: true,
+    }).catch(() => null),
   ])
 
   const records: PingRecord[] = []
@@ -288,6 +305,23 @@ async function fetchMetricRecords(uuid: string, hours: number): Promise<PingChar
         continue
 
       pushLatencyMetricPoint(records, uuid, taskId, point)
+    }
+  }
+
+  const lossRecords: LossRecord[] = []
+  for (const series of lossResult?.series ?? []) {
+    if (series.metric_key !== 'ping.loss')
+      continue
+
+    for (const point of series.points ?? []) {
+      const taskId = getMetricTaskId(series, point)
+      if (taskId !== null && point.value !== null && point.value > 0) {
+        lossRecords.push({
+          task_id: taskId,
+          time: point.time,
+          loss: point.value,
+        })
+      }
     }
   }
 
@@ -307,7 +341,7 @@ async function fetchMetricRecords(uuid: string, hours: number): Promise<PingChar
     type: task.type,
   })).filter(task => Number.isInteger(task.id))
 
-  return { records, tasks: metricTasks }
+  return { records, tasks: metricTasks, lossRecords }
 }
 
 async function fetchLegacyRecords(uuid: string, hours: number): Promise<PingChartData> {
@@ -360,6 +394,7 @@ async function fetchRecords() {
     records.sort((a, b) => dayjs(a.time).valueOf() - dayjs(b.time).valueOf())
 
     remoteData.value = records
+    lossRecordsData.value = result.lossRecords ?? []
     tasks.value = result.tasks
 
     if (tasks.value.length > 0 && selectedTaskIds.value.length === 0) {
@@ -372,6 +407,7 @@ async function fetchRecords() {
 
     error.value = err instanceof Error ? err.message : '获取数据失败'
     remoteData.value = []
+    lossRecordsData.value = []
     tasks.value = []
   }
   finally {
@@ -537,8 +573,33 @@ const packetLossMarkers = computed(() => {
 
   for (const task of selectedTasks.value) {
     const points = new Set<number>()
-    const taskLossRecords = remoteData.value.filter(rec => rec.task_id === task.id && rec.value < 0)
+    // 来源 1：短周期原始探测点中延迟为 null / < 0
+    const taskLatencyLossRecords = remoteData.value.filter(rec => rec.task_id === task.id && rec.value < 0)
+    for (const record of taskLatencyLossRecords) {
+      if (points.size >= MAX_LOSS_MARKERS_PER_TASK)
+        break
 
+      const lossTs = dayjs(record.time).valueOf()
+      let matchedIndex = -1
+
+      for (let i = 0; i < chartTimes.length; i++) {
+        const chartTs = chartTimes[i]
+        if (chartTs === undefined)
+          continue
+
+        if (Math.abs(chartTs - lossTs) <= toleranceMs) {
+          matchedIndex = i
+          break
+        }
+      }
+
+      if (matchedIndex >= 0) {
+        points.add(matchedIndex)
+      }
+    }
+
+    // 来源 2：长周期聚合分桶的 ping.loss 时序数据
+    const taskLossRecords = lossRecordsData.value.filter(rec => rec.task_id === task.id && rec.loss > 0)
     for (const record of taskLossRecords) {
       if (points.size >= MAX_LOSS_MARKERS_PER_TASK)
         break
@@ -762,6 +823,7 @@ watch(selectedView, () => {
 
 watch(() => props.uuid, () => {
   remoteData.value = []
+  lossRecordsData.value = []
   tasks.value = []
   selectedTaskIds.value = []
   fetchRecords()
