@@ -783,7 +783,6 @@ const pingChartOption = computed(() => {
             // 单任务丢包时严格居中在 tick 轴线上（offsetX = 0，与上方折线点 100% 垂直对齐）；多任务时对称并排
             const offsetX = count > 1 ? (subIndex - (count - 1) / 2) * (barWidth + 1) : 0
 
-            const isAlert = lossVal >= 99
             const barHeight = Math.max(3, coordBottom[1] - coordTop[1])
 
             return {
@@ -796,7 +795,7 @@ const pingChartOption = computed(() => {
                 r: [1, 1, 0, 0],
               },
               style: {
-                fill: isAlert ? '#ef4444' : color,
+                fill: color,
                 opacity: 0.85,
               },
             }
