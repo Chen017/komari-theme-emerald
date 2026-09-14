@@ -845,7 +845,7 @@ const pingChartOption = computed(() => {
   // X 轴配置（联动对齐）
   const xAxisConfig = showLoss.value
     ? [
-        // 上通道 X 轴（隐藏刻度文字，消除杂乱）
+        // 上通道 X 轴（隐藏刻度文字与时间标签，消除杂乱与重叠）
         {
           type: 'category' as const,
           gridIndex: 0,
@@ -856,6 +856,9 @@ const pingChartOption = computed(() => {
             lineStyle: { color: chartThemeColors.value.borderColor, width: 1 },
           },
           axisTick: { show: false },
+          axisPointer: {
+            label: { show: false },
+          },
           boundaryGap: false,
         },
         // 下通道 X 轴（显示时间刻度）
@@ -1277,7 +1280,7 @@ onMounted(() => {
             pickSurfaceClass('bg-background/60 hover:bg-background', 'bg-background/50 hover:bg-background backdrop-blur-xl'),
           ]"
         >
-          <VChart :option="pingChartOption" autoresize />
+          <VChart :option="pingChartOption" :update-options="{ notMerge: true }" autoresize />
         </div>
       </template>
     </Spinner>
