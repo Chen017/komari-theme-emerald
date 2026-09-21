@@ -51,6 +51,22 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
 
   // Determine dates based on range
   const dates = computed(() => {
+    if (selectedRange.value === 'since_reset' && selectedNode.value) {
+      const resetDay = selectedNode.value.traffic_reset_day || 1
+      const now = new Date()
+      let resetYear = now.getFullYear()
+      let resetMonth = now.getMonth()
+      if (now.getDate() < resetDay) {
+        resetMonth -= 1
+        if (resetMonth < 0) {
+          resetMonth = 11
+          resetYear -= 1
+        }
+      }
+      const resetDate = new Date(resetYear, resetMonth, resetDay, 0, 0, 0, 0)
+      const diffDays = Math.max(1, Math.min(31, Math.floor((now.getTime() - resetDate.getTime()) / (24 * 60 * 60 * 1000)) + 1))
+      return buildRecentNaturalDayKeys(diffDays, 'browser')
+    }
     const dayCount = selectedRange.value === '30d' ? 30 : 7
     return buildRecentNaturalDayKeys(dayCount, 'browser')
   })
@@ -113,14 +129,20 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
       const endMs = Date.parse(`${endDate}T23:59:59.999`)
 
       const lease = requestPool.acquire(cacheKey, async (signal) => {
+        const queryStart = new Date(startMs - 86400000).toISOString()
+        const queryEnd = new Date(endMs + 86400000).toISOString()
+
         const result = await gateway.queryTraffic({
           entityIds,
-          start: `${startDate}T00:00:00Z`,
-          end: `${endDate}T23:59:59Z`,
+          start: queryStart,
+          end: queryEnd,
           signal,
         })
 
-        const evidence = historyResultToTrafficEvidence(result, { startMs, endMs })
+        const evidence = historyResultToTrafficEvidence(result, {
+          startMs: startMs - 86400000,
+          endMs: endMs + 86400000,
+        })
         const byEntity = new Map<string, DailyTrafficAggregate[]>()
 
         for (const item of evidence) {

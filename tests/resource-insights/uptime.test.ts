@@ -114,4 +114,32 @@ const now = new Date('2026-09-21T12:00:00Z')
   console.log('✓ Fleet aggregation test passes')
 }
 
+// 6. Recent shutdown (e.g. 10 minutes ago) drops uptime below 100% and sets isOnline: false
+{
+  const node: any = {
+    uuid: 'node-recent-down',
+    name: 'Zouter',
+    online: false, // Node was shut down
+    uptime: 0,
+  }
+
+  // Records for the past 24 hours every 2 minutes, but stopping 10 minutes ago
+  const tenMinutesMs = 10 * 60 * 1000
+  const records: any[] = []
+  const startTime = now.getTime() - 24 * 3600 * 1000
+  const lastRecordTime = now.getTime() - tenMinutesMs
+  for (let t = startTime; t <= lastRecordTime; t += 120 * 1000) {
+    records.push({
+      time: new Date(t).toISOString(),
+    })
+  }
+
+  const result = calculateNode30dUptime(node, records, now)
+  assert.strictEqual(result.isOnline, false, 'isOnline should be false when node.online is false')
+  assert.ok(result.uptimeRatio !== null, 'uptimeRatio should not be null')
+  assert.ok(result.uptimeRatio! < 1.0, 'uptimeRatio should drop below 100% due to recent 10-minute downtime')
+  assert.notStrictEqual(result.uptimeText, '100.00%', 'uptimeText should not remain 100.00% after 10-minute shutdown')
+  console.log(`✓ Recent shutdown test passes: uptimeText=${result.uptimeText}, ratio=${result.uptimeRatio}`)
+}
+
 console.log('All uptime tests passed successfully!')

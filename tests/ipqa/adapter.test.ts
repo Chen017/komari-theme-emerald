@@ -271,4 +271,48 @@ describe('IPQA adapters & domain model tests', () => {
       assert.ok(color.dot.length > 0)
     }
   })
+
+  // 9. Comprehensive evaluateProviderScore tests
+  it('correctly evaluates provider scores with 优秀/良好/中危/高危/极高危 and null display', () => {
+    const { evaluateProviderScore } = require('../../src/features/ipqa/formatters')
+
+    // null display
+    assert.equal(evaluateProviderScore('IPQS', null).text, 'null')
+    assert.equal(evaluateProviderScore('DBIP', null).text, 'null')
+    assert.equal(evaluateProviderScore('SCAMALYTICS', 'null').text, 'null')
+
+    // IP2Location: 3 -> 优秀
+    const ip2loc = evaluateProviderScore('IP2LOCATION', 3)
+    assert.equal(ip2loc.text, '3 (优秀)')
+    assert.equal(ip2loc.tagLabel, '优秀')
+
+    // ipapi: 4.69% -> 优秀
+    const ipapiRes = evaluateProviderScore('ipapi', '4.69%')
+    assert.equal(ipapiRes.text, '4.69% (优秀)')
+    assert.equal(ipapiRes.tagLabel, '优秀')
+
+    // Scamalytics: 0 -> 优秀, 15 -> 良好, 35 -> 中危, 80 -> 极高危
+    assert.equal(evaluateProviderScore('SCAMALYTICS', 0).text, '0 (优秀)')
+    assert.equal(evaluateProviderScore('SCAMALYTICS', 15).text, '15 (良好)')
+    assert.equal(evaluateProviderScore('SCAMALYTICS', 35).text, '35 (中危)')
+    assert.equal(evaluateProviderScore('SCAMALYTICS', 80).text, '80 (极高危)')
+
+    // AbuseIPDB: 0% -> 优秀, 5% -> 良好, 25% -> 中危, 55% -> 高危
+    assert.equal(evaluateProviderScore('AbuseIPDB', '0%').text, '0% (优秀)')
+    assert.equal(evaluateProviderScore('AbuseIPDB', '5%').text, '5% (良好)')
+    assert.equal(evaluateProviderScore('AbuseIPDB', '25%').text, '25% (中危)')
+    assert.equal(evaluateProviderScore('AbuseIPDB', '55%').text, '55% (高危)')
+
+    // IPQS: 0 -> 优秀, 20 -> 良好, 60 -> 可疑, 80 -> 高危, 90 -> 极高危
+    assert.equal(evaluateProviderScore('IPQS', 0).text, '0 (优秀)')
+    assert.equal(evaluateProviderScore('IPQS', 20).text, '20 (良好)')
+    assert.equal(evaluateProviderScore('IPQS', 60).text, '60 (可疑)')
+    assert.equal(evaluateProviderScore('IPQS', 80).text, '80 (高危)')
+    assert.equal(evaluateProviderScore('IPQS', 90).text, '90 (极高危)')
+
+    // DB-IP: Clean/Low -> 优秀
+    assert.equal(evaluateProviderScore('DBIP', 'Low').text, 'Low (优秀)')
+    assert.equal(evaluateProviderScore('DBIP', 'Medium').text, 'Medium (中危)')
+    assert.equal(evaluateProviderScore('DBIP', 'High').text, 'High (高危)')
+  })
 })

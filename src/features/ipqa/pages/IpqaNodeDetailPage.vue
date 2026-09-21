@@ -99,16 +99,18 @@ onMounted(() => {
   void loadArchive(queryDate)
 })
 
+async function onDateChange(newDate: string) {
+  if (newDate === currentDate.value && currentReport.value?.date === newDate) return
+  currentDate.value = newDate
+  void router.push({ query: { ...route.query, date: newDate } })
+  await loadArchive(newDate)
+}
+
 watch(() => route.query.date, (newDate) => {
-  if (typeof newDate === 'string' && newDate !== currentDate.value) {
+  if (typeof newDate === 'string' && newDate !== currentReport.value?.date) {
     void loadArchive(newDate)
   }
 })
-
-function onDateChange(newDate: string) {
-  currentDate.value = newDate
-  void router.push({ query: { ...route.query, date: newDate } })
-}
 
 const activeNormalizedReport = computed<IpqaNormalizedReport | null>(() => {
   if (!currentReport.value) return null

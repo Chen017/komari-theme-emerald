@@ -39,6 +39,21 @@ onMounted(() => {
 watch(() => props.uuid, () => {
   void loadSnapshot()
 })
+function getMediaItem(media: Record<string, any> | undefined, ...names: string[]) {
+  if (!media) return null
+  for (const n of names) {
+    const lower = n.toLowerCase()
+    for (const [k, v] of Object.entries(media)) {
+      if (k.toLowerCase() === lower || k.toLowerCase().includes(lower)) {
+        const status = (v as any)?.status
+        const unlocked = typeof status === 'string' && (status.includes('解锁') || status.includes('Yes') || status.includes('仅自制'))
+        const region = (v as any)?.region
+        return { unlocked, region }
+      }
+    }
+  }
+  return null
+}
 </script>
 
 <template>
@@ -76,9 +91,9 @@ watch(() => props.uuid, () => {
       </RouterLink>
     </div>
 
-    <div v-else class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-      <!-- Risk Category -->
-      <div class="p-2 rounded-sm bg-slate-500/5">
+    <div v-else class="flex flex-col md:flex-row items-stretch gap-3 text-xs">
+      <!-- Risk Category (Narrow) -->
+      <div class="p-2.5 rounded-sm bg-slate-500/5 shrink-0 min-w-[130px]">
         <div class="text-[11px] text-muted-foreground mb-1">
           综合风控评级
         </div>
@@ -95,56 +110,58 @@ watch(() => props.uuid, () => {
         </div>
       </div>
 
-      <!-- IP Version -->
-      <div class="p-2 rounded-sm bg-slate-500/5">
-        <div class="text-[11px] text-muted-foreground mb-1">
-          归档协议
-        </div>
-        <div class="flex items-center gap-1 font-mono">
-          <span
-            class="px-1.5 py-0.2 rounded text-[11px]"
-            :class="latestReport.summary.hasV4 ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 font-bold' : 'text-neutral-400'"
-          >
-            IPv4
-          </span>
-          <span
-            class="px-1.5 py-0.2 rounded text-[11px]"
-            :class="latestReport.summary.hasV6 ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 font-bold' : 'text-neutral-400'"
-          >
-            IPv6
-          </span>
-        </div>
-      </div>
-
-      <!-- Media Unlocking -->
-      <div class="p-2 rounded-sm bg-slate-500/5">
+      <!-- Media Unlocking with v4 & v6 in ONE row -->
+      <div class="p-2.5 rounded-sm bg-slate-500/5 flex-1 min-w-0">
         <div class="text-[11px] text-muted-foreground mb-1">
           流媒体解锁
         </div>
-        <div class="flex items-center gap-1.5 font-medium">
-          <span
-            v-if="latestReport.summary.mediaSummary.Netflix"
-            class="text-[11px]"
-            :class="latestReport.summary.mediaSummary.Netflix.unlocked ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'"
-          >
-            NF{{ latestReport.summary.mediaSummary.Netflix.region ? `[${latestReport.summary.mediaSummary.Netflix.region}]` : '' }}
-          </span>
-          <span
-            v-if="latestReport.summary.mediaSummary.Youtube"
-            class="text-[11px]"
-            :class="latestReport.summary.mediaSummary.Youtube.unlocked ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'"
-          >
-            YT{{ latestReport.summary.mediaSummary.Youtube.region ? `[${latestReport.summary.mediaSummary.Youtube.region}]` : '' }}
-          </span>
+        <div class="flex items-center gap-5 flex-wrap text-[11px] pt-0.5">
+          <!-- v4 -->
+          <div v-if="latestReport.v4" class="inline-flex items-center gap-1.5 flex-wrap">
+            <span class="font-mono text-[10px] px-1 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300 font-semibold">v4</span>
+            <template v-for="s in [
+              { name: 'YouTube', keys: ['YouTube', 'Youtube', 'youtube'] },
+              { name: 'TikTok', keys: ['TikTok', 'tiktok'] },
+              { name: 'Reddit', keys: ['Reddit', 'reddit'] },
+            ]" :key="s.name">
+              <span
+                v-if="getMediaItem(latestReport.v4?.media, ...s.keys)"
+                class="font-medium"
+                :class="getMediaItem(latestReport.v4?.media, ...s.keys)?.unlocked ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'"
+              >
+                {{ s.name }}{{ getMediaItem(latestReport.v4?.media, ...s.keys)?.region ? `[${getMediaItem(latestReport.v4?.media, ...s.keys)?.region}]` : '' }}
+              </span>
+            </template>
+          </div>
+
+          <!-- v6 -->
+          <div v-if="latestReport.v6" class="inline-flex items-center gap-1.5 flex-wrap">
+            <span class="font-mono text-[10px] px-1 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300 font-semibold">v6</span>
+            <template v-for="s in [
+              { name: 'YouTube', keys: ['YouTube', 'Youtube', 'youtube'] },
+              { name: 'TikTok', keys: ['TikTok', 'tiktok'] },
+              { name: 'Reddit', keys: ['Reddit', 'reddit'] },
+            ]" :key="s.name">
+              <span
+                v-if="getMediaItem(latestReport.v6?.media, ...s.keys)"
+                class="font-medium"
+                :class="getMediaItem(latestReport.v6?.media, ...s.keys)?.unlocked ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'"
+              >
+                {{ s.name }}{{ getMediaItem(latestReport.v6?.media, ...s.keys)?.region ? `[${getMediaItem(latestReport.v6?.media, ...s.keys)?.region}]` : '' }}
+              </span>
+            </template>
+          </div>
+
+          <div v-if="!latestReport.v4 && !latestReport.v6" class="text-muted-foreground">--</div>
         </div>
       </div>
 
-      <!-- AI Unlocking -->
-      <div class="p-2 rounded-sm bg-slate-500/5">
+      <!-- AI Unlocking (Narrow) -->
+      <div class="p-2.5 rounded-sm bg-slate-500/5 shrink-0 min-w-[130px]">
         <div class="text-[11px] text-muted-foreground mb-1">
           AI 解锁
         </div>
-        <div class="font-medium text-[11px]">
+        <div class="font-medium text-[11px] pt-0.5">
           <span
             v-if="latestReport.summary.aiSummary.ChatGPT"
             :class="latestReport.summary.aiSummary.ChatGPT.unlocked ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'"

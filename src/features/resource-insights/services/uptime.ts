@@ -14,6 +14,7 @@ export interface NodeUptime30d {
   status: 'complete' | 'partial' | 'unavailable'
   coverageText: string
   uptimeText: string
+  isOnline: boolean
 }
 
 export interface FleetUptime30d {
@@ -34,6 +35,7 @@ export function calculateNode30dUptime(
   records: readonly RawStatusRecord[] = [],
   now = new Date(),
 ): NodeUptime30d {
+  const isOnline = Boolean(node.online)
   const requestedSeconds = SECONDS_30_DAYS
   const windowStartMs = now.getTime() - requestedSeconds * 1000
 
@@ -46,7 +48,22 @@ export function calculateNode30dUptime(
   if (validRecords.length >= 2) {
     const firstMs = validRecords[0]!.atMs
     const lastMs = validRecords.at(-1)!.atMs
-    const coveredSeconds = Math.min(requestedSeconds, Math.max(0, (lastMs - firstMs) / 1000))
+    // Total covered window from first record up to now
+    const coveredSeconds = Math.min(requestedSeconds, Math.max(0, (now.getTime() - firstMs) / 1000))
+
+    // Determine normal reporting cadence
+    const rawGaps: number[] = []
+    for (let i = 1; i < validRecords.length; i++) {
+      const g = (validRecords[i]!.atMs - validRecords[i - 1]!.atMs) / 1000
+      if (g > 0) rawGaps.push(g)
+    }
+    rawGaps.sort((a, b) => a - b)
+
+    // Use 25th percentile to determine normal heartbeat interval, immune to long outages
+    const cadence = rawGaps.length >= 5
+      ? rawGaps[Math.floor(rawGaps.length * 0.25)]!
+      : (rawGaps[0] ?? MAX_HEARTBEAT_GAP_SECONDS)
+    const maxAllowedGap = Math.max(MAX_HEARTBEAT_GAP_SECONDS, cadence * 2.2)
 
     let onlineSeconds = 0
     for (let i = 1; i < validRecords.length; i++) {
@@ -54,14 +71,32 @@ export function calculateNode30dUptime(
       const curr = validRecords[i]!
       const gapSeconds = (curr.atMs - prev.atMs) / 1000
 
-      // If gap is within expected heartbeat, count as online interval
-      if (gapSeconds > 0 && gapSeconds <= MAX_HEARTBEAT_GAP_SECONDS) {
-        onlineSeconds += gapSeconds
+      if (gapSeconds > 0) {
+        if (gapSeconds <= maxAllowedGap) {
+          onlineSeconds += gapSeconds
+        } else {
+          // Outage occurred: only credit the single sample cadence, the rest is downtime
+          onlineSeconds += Math.min(gapSeconds, cadence)
+        }
       }
     }
 
+    // Evaluate tail gap from last record to now
+    const tailGapSeconds = Math.max(0, (now.getTime() - lastMs) / 1000)
+    if (tailGapSeconds > 0) {
+      if (isOnline) {
+        if (tailGapSeconds <= maxAllowedGap) {
+          onlineSeconds += tailGapSeconds
+        } else {
+          onlineSeconds += Math.min(tailGapSeconds, cadence)
+        }
+      }
+      // If !isOnline, 0 seconds credited to onlineSeconds, so tailGapSeconds counts as downtime!
+    }
+
+    onlineSeconds = Math.min(coveredSeconds, onlineSeconds)
     const coverageRatio = coveredSeconds / requestedSeconds
-    const uptimeRatio = coveredSeconds > 0 ? Math.min(1, onlineSeconds / coveredSeconds) : null
+    const uptimeRatio = coveredSeconds > 0 ? Math.min(1, Math.max(0, onlineSeconds / coveredSeconds)) : null
 
     const status: NodeUptime30d['status'] = coverageRatio >= 0.95
       ? 'complete'
@@ -87,6 +122,7 @@ export function calculateNode30dUptime(
       status,
       coverageText,
       uptimeText,
+      isOnline,
     }
   }
 
@@ -95,7 +131,7 @@ export function calculateNode30dUptime(
     ? Number(node.uptime)
     : 0
 
-  if (node.online && uptimeSeconds > 0) {
+  if (isOnline && uptimeSeconds > 0) {
     const coveredSeconds = Math.min(requestedSeconds, uptimeSeconds)
     const coverageRatio = coveredSeconds / requestedSeconds
     const status: NodeUptime30d['status'] = coverageRatio >= 0.95
@@ -109,13 +145,14 @@ export function calculateNode30dUptime(
     return {
       uuid: node.uuid,
       name: node.name,
-      uptimeRatio: 1.0, // continuous uptime reported
+      uptimeRatio: 1.0,
       coveredSeconds,
       requestedSeconds,
       coverageRatio,
       status,
       coverageText,
       uptimeText: '100.00%',
+      isOnline,
     }
   }
 
@@ -123,13 +160,14 @@ export function calculateNode30dUptime(
   return {
     uuid: node.uuid,
     name: node.name,
-    uptimeRatio: node.online ? 1.0 : 0.0,
+    uptimeRatio: isOnline ? 1.0 : 0.0,
     coveredSeconds: 0,
     requestedSeconds,
     coverageRatio: 0,
     status: 'unavailable',
     coverageText: '暂无历史采样',
-    uptimeText: node.online ? '在线' : '离线',
+    uptimeText: isOnline ? '在线' : '离线',
+    isOnline,
   }
 }
 

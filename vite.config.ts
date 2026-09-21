@@ -52,14 +52,34 @@ function komariThemeZip(): Plugin {
         return
       }
 
+      // Clean up old local build zips
+      const allFiles = fs.readdirSync(__dirname)
+      for (const f of allFiles) {
+        if (f.startsWith('komari-theme-emerald-build-') && f.endsWith('.zip')) {
+          try { fs.unlinkSync(resolve(__dirname, f)) } catch {}
+        }
+      }
+
       const output = fs.createWriteStream(outputPath)
       const archive = archiver('zip', { zlib: { level: 9 } })
 
-      return new Promise((resolve, reject) => {
+      return new Promise((resolvePromise, reject) => {
         output.on('close', () => {
           const sizeMB = (archive.pointer() / 1024 / 1024).toFixed(2)
           console.log(`[komari-theme-zip] Created ${zipFileName} (${sizeMB} MB)`)
-          resolve(undefined)
+
+          // Push to Desktop
+          const desktopDir = resolve(process.env.USERPROFILE || 'C:\\Users\\y2hlb', 'Desktop')
+          if (existsSync(desktopDir)) {
+            const desktopZip = resolve(desktopDir, 'komari-theme-emerald.zip')
+            try {
+              fs.copyFileSync(outputPath, desktopZip)
+              console.log(`[komari-theme-zip] Pushed to Desktop: ${desktopZip}`)
+            } catch (err) {
+              console.error('[komari-theme-zip] Failed to copy to Desktop:', err)
+            }
+          }
+          resolvePromise(undefined)
         })
 
         archive.on('error', (err: Error) => {

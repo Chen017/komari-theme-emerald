@@ -1,10 +1,18 @@
 <script setup lang="ts">
 import type { IpqaSemanticChange } from '../types'
 import { Icon } from '@iconify/vue'
+import { computed } from 'vue'
 
-defineProps<{
+const props = defineProps<{
   changes: IpqaSemanticChange[]
 }>()
+
+const filteredChanges = computed(() => {
+  return props.changes.filter(c => {
+    if (!c.field) return true
+    return !c.field.includes('Head') && !c.field.includes('Time') && !c.field.includes('timestamp')
+  })
+})
 
 function getSeverityBadge(sev: string): { label: string, color: string } {
   switch (sev) {
@@ -28,18 +36,18 @@ function getSeverityBadge(sev: string): { label: string, color: string } {
         </h4>
       </div>
       <span class="text-[11px] text-neutral-400 dark:text-neutral-500">
-        共 {{ changes.length }} 条变动
+        共 {{ filteredChanges.length }} 条变动
       </span>
     </div>
 
-    <div v-if="changes.length === 0" class="py-8 text-center text-xs text-neutral-400 dark:text-neutral-500">
+    <div v-if="filteredChanges.length === 0" class="py-8 text-center text-xs text-neutral-400 dark:text-neutral-500">
       <Icon icon="lucide:shield-check" class="w-8 h-8 mx-auto mb-2 opacity-40 text-emerald-500" />
       <span>该节点在所选历史周期内未检出属性或评级变动，保持稳定。</span>
     </div>
 
     <div v-else class="space-y-2.5 max-h-[400px] overflow-y-auto pr-1">
       <div
-        v-for="(change, idx) in changes"
+        v-for="(change, idx) in filteredChanges"
         :key="idx"
         class="p-3 rounded-xl bg-neutral-50/70 dark:bg-neutral-800/40 border border-neutral-100 dark:border-neutral-800/60 text-xs"
       >

@@ -30,7 +30,6 @@ const {
 
 const rangeOptions: Array<{ value: TrafficRange, label: string }> = [
   { value: '7d', label: '7 天' },
-  { value: '30d', label: '30 天' },
   { value: 'since_reset', label: '自上次重置' },
 ]
 
@@ -213,7 +212,9 @@ const chartOption = computed(() => {
         <p>{{ snapshot.message }}</p>
       </div>
 
-      <VChart v-else :option="chartOption" autoresize class="h-64 w-full" />
+      <div v-else class="h-64 w-full">
+        <VChart :option="chartOption" autoresize style="width: 100%; height: 100%;" />
+      </div>
     </div>
 
     <div class="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">

@@ -5,6 +5,28 @@ import { Icon } from '@iconify/vue'
 defineProps<{
   report: IpqaNormalizedReport
 }>()
+
+function formatStr(val: unknown): string {
+  if (val === null || val === undefined) return '--'
+  if (typeof val === 'string') {
+    const t = val.trim()
+    return (t && t !== 'null' && t !== '--') ? t : '--'
+  }
+  if (typeof val === 'number' || typeof val === 'boolean') {
+    return String(val)
+  }
+  if (typeof val === 'object') {
+    const obj = val as Record<string, any>
+    const name = obj.Name || obj.name || obj.Code || obj.code
+    if (typeof name === 'string' && name.trim()) return name.trim()
+    try {
+      return JSON.stringify(val)
+    } catch {
+      return '--'
+    }
+  }
+  return String(val)
+}
 </script>
 
 <template>
@@ -22,21 +44,21 @@ defineProps<{
         <div class="p-2.5 rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-100 dark:border-neutral-800/60">
           <div class="text-[11px] text-neutral-400 dark:text-neutral-500 mb-0.5">IP 地址</div>
           <div class="font-mono font-semibold text-neutral-800 dark:text-neutral-100 truncate">
-            {{ report.info.ip || '--' }}
+            {{ formatStr(report.info.ip) }}
           </div>
         </div>
 
         <div class="p-2.5 rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-100 dark:border-neutral-800/60">
           <div class="text-[11px] text-neutral-400 dark:text-neutral-500 mb-0.5">国家 / 地区</div>
           <div class="font-semibold text-neutral-800 dark:text-neutral-100 truncate">
-            {{ report.info.country || '--' }} {{ report.info.region ? `· ${report.info.region}` : '' }}
+            {{ formatStr(report.info.country) }} {{ report.info.region && formatStr(report.info.region) !== '--' ? `· ${formatStr(report.info.region)}` : '' }}
           </div>
         </div>
 
         <div class="p-2.5 rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-100 dark:border-neutral-800/60">
           <div class="text-[11px] text-neutral-400 dark:text-neutral-500 mb-0.5">城市</div>
           <div class="font-semibold text-neutral-800 dark:text-neutral-100 truncate">
-            {{ report.info.city || '--' }}
+            {{ formatStr(report.info.city) }}
           </div>
         </div>
 
@@ -45,9 +67,9 @@ defineProps<{
           <div class="font-semibold text-neutral-800 dark:text-neutral-100 truncate">
             <span
               class="px-1.5 py-0.5 rounded text-[11px] font-medium"
-              :class="report.info.type?.includes('原生') ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400'"
+              :class="formatStr(report.info.type).includes('原生') ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400'"
             >
-              {{ report.info.type || '--' }}
+              {{ formatStr(report.info.type) }}
             </span>
           </div>
         </div>
@@ -55,21 +77,21 @@ defineProps<{
         <div class="p-2.5 rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-100 dark:border-neutral-800/60">
           <div class="text-[11px] text-neutral-400 dark:text-neutral-500 mb-0.5">ASN</div>
           <div class="font-mono font-medium text-neutral-800 dark:text-neutral-100 truncate">
-            AS{{ report.info.asn || '--' }}
+            {{ formatStr(report.info.asn) !== '--' ? (formatStr(report.info.asn).startsWith('AS') ? formatStr(report.info.asn) : `AS${formatStr(report.info.asn)}`) : '--' }}
           </div>
         </div>
 
         <div class="p-2.5 rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-100 dark:border-neutral-800/60">
           <div class="text-[11px] text-neutral-400 dark:text-neutral-500 mb-0.5">ISP 运营商</div>
-          <div class="font-medium text-neutral-800 dark:text-neutral-100 truncate" :title="String(report.info.isp)">
-            {{ report.info.isp || '--' }}
+          <div class="font-medium text-neutral-800 dark:text-neutral-100 truncate" :title="formatStr(report.info.isp || report.info.organization)">
+            {{ formatStr(report.info.isp || report.info.organization) }}
           </div>
         </div>
 
         <div class="p-2.5 rounded-lg bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-100 dark:border-neutral-800/60 md:col-span-2">
           <div class="text-[11px] text-neutral-400 dark:text-neutral-500 mb-0.5">所属组织机构 (Organization)</div>
-          <div class="font-medium text-neutral-800 dark:text-neutral-100 truncate" :title="String(report.info.organization)">
-            {{ report.info.organization || '--' }}
+          <div class="font-medium text-neutral-800 dark:text-neutral-100 truncate" :title="formatStr(report.info.organization)">
+            {{ formatStr(report.info.organization) }}
           </div>
         </div>
       </div>

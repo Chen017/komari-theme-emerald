@@ -86,7 +86,7 @@ const {
           <div class="flex items-center gap-2 mb-1">
             <span
               class="w-2 h-2 rounded-full shrink-0"
-              :class="node.uptimeRatio !== null && node.uptimeRatio > 0 ? 'bg-emerald-500' : 'bg-rose-500'"
+              :class="node.isOnline ? 'bg-emerald-500' : 'bg-rose-500'"
             />
             <span class="font-medium text-neutral-800 dark:text-neutral-200 truncate">
               {{ node.name }}

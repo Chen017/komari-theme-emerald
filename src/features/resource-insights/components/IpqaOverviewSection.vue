@@ -31,13 +31,19 @@ async function loadData() {
       // Collect recent changes across nodes
       const allChanges: Array<IpqaSemanticChange & { nodeName: string }> = []
       for (const node of data.nodes) {
-        if (node.changes_today > 0) {
+        if (node.status === 'ok' || node.status === 'stale' || node.changes_today > 0) {
           const nodeChanges = await fetchNodeChanges(node.uuid)
           for (const c of nodeChanges) {
+            // Defensively filter out any execution metadata/timestamp noise
+            if (c.field && (c.field.includes('Head') || c.field.includes('Time') || c.field.includes('timestamp'))) {
+              continue
+            }
             allChanges.push({ ...c, nodeName: node.name })
           }
         }
       }
+      // Sort newest first
+      allChanges.sort((a, b) => b.date.localeCompare(a.date))
       recentChanges.value = allChanges.slice(0, 15)
     }
     else {

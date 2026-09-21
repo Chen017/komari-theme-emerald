@@ -1,27 +1,95 @@
 <script setup lang="ts">
 import type { IpqaNodeOverview } from '../types'
 import { Icon } from '@iconify/vue'
+import { ref } from 'vue'
 
 defineProps<{
   nodes: IpqaNodeOverview[]
 }>()
 
+const selectedIpVersion = ref<'v4' | 'v6'>('v4')
+
 const services = [
-  { key: 'Netflix', label: 'Netflix' },
-  { key: 'Youtube', label: 'YouTube' },
-  { key: 'DisneyPlus', label: 'Disney+' },
-  { key: 'ChatGPT', label: 'ChatGPT', isAi: true },
-  { key: 'TikTok', label: 'TikTok' },
+  { keys: ['YouTube', 'Youtube', 'youtube'], label: 'YouTube' },
+  { keys: ['Netflix', 'netflix'], label: 'Netflix' },
+  { keys: ['DisneyPlus', 'disney+', 'Disney+'], label: 'Disney+' },
+  { keys: ['AmazonPrimeVideo', 'amazonpv', 'amazon', 'primevideo'], label: 'Prime Video' },
+  { keys: ['TikTok', 'tiktok'], label: 'TikTok' },
+  { keys: ['Reddit', 'reddit'], label: 'Reddit' },
+  { keys: ['ChatGPT', 'chatgpt', 'OpenAI'], label: 'ChatGPT', isAi: true },
 ]
+
+function getMediaUnlock(node: IpqaNodeOverview, serviceKeys: string[], isAi: boolean, ipVer: 'v4' | 'v6'): { unlocked: boolean, region?: string, available: boolean } {
+  if (node.status !== 'ok' && node.status !== 'stale') {
+    return { unlocked: false, available: false }
+  }
+
+  const hasVer = ipVer === 'v4' ? node.has_ipv4 : node.has_ipv6
+  if (!hasVer) {
+    return { unlocked: false, available: false }
+  }
+
+  const proto = ipVer === 'v4' ? node.v4 : node.v6
+  const pool = proto ? (isAi ? proto.ai : proto.media) : null
+  if (pool) {
+    for (const key of serviceKeys) {
+      const lower = key.toLowerCase()
+      for (const [k, v] of Object.entries(pool)) {
+        if (k.toLowerCase() === lower || k.toLowerCase().includes(lower)) {
+          const unlocked = Boolean((v as any)?.unlocked)
+          const region = (v as any)?.region
+          return { unlocked, region, available: true }
+        }
+      }
+    }
+  }
+
+  // fallback to media_summary / ai_summary
+  const summaryPool = isAi ? node.ai_summary : node.media_summary
+  if (summaryPool) {
+    for (const key of serviceKeys) {
+      const lower = key.toLowerCase()
+      for (const [k, v] of Object.entries(summaryPool)) {
+        if (k.toLowerCase() === lower || k.toLowerCase().includes(lower)) {
+          return { unlocked: Boolean(v?.unlocked), region: v?.region, available: true }
+        }
+      }
+    }
+  }
+
+  return { unlocked: false, available: true }
+}
 </script>
 
 <template>
   <div class="p-4 rounded-xl bg-neutral-50/50 dark:bg-neutral-800/30 border border-neutral-200/80 dark:border-neutral-800 flex flex-col h-full">
-    <div class="flex items-center gap-2 mb-3">
-      <Icon icon="lucide:tv" class="w-4 h-4 text-emerald-500" />
-      <h4 class="font-semibold text-xs text-neutral-800 dark:text-neutral-200">
-        流媒体与 AI 解锁能力矩阵
-      </h4>
+    <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center gap-2">
+        <Icon icon="lucide:tv" class="w-4 h-4 text-emerald-500" />
+        <h4 class="font-semibold text-xs text-neutral-800 dark:text-neutral-200">
+          流媒体与 AI 解锁能力矩阵
+        </h4>
+      </div>
+
+      <!-- v4 / v6 toggle -->
+      <div class="flex items-center rounded-md bg-neutral-200/60 dark:bg-neutral-800 p-0.5" role="group">
+        <button
+          type="button"
+          class="rounded px-2 py-0.5 text-[11px] font-medium transition-colors"
+          :class="selectedIpVersion === 'v4' ? 'bg-white dark:bg-neutral-700 text-emerald-600 dark:text-emerald-300 shadow-xs' : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'"
+          @click="selectedIpVersion = 'v4'"
+        >
+          IPv4
+        </button>
+        <button
+          type="button"
+          class="rounded px-2 py-0.5 text-[11px] font-medium transition-colors"
+          :class="selectedIpVersion === 'v6' ? 'bg-white dark:bg-neutral-700 text-emerald-600 dark:text-emerald-300 shadow-xs' : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'"
+          @click="selectedIpVersion = 'v6'"
+        >
+          IPv6
+        </button>
+      </div>
     </div>
 
     <div class="overflow-x-auto flex-1">
@@ -29,7 +97,7 @@ const services = [
         <thead>
           <tr class="border-b border-neutral-200 dark:border-neutral-800 text-[11px] text-neutral-400 dark:text-neutral-500">
             <th class="py-2 pr-3 font-medium">节点</th>
-            <th v-for="s in services" :key="s.key" class="py-2 px-2 font-medium whitespace-nowrap">
+            <th v-for="s in services" :key="s.label" class="py-2 px-2 font-medium whitespace-nowrap">
               {{ s.label }}
             </th>
           </tr>
@@ -39,36 +107,20 @@ const services = [
             <td class="py-2.5 pr-3 font-medium text-neutral-800 dark:text-neutral-200 max-w-[120px] truncate">
               {{ node.name }}
             </td>
-            <td v-for="s in services" :key="s.key" class="py-2.5 px-2 whitespace-nowrap">
-              <template v-if="node.status === 'ok'">
-                <template v-if="s.isAi">
-                  <span
-                    v-if="node.ai_summary[s.key]?.unlocked"
-                    class="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium"
-                  >
-                    <Icon icon="lucide:check" class="w-3.5 h-3.5" />
-                    <span v-if="node.ai_summary[s.key]?.region" class="text-[10px]">
-                      [{{ node.ai_summary[s.key]?.region }}]
-                    </span>
+            <td v-for="s in services" :key="s.label" class="py-2.5 px-2 whitespace-nowrap">
+              <template v-if="getMediaUnlock(node, s.keys, Boolean(s.isAi), selectedIpVersion).available">
+                <span
+                  v-if="getMediaUnlock(node, s.keys, Boolean(s.isAi), selectedIpVersion).unlocked"
+                  class="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium"
+                >
+                  <Icon icon="lucide:check" class="w-3.5 h-3.5" />
+                  <span v-if="getMediaUnlock(node, s.keys, Boolean(s.isAi), selectedIpVersion).region" class="text-[10px]">
+                    [{{ getMediaUnlock(node, s.keys, Boolean(s.isAi), selectedIpVersion).region }}]
                   </span>
-                  <span v-else class="text-rose-500 dark:text-rose-400">
-                    <Icon icon="lucide:x" class="w-3.5 h-3.5" />
-                  </span>
-                </template>
-                <template v-else>
-                  <span
-                    v-if="node.media_summary[s.key]?.unlocked"
-                    class="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium"
-                  >
-                    <Icon icon="lucide:check" class="w-3.5 h-3.5" />
-                    <span v-if="node.media_summary[s.key]?.region" class="text-[10px]">
-                      [{{ node.media_summary[s.key]?.region }}]
-                    </span>
-                  </span>
-                  <span v-else class="text-rose-500 dark:text-rose-400">
-                    <Icon icon="lucide:x" class="w-3.5 h-3.5" />
-                  </span>
-                </template>
+                </span>
+                <span v-else class="text-rose-500 dark:text-rose-400">
+                  <Icon icon="lucide:x" class="w-3.5 h-3.5" />
+                </span>
               </template>
               <span v-else class="text-neutral-300 dark:text-neutral-600">--</span>
             </td>

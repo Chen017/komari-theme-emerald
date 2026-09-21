@@ -1,47 +1,11 @@
 <script setup lang="ts">
-import type { IpqaNormalizedReport, RiskCategory } from '../types'
+import type { IpqaNormalizedReport } from '../types'
 import { Icon } from '@iconify/vue'
-import { getRiskColor, getRiskLabel } from '../formatters'
+import { evaluateProviderScore, getRiskColor } from '../formatters'
 
-const props = defineProps<{
+defineProps<{
   report: IpqaNormalizedReport
 }>()
-
-function evaluateEngineRisk(engine: string, val: unknown): { category: RiskCategory, label: string } {
-  if (val === null || val === undefined) return { category: 'Unknown', label: '--' }
-
-  const str = String(val).trim()
-  const num = Number(val)
-
-  if (engine === 'IPQS') {
-    if (num >= 85) return { category: 'Critical', label: `${num} (极高)` }
-    if (num >= 75) return { category: 'High', label: `${num} (高)` }
-    if (num >= 50) return { category: 'Medium', label: `${num} (中等)` }
-    return { category: 'Low', label: `${num} (低)` }
-  }
-
-  if (engine === 'SCAMALYTICS') {
-    if (num >= 75) return { category: 'High', label: `${num} (高)` }
-    if (num >= 25) return { category: 'Medium', label: `${num} (中等)` }
-    return { category: 'Low', label: `${num} (低)` }
-  }
-
-  if (engine === 'AbuseIPDB') {
-    if (num >= 50) return { category: 'High', label: `${num}% (高)` }
-    if (num >= 20) return { category: 'Medium', label: `${num}% (中等)` }
-    return { category: 'Low', label: `${num}% (低)` }
-  }
-
-  if (engine === 'IP2LOCATION') {
-    const upper = str.toUpperCase()
-    if (upper.includes('VERY HIGH')) return { category: 'Critical', label: str }
-    if (upper.includes('HIGH')) return { category: 'High', label: str }
-    if (upper.includes('MEDIUM')) return { category: 'Medium', label: str }
-    return { category: 'Low', label: str }
-  }
-
-  return { category: 'Low', label: str }
-}
 </script>
 
 <template>
@@ -60,22 +24,25 @@ function evaluateEngineRisk(engine: string, val: unknown): { category: RiskCateg
           :key="engine"
           class="p-3 rounded-xl border flex flex-col justify-between"
           :class="[
-            getRiskColor(evaluateEngineRisk(String(engine), scoreVal).category).bg,
-            getRiskColor(evaluateEngineRisk(String(engine), scoreVal).category).border,
+            getRiskColor(evaluateProviderScore(String(engine), scoreVal).category).bg,
+            getRiskColor(evaluateProviderScore(String(engine), scoreVal).category).border,
           ]"
         >
           <div class="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 mb-1">
             {{ engine }}
           </div>
           <div>
-            <div class="text-base font-bold text-neutral-800 dark:text-neutral-100">
-              {{ evaluateEngineRisk(String(engine), scoreVal).label }}
+            <div
+              class="text-base font-bold text-neutral-800 dark:text-neutral-100 truncate"
+              :class="{ 'font-mono text-sm text-neutral-400 dark:text-neutral-500': scoreVal === null || scoreVal === 'null' }"
+            >
+              {{ evaluateProviderScore(String(engine), scoreVal).text }}
             </div>
             <div
               class="text-[10px] font-medium mt-0.5"
-              :class="getRiskColor(evaluateEngineRisk(String(engine), scoreVal).category).text"
+              :class="getRiskColor(evaluateProviderScore(String(engine), scoreVal).category).text"
             >
-              {{ getRiskLabel(evaluateEngineRisk(String(engine), scoreVal).category) }}
+              {{ evaluateProviderScore(String(engine), scoreVal).tagLabel }}
             </div>
           </div>
         </div>

@@ -111,9 +111,16 @@ export function metricsToTrafficEvidence(
   const entities = new Map<string, MutableEntityEvidence>()
   for (const metricSeries of series) {
     const evidence = getEntityEvidence(entities, metricSeries.entityId)
-    if (metricSeries.downsampled && metricSeries.aggregation !== 'sum')
+    if (metricSeries.downsampled && metricSeries.aggregation && metricSeries.aggregation !== 'sum')
       continue
-    const intervalMs = (metricSeries.intervalSeconds ?? 0) * 1000
+    let intervalMs = (metricSeries.intervalSeconds ?? 0) * 1000
+    if ((!Number.isFinite(intervalMs) || intervalMs <= 0) && metricSeries.points.length >= 2) {
+      const t0 = Date.parse(metricSeries.points[0]!.time)
+      const t1 = Date.parse(metricSeries.points[1]!.time)
+      if (Number.isFinite(t0) && Number.isFinite(t1) && t1 > t0) {
+        intervalMs = t1 - t0
+      }
+    }
     if (Number.isFinite(intervalMs) && intervalMs > 0) {
       for (const point of metricSeries.points) {
         if (point.value === null)
@@ -129,9 +136,6 @@ export function metricsToTrafficEvidence(
       }
       continue
     }
-
-    if (metricSeries.downsampled)
-      continue
 
     const points = metricSeries.points
       .map(point => ({ point, atMs: Date.parse(point.time) }))

@@ -91,7 +91,7 @@ function normalizeMetrics(payload: unknown): { retentionDays: number | null, ser
   for (const item of (payload as RawMetricsResponse).series) {
     if (!item || typeof item !== 'object' || !['traffic.up', 'traffic.down'].includes(item.metric_key) || typeof item.entity_id !== 'string')
       throw new HistoryProtocolError('Invalid traffic metric series')
-    if (item.downsampled === true && item.downsample_algorithm !== 'sum')
+    if (item.downsampled === true && item.downsample_algorithm && item.downsample_algorithm !== 'sum')
       throw new HistoryProtocolError('Expected sum-aggregated traffic metrics')
     const points = item.points ?? []
     if (!Array.isArray(points))
@@ -124,14 +124,33 @@ function normalizeMetrics(payload: unknown): { retentionDays: number | null, ser
 function normalizeRecords(payload: unknown): Record<string, RawStatusRecord[]> {
   if (!payload || typeof payload !== 'object')
     throw new HistoryProtocolError('Invalid common:getRecords response')
-  const records = (payload as RawRecordsResponse).records
-  if (!records || Array.isArray(records) || typeof records !== 'object')
-    throw new HistoryProtocolError('Expected grouped load records')
-  for (const [uuid, rows] of Object.entries(records)) {
-    if (!Array.isArray(rows) || rows.some(row => !row || typeof row !== 'object' || typeof row.time !== 'string'))
-      throw new HistoryProtocolError(`Invalid records for ${uuid}`)
+  const rawRecords = (payload as RawRecordsResponse).records
+  if (!rawRecords)
+    throw new HistoryProtocolError('Expected records in response')
+
+  if (Array.isArray(rawRecords)) {
+    const grouped: Record<string, RawStatusRecord[]> = {}
+    for (const row of rawRecords) {
+      if (!row || typeof row !== 'object' || typeof row.time !== 'string')
+        continue
+      const id = String(row.client || row.uuid || '')
+      if (id) {
+        if (!grouped[id]) grouped[id] = []
+        grouped[id].push(row)
+      }
+    }
+    return grouped
   }
-  return records as Record<string, RawStatusRecord[]>
+
+  if (typeof rawRecords === 'object') {
+    for (const [uuid, rows] of Object.entries(rawRecords)) {
+      if (!Array.isArray(rows) || rows.some(row => !row || typeof row !== 'object' || typeof row.time !== 'string'))
+        throw new HistoryProtocolError(`Invalid records for ${uuid}`)
+    }
+    return rawRecords as Record<string, RawStatusRecord[]>
+  }
+
+  throw new HistoryProtocolError('Expected grouped or array load records')
 }
 
 function minimumRetentionDays(series: NormalizedMetricSeries[]): number | null {
@@ -161,11 +180,14 @@ export function createHistoryGateway(call: RpcCall) {
   }
 
   async function queryLegacyRecords(query: TrafficQuery, entityIds: string[]): Promise<LegacyRecordsResult> {
+    const hours = Math.max(1, Math.ceil((Date.parse(query.end) - Date.parse(query.start)) / 3600000))
     const payload = await call<RawRecordsResponse>('common:getRecords', {
       type: 'load',
+      hours,
       start: query.start,
       end: query.end,
       load_type: 'all',
+      max_count: -1,
       maxCount: -1,
     }, { signal: query.signal })
     const records = normalizeRecords(payload)
@@ -187,20 +209,21 @@ export function createHistoryGateway(call: RpcCall) {
     }
     catch (error) {
       if (isRetryableHistoryFailure(error)) {
-        await waitForMetricsRetry(query.signal)
-        series = await queryMetricSeries(query, entityIds, query.start, query.end, query.maxPoints ?? 500)
-      }
-      else if (!isMetricFallback(error)) {
-        throw error
+        try {
+          await waitForMetricsRetry(query.signal)
+          series = await queryMetricSeries(query, entityIds, query.start, query.end, query.maxPoints ?? 500)
+        }
+        catch {
+          return await queryLegacyRecords(query, entityIds)
+        }
       }
       else {
-        const metricsMethodUnavailable = isMetricsMethodUnavailable(error)
-
+        // Fall back to legacy records for any queryMetricSeries failure
         try {
           return await queryLegacyRecords(query, entityIds)
         }
         catch (recordsError) {
-          if (metricsMethodUnavailable && isLegacyRecordsUnavailable(recordsError))
+          if (isMetricsMethodUnavailable(error) && isLegacyRecordsUnavailable(recordsError))
             throw new HistoryCapabilitiesUnavailableError()
           throw recordsError
         }
