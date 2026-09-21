@@ -17,6 +17,7 @@ import { getTrafficUsed } from '@/utils/nodeHelpers'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
 import { getFlagSrc, getRegionDisplayName } from '@/utils/regionHelper'
 import { getBillingCycleText, getExpireText, getExpireTextClass } from '@/utils/tagHelper'
+import IpqaSnapshotCard from '@/features/ipqa/components/IpqaSnapshotCard.vue'
 
 const LoadChart = defineAsyncComponent(() => import('@/components/LoadChart.vue'))
 const PingChart = defineAsyncComponent(() => import('@/components/PingChart.vue'))
@@ -394,6 +395,8 @@ const trafficProgressStyle = computed(() => ({
           </div>
         </CardX>
       </div>
+
+      <IpqaSnapshotCard :uuid="data.uuid" class="mx-4" />
 
       <LoadChart :uuid="data.uuid" class="px-4" />
       <PingChart :uuid="data.uuid" class="px-4" />
