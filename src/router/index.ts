@@ -23,6 +23,11 @@ const router = createRouter({
       name: 'cost-renewal',
       component: () => import('@/features/cost-renewal/pages/CostRenewalPage.vue'),
     },
+    {
+      path: '/ip-quality/:uuid',
+      name: 'ipqa-node-detail',
+      component: () => import('@/features/ipqa/pages/IpqaNodeDetailPage.vue'),
+    },
   ],
 })
 
