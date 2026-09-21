@@ -13,6 +13,11 @@ const router = createRouter({
       name: 'instance-detail',
       component: () => import('@/views/InstanceDetail.vue'),
     },
+    {
+      path: '/cost-renewal',
+      name: 'cost-renewal',
+      component: () => import('@/features/cost-renewal/pages/CostRenewalPage.vue'),
+    },
   ],
 })
 

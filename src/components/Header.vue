@@ -1,18 +1,34 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { computed, inject, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { DataTooltip } from '@/components/ui/data-tooltip'
 import { useAppStore } from '@/stores/app'
 
 const router = useRouter()
+const route = useRoute()
 const appStore = useAppStore()
 
 const isScrolled = inject<ReturnType<typeof ref<boolean>>>('isScrolled', ref(false))
 
 const siteFavicon = ref('/favicon.ico')
+
+const navActions = computed(() => [
+  {
+    title: '资源概览',
+    icon: 'lucide:chart-no-axes-combined',
+    route: '/resource-insights',
+    active: route.name === 'resource-insights',
+  },
+  {
+    title: '成本与续费',
+    icon: 'lucide:wallet-cards',
+    route: '/cost-renewal',
+    active: route.name === 'cost-renewal',
+  },
+])
 
 const actionButtons = computed(() => {
   const buttons = [
@@ -63,6 +79,24 @@ const sitename = computed(() => appStore.publicSettings?.sitename || 'Komari Mon
         </h3>
       </div>
       <div class="flex items-center gap-2">
+        <DataTooltip
+          v-for="nav in navActions"
+          :key="nav.route"
+          :content="nav.title"
+          placement="left"
+          content-class="whitespace-nowrap text-[11px] px-2"
+        >
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            :aria-label="nav.title"
+            :aria-current="nav.active ? 'page' : undefined"
+            :class="nav.active ? 'relative border-current bg-accent font-semibold after:absolute after:bottom-0.5 after:h-0.5 after:w-3 after:rounded-full after:bg-current' : ''"
+            @click="router.push(nav.route)"
+          >
+            <Icon :icon="nav.icon" :width="18" :height="18" />
+          </Button>
+        </DataTooltip>
         <DataTooltip v-for="button in actionButtons" :key="button.action" :content="button.title" placement="left" content-class="whitespace-nowrap text-[11px] px-2">
           <Button variant="ghost" size="icon-sm" @click="handleButtonClick(button.action)">
             <Icon :icon="button.icon" :width="18" :height="18" />

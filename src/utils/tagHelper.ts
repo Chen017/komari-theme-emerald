@@ -1,5 +1,5 @@
 import dayjs from 'dayjs'
-import { CURRENCY_SYMBOLS, normalizeCurrency } from '@/utils/financeHelper'
+import { CURRENCY_SYMBOLS, normalizeCurrency } from './financeHelper'
 
 /** 计费周期类型 */
 export type BillingCycleType = 'monthly' | 'quarterly' | 'semi_annual' | 'annual' | 'biennial' | 'triennial' | 'quinquennial' | 'once' | 'custom'
