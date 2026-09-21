@@ -47,8 +47,8 @@ export function useUptime30d(options: UseUptime30dOptions) {
 
     try {
       const now = new Date()
-      const start = new Date(now.getTime() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 19).replace('T', ' ')
-      const end = now.toISOString().slice(0, 19).replace('T', ' ')
+      const start = new Date(now.getTime() - 30 * 24 * 3600 * 1000).toISOString()
+      const end = now.toISOString()
 
       let recordsByNode = {}
       try {

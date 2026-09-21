@@ -115,8 +115,8 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
       const lease = requestPool.acquire(cacheKey, async (signal) => {
         const result = await gateway.queryTraffic({
           entityIds,
-          start: `${startDate} 00:00:00`,
-          end: `${endDate} 23:59:59`,
+          start: `${startDate}T00:00:00Z`,
+          end: `${endDate}T23:59:59Z`,
           signal,
         })
 
