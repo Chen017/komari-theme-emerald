@@ -337,6 +337,41 @@ const useAppStore = defineStore('app', () => {
     isLoggedIn.value = loggedIn
   }
 
+  const enableResourceInsights = computed<boolean>(() => {
+    const val = publicSettings.value?.theme_settings?.enable_resource_insights
+    return val !== undefined ? Boolean(val) : true
+  })
+
+  const enableCostRenewal = computed<boolean>(() => {
+    const val = publicSettings.value?.theme_settings?.enable_cost_renewal
+    return val !== undefined ? Boolean(val) : true
+  })
+
+  const enableIpqaOverview = computed<boolean>(() => {
+    const val = publicSettings.value?.theme_settings?.enable_ipqa_overview
+    return val !== undefined ? Boolean(val) : true
+  })
+
+  const enableNodeDetailIpqa = computed<boolean>(() => {
+    const val = publicSettings.value?.theme_settings?.enable_node_detail_ipqa
+    return val !== undefined ? Boolean(val) : true
+  })
+
+  const ipqaShowRiskMatrix = computed<boolean>(() => {
+    const val = publicSettings.value?.theme_settings?.ipqa_show_risk_matrix
+    return val !== undefined ? Boolean(val) : true
+  })
+
+  const ipqaShowMediaMatrix = computed<boolean>(() => {
+    const val = publicSettings.value?.theme_settings?.ipqa_show_media_matrix
+    return val !== undefined ? Boolean(val) : true
+  })
+
+  const ipqaShowChanges = computed<boolean>(() => {
+    const val = publicSettings.value?.theme_settings?.ipqa_show_changes
+    return val !== undefined ? Boolean(val) : true
+  })
+
   return {
     loading,
     themeMode,
@@ -371,6 +406,13 @@ const useAppStore = defineStore('app', () => {
     currentBackgroundUrl,
     backgroundBlur,
     backgroundOverlay,
+    enableResourceInsights,
+    enableCostRenewal,
+    enableIpqaOverview,
+    enableNodeDetailIpqa,
+    ipqaShowRiskMatrix,
+    ipqaShowMediaMatrix,
+    ipqaShowChanges,
     isLoggedIn,
     publicSettings,
     connectionError,

@@ -38,7 +38,15 @@
       { "key": "lightBackgroundUrl", "name": "亮色模式背景地址", "type": "string", "default": "", "help": "亮色模式下的背景图片/视频 URL" },
       { "key": "darkBackgroundUrl", "name": "暗色模式背景地址", "type": "string", "default": "", "help": "暗色模式下的背景图片/视频 URL" },
       { "key": "backgroundBlur", "name": "背景模糊半径", "type": "number", "default": 0, "help": "背景的高斯模糊半径（单位：px），0 表示不模糊" },
-      { "key": "backgroundOverlay", "name": "背景遮罩强度", "type": "number", "default": 0, "help": "背景遮罩强度（-100 到 100）：负数降低背景透明度，0 表示关闭，正数为黑色遮罩，绝对值越大效果越明显" }
+      { "key": "backgroundOverlay", "name": "背景遮罩强度", "type": "number", "default": 0, "help": "背景遮罩强度（-100 到 100）：负数降低背景透明度，0 表示关闭，正数为黑色遮罩，绝对值越大效果越明显" },
+      { "name": "资源概览与 IPQA 设置", "type": "title" },
+      { "key": "enable_resource_insights", "name": "启用资源概览", "type": "switch", "default": true, "help": "在顶部导航栏显示资源概览入口，并提供流量与在线率分析" },
+      { "key": "enable_cost_renewal", "name": "启用成本与续费", "type": "switch", "default": true, "help": "在顶部导航栏显示成本与续费入口，提供多币种折算与续费时间线" },
+      { "key": "enable_ipqa_overview", "name": "显示 IP 质量概览", "type": "switch", "default": true, "help": "在资源概览页面内展示 IPQA 集群质量与节点卡片" },
+      { "key": "enable_node_detail_ipqa", "name": "节点详情展示 IP 快照", "type": "switch", "default": true, "help": "在节点详情页中插入 IP 质量快速概览卡片" },
+      { "key": "ipqa_show_risk_matrix", "name": "显示风控评分矩阵", "type": "switch", "default": true, "help": "在资源概览的 IPQA 模块中展示各风控数据库对比矩阵" },
+      { "key": "ipqa_show_media_matrix", "name": "显示流媒体/AI矩阵", "type": "switch", "default": true, "help": "在资源概览的 IPQA 模块中展示流媒体与 AI 解锁能力矩阵" },
+      { "key": "ipqa_show_changes", "name": "显示最近属性与风险变动", "type": "switch", "default": true, "help": "在资源概览的 IPQA 模块中展示最近属性与评级变动时间线" }
     ]
   }
 }

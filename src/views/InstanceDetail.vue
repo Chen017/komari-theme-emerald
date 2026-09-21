@@ -396,7 +396,7 @@ const trafficProgressStyle = computed(() => ({
         </CardX>
       </div>
 
-      <IpqaSnapshotCard :uuid="data.uuid" class="mx-4" />
+      <IpqaSnapshotCard v-if="appStore.enableNodeDetailIpqa" :uuid="data.uuid" class="mx-4" />
 
       <LoadChart :uuid="data.uuid" class="px-4" />
       <PingChart :uuid="data.uuid" class="px-4" />

@@ -15,20 +15,26 @@ const isScrolled = inject<ReturnType<typeof ref<boolean>>>('isScrolled', ref(fal
 
 const siteFavicon = ref('/favicon.ico')
 
-const navActions = computed(() => [
-  {
-    title: '资源概览',
-    icon: 'lucide:chart-no-axes-combined',
-    route: '/resource-insights',
-    active: route.name === 'resource-insights',
-  },
-  {
-    title: '成本与续费',
-    icon: 'lucide:wallet-cards',
-    route: '/cost-renewal',
-    active: route.name === 'cost-renewal',
-  },
-])
+const navActions = computed(() => {
+  const actions = []
+  if (appStore.enableResourceInsights) {
+    actions.push({
+      title: '资源概览',
+      icon: 'lucide:chart-no-axes-combined',
+      route: '/resource-insights',
+      active: route.name === 'resource-insights',
+    })
+  }
+  if (appStore.enableCostRenewal) {
+    actions.push({
+      title: '成本与续费',
+      icon: 'lucide:wallet-cards',
+      route: '/cost-renewal',
+      active: route.name === 'cost-renewal',
+    })
+  }
+  return actions
+})
 
 const actionButtons = computed(() => {
   const buttons = [

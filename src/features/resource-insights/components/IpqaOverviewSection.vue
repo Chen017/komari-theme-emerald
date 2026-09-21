@@ -3,6 +3,7 @@ import type { NodeData } from '@/stores/nodes'
 import type { IpqaFleetOverview, IpqaSemanticChange } from '@/features/ipqa'
 import { Icon } from '@iconify/vue'
 import { computed, onMounted, ref } from 'vue'
+import { useAppStore } from '@/stores/app'
 import {
   fetchFleetOverview,
   fetchNodeChanges,
@@ -72,6 +73,8 @@ async function loadData() {
   }
 }
 
+const appStore = useAppStore()
+
 onMounted(() => {
   void loadData()
 })
@@ -82,7 +85,10 @@ const hasIpqaData = computed(() => {
 </script>
 
 <template>
-  <div class="bg-white/80 dark:bg-neutral-900/80 backdrop-blur border border-neutral-200/80 dark:border-neutral-800/80 rounded-2xl p-5 shadow-xs space-y-5">
+  <div
+    v-if="appStore.enableIpqaOverview"
+    class="bg-white/80 dark:bg-neutral-900/80 backdrop-blur border border-neutral-200/80 dark:border-neutral-800/80 rounded-2xl p-5 shadow-xs space-y-5"
+  >
     <!-- Header -->
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-2">
@@ -139,12 +145,15 @@ const hasIpqaData = computed(() => {
     <IpqaNodeGrid v-if="overview && overview.nodes.length > 0" :nodes="overview.nodes" />
 
     <!-- 3. Risk & Media Matrices -->
-    <div v-if="hasIpqaData && overview" class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <IpqaRiskMatrix :nodes="overview.nodes" />
-      <IpqaMediaMatrix :nodes="overview.nodes" />
+    <div
+      v-if="hasIpqaData && overview && (appStore.ipqaShowRiskMatrix || appStore.ipqaShowMediaMatrix)"
+      class="grid grid-cols-1 lg:grid-cols-2 gap-4"
+    >
+      <IpqaRiskMatrix v-if="appStore.ipqaShowRiskMatrix" :nodes="overview.nodes" />
+      <IpqaMediaMatrix v-if="appStore.ipqaShowMediaMatrix" :nodes="overview.nodes" />
     </div>
 
     <!-- 4. Recent Changes Timeline -->
-    <RecentIpqaChanges v-if="hasIpqaData" :changes="recentChanges" />
+    <RecentIpqaChanges v-if="hasIpqaData && appStore.ipqaShowChanges" :changes="recentChanges" />
   </div>
 </template>
