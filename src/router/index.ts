@@ -14,6 +14,11 @@ const router = createRouter({
       component: () => import('@/views/InstanceDetail.vue'),
     },
     {
+      path: '/resource-insights',
+      name: 'resource-insights',
+      component: () => import('@/features/resource-insights/pages/ResourceInsightsPage.vue'),
+    },
+    {
       path: '/cost-renewal',
       name: 'cost-renewal',
       component: () => import('@/features/cost-renewal/pages/CostRenewalPage.vue'),
