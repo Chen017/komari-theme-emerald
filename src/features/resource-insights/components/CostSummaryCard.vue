@@ -4,8 +4,10 @@ import { Icon } from '@iconify/vue'
 import { computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import {
+  buildRenewalTimeline,
   calculateCostRenewalSummary,
-  calculateRenewalTimeline,
+  normalizeNodeCost,
+  type RenewalTimelineItem,
   useFxRates,
 } from '@/features/cost-renewal'
 
@@ -30,9 +32,10 @@ const summary = computed(() =>
 )
 
 const nextRenewal = computed(() => {
-  const timeline = calculateRenewalTimeline(props.nodes, rates.value)
+  const normalized = props.nodes.map(n => normalizeNodeCost(n, rates.value))
+  const timeline = buildRenewalTimeline(normalized)
   // Find the first future renewal
-  return timeline.find(item => item.daysRemaining !== null && item.daysRemaining >= 0) || null
+  return timeline.find((item: RenewalTimelineItem) => item.daysRemaining !== null && item.daysRemaining >= 0) || null
 })
 
 function formatCny(val: number): string {

@@ -19,6 +19,7 @@
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
     "publish": "bun scripts/publish.ts",
+    "test": "node --import jiti/register --test \"tests/**/*.test.ts\"",
     "lint": "eslint . --fix --cache",
     "lint:eslint": "eslint . --fix --cache"
   },

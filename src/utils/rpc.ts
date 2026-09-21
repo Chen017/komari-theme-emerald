@@ -652,6 +652,17 @@ export class KomariRpc {
     return this.client
   }
 
+  /**
+   * 调用通用 RPC 方法
+   */
+  async call<T>(
+    method: string,
+    params?: Record<string, unknown> | unknown[],
+    _options?: { signal?: AbortSignal },
+  ): Promise<T> {
+    return this.client.call<T>(method, params)
+  }
+
   // ==================== 内置方法 ====================
 
   /**

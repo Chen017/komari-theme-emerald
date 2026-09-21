@@ -5,7 +5,7 @@ import {
   formatFinanceAmount,
   getDailyExchangeRates,
   getTodayDateKey,
-} from '../../utils/financeHelper'
+} from '@/utils/financeHelper'
 
 export interface FxState {
   rates: ExchangeRates
