@@ -58,7 +58,7 @@ export interface NormalizedMetricPoint {
 }
 
 export interface NormalizedMetricSeries {
-  metricKey: 'traffic.up' | 'traffic.down'
+  metricKey: string
   entityId: string
   tags?: Record<string, string>
   retentionDays: number | null

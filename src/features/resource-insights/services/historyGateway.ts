@@ -89,21 +89,21 @@ function normalizeMetrics(payload: unknown): { retentionDays: number | null, ser
   const series: NormalizedMetricSeries[] = []
   let retentionDays: number | null = null
   for (const item of (payload as RawMetricsResponse).series) {
-    if (!item || typeof item !== 'object' || !['traffic.up', 'traffic.down'].includes(item.metric_key) || typeof item.entity_id !== 'string')
-      throw new HistoryProtocolError('Invalid traffic metric series')
-    if (item.downsampled === true && item.downsample_algorithm && item.downsample_algorithm !== 'sum')
+    if (!item || typeof item !== 'object' || typeof item.metric_key !== 'string' || !item.metric_key || typeof item.entity_id !== 'string')
+      throw new HistoryProtocolError('Invalid metric series')
+    if (item.metric_key.startsWith('traffic.') && item.downsampled === true && item.downsample_algorithm && item.downsample_algorithm !== 'sum')
       throw new HistoryProtocolError('Expected sum-aggregated traffic metrics')
     const points = item.points ?? []
     if (!Array.isArray(points))
-      throw new HistoryProtocolError('Invalid traffic metric points')
+      throw new HistoryProtocolError('Invalid metric points')
     for (const point of points) {
       if (!point || typeof point !== 'object' || typeof point.time !== 'string' || (point.value !== null && typeof point.value !== 'number'))
-        throw new HistoryProtocolError('Invalid traffic metric point')
+        throw new HistoryProtocolError('Invalid metric point')
     }
     if (typeof item.retention_days === 'number' && Number.isFinite(item.retention_days))
       retentionDays = retentionDays === null ? item.retention_days : Math.min(retentionDays, item.retention_days)
     series.push({
-      metricKey: item.metric_key as 'traffic.up' | 'traffic.down',
+      metricKey: item.metric_key,
       entityId: item.entity_id,
       tags: normalizeTags(item.tags),
       retentionDays: typeof item.retention_days === 'number' ? item.retention_days : null,
@@ -237,6 +237,55 @@ export function createHistoryGateway(call: RpcCall) {
     }
   }
 
+  async function queryUptime(query: {
+    entityIds: string[]
+    start: string
+    end: string
+    signal?: AbortSignal
+  }): Promise<{ kind: 'metrics', series: NormalizedMetricSeries[] } | { kind: 'records', records: Record<string, RawStatusRecord[]> }> {
+    const entityIds = [...new Set(query.entityIds.filter(entityId => entityId.length > 0))]
+    if (entityIds.length === 0)
+      return { kind: 'metrics', series: [] }
+
+    try {
+      const payload = await call<RawMetricsResponse>('public:queryMetrics', {
+        metric_keys: ['cpu.usage'],
+        entity_ids: entityIds,
+        start: query.start,
+        end: query.end,
+        fill_empty: true,
+      }, { signal: query.signal })
+
+      const normalized = normalizeMetrics(payload)
+      const series = normalized.series.filter(item => item.metricKey === 'cpu.usage' && entityIds.includes(item.entityId))
+      if (series.length > 0) {
+        return { kind: 'metrics', series }
+      }
+      // If empty series, fallback to legacy
+      const legacyRes = await queryLegacyRecords({
+        entityIds,
+        start: query.start,
+        end: query.end,
+        signal: query.signal,
+      }, entityIds)
+      return { kind: 'records', records: legacyRes.records }
+    }
+    catch {
+      try {
+        const legacyRes = await queryLegacyRecords({
+          entityIds,
+          start: query.start,
+          end: query.end,
+          signal: query.signal,
+        }, entityIds)
+        return { kind: 'records', records: legacyRes.records }
+      }
+      catch {
+        return { kind: 'records', records: {} }
+      }
+    }
+  }
+
   async function probeCapabilities(): Promise<{ metrics: boolean, records: boolean }> {
     try {
       const methods = await call<string[]>('rpc.methods')
@@ -252,5 +301,5 @@ export function createHistoryGateway(call: RpcCall) {
     }
   }
 
-  return { queryTraffic, queryLegacyRecords, probeCapabilities }
+  return { queryTraffic, queryUptime, queryLegacyRecords, probeCapabilities }
 }

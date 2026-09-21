@@ -50,24 +50,23 @@ export function useUptime30d(options: UseUptime30dOptions) {
       const start = new Date(now.getTime() - 30 * 24 * 3600 * 1000).toISOString()
       const end = now.toISOString()
 
-      let recordsByNode = {}
-      try {
-        const res = await gateway.queryLegacyRecords({
-          entityIds: nodes.map(n => n.uuid),
-          start,
-          end,
-        }, nodes.map(n => n.uuid))
-        recordsByNode = res.records
-      }
-      catch {
-        // Fallback to node's existing uptime counters if historical records RPC is not enabled
-      }
+      const entityIds = nodes.map(n => n.uuid)
+      const res = await gateway.queryUptime({ entityIds, start, end })
 
-      fleetUptime.value = calculateFleet30dUptime(nodes, recordsByNode, now)
+      if (res.kind === 'metrics') {
+        const seriesByNode: Record<string, any> = {}
+        for (const s of res.series) {
+          seriesByNode[s.entityId] = s
+        }
+        fleetUptime.value = calculateFleet30dUptime(nodes, { kind: 'metrics', seriesByNode }, now)
+      }
+      else {
+        fleetUptime.value = calculateFleet30dUptime(nodes, { kind: 'records', recordsByNode: res.records }, now)
+      }
     }
     catch (err: any) {
       error.value = err instanceof Error ? err.message : String(err)
-      fleetUptime.value = calculateFleet30dUptime(nodes, {}, new Date())
+      fleetUptime.value = calculateFleet30dUptime(nodes, { kind: 'records', recordsByNode: {} }, new Date())
     }
     finally {
       loading.value = false
