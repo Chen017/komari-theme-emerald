@@ -11,7 +11,7 @@ import { useNodeFormatters } from '@/composables/useNodeFormatters'
 import { useNodePingDisplay } from '@/composables/useNodePingDisplay'
 import { useAppStore } from '@/stores/app'
 import { formatDateTime, getStatus } from '@/utils/helper'
-import { getCustomTags, getDiskPercentage, getMemPercentage, getPriceTags, getRemainingTimeTagClass, getTrafficUsed, getTrafficUsedPercentage, hasRegion, showTrafficProgress } from '@/utils/nodeHelpers'
+import { getCustomTags, getDiskPercentage, getMemPercentage, getNodeTagDisplay, getPriceTags, getRemainingTimeTagClass, getTrafficUsed, getTrafficUsedPercentage, hasRegion, showTrafficProgress } from '@/utils/nodeHelpers'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
 import { getFlagSrc, getRegionDisplayName } from '@/utils/regionHelper'
 
@@ -49,7 +49,7 @@ const trafficUsedPercentage = computed(() => getTrafficUsedPercentage(props.node
 const trafficUsed = computed(() => getTrafficUsed(props.node))
 const priceTags = computed(() => getPriceTags(props.node, appStore.lang))
 const remainingTimeTagClass = computed(() => getRemainingTimeTagClass(props.node))
-const customTags = computed(() => getCustomTags(props.node))
+const tagDisplay = computed(() => getNodeTagDisplay(props.node, appStore.lang))
 
 function openPingDialog() {
   emit('pingClick', props.node)
@@ -305,12 +305,21 @@ function openPingDialog() {
             </div>
           </div>
         </div>
-        <div v-if="customTags.length > 0" class="flex shrink-0 flex-wrap gap-1 items-center">
+        <div v-if="tagDisplay.customTags.length > 0 || tagDisplay.trafficResetTag" class="flex shrink-0 flex-wrap gap-1 items-center">
           <Badge
-            v-for="(tag, index) in customTags" :key="index" variant="outline"
+            v-for="(tag, index) in tagDisplay.customTags" :key="index" variant="outline"
             class="!text-[11px] rounded text-muted-foreground border-muted-foreground/10 px-1.5"
           >
             {{ tag }}
+          </Badge>
+          <Badge
+            v-if="tagDisplay.trafficResetTag"
+            variant="outline"
+            class="!text-[11px] rounded bg-emerald-500/5 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 px-1.5 inline-flex items-center gap-1"
+            :title="tagDisplay.trafficResetTooltip || undefined"
+          >
+            <Icon icon="lucide:calendar-clock" class="size-3 shrink-0" />
+            <span>{{ tagDisplay.trafficResetTag }}</span>
           </Badge>
         </div>
       </div>

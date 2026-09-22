@@ -1,6 +1,7 @@
-import type { NodeData, TrafficLimitType } from '@/stores/nodes'
-import { formatDateTime } from '@/utils/helper'
-import { formatPriceWithCycle, getDaysUntilExpired, getExpireStatus, getExpireTextClass, parseTags } from '@/utils/tagHelper'
+import type { NodeData, TrafficLimitType } from '../stores/nodes'
+import { formatDateTime } from './helper'
+import { formatPriceWithCycle, getDaysUntilExpired, getExpireStatus, getExpireTextClass, parseTags } from './tagHelper'
+import { formatTrafficResetDisplay, parseTrafficResetMetadata } from './trafficResetMetadata'
 
 export interface PriceTagItem {
   text: string
@@ -60,8 +61,50 @@ export function getRemainingTimeTagClass(node: NodeData): string {
   return getExpireTextClass(node.expired_at)
 }
 
+export interface NodeTagDisplay {
+  customTags: string[]
+  trafficResetTag: string | null
+  trafficResetTooltip: string | null
+}
+
+export function getNodeTagDisplay(node: NodeData, lang: 'zh-CN' | 'en-US' = 'zh-CN'): NodeTagDisplay {
+  const rawTags = parseTags(node.tags).map(t => t.text)
+  const resetMeta = parseTrafficResetMetadata(node.tags)
+
+  if (resetMeta.resetDay === null) {
+    return {
+      customTags: rawTags,
+      trafficResetTag: null,
+      trafficResetTooltip: null,
+    }
+  }
+
+  // Filter out recognized machine tokens from custom tags
+  const TRD_REMOVE_REGEX = /<TRD\s*:\s*\d+>/gi
+  const TRTZ_REMOVE_REGEX = /<TRTZ\s*:\s*[^>\s]+>/gi
+
+  const filteredTags: string[] = []
+  for (const tag of rawTags) {
+    const cleaned = tag.replace(TRD_REMOVE_REGEX, '').replace(TRTZ_REMOVE_REGEX, '').trim()
+    if (cleaned.length > 0) {
+      filteredTags.push(cleaned)
+    }
+  }
+
+  const trafficResetTag = formatTrafficResetDisplay(resetMeta, lang)
+  const trafficResetTooltip = resetMeta.isFallbackTimezone
+    ? (lang === 'zh-CN' ? '未配置 <TRTZ:...>，当前按 Asia/Shanghai 计算重置边界' : 'No <TRTZ:...> configured, defaulting to Asia/Shanghai for reset boundaries')
+    : null
+
+  return {
+    customTags: filteredTags,
+    trafficResetTag,
+    trafficResetTooltip,
+  }
+}
+
 export function getCustomTags(node: NodeData): string[] {
-  return parseTags(node.tags).map(t => t.text)
+  return getNodeTagDisplay(node).customTags
 }
 
 export function formatOfflineTime(node: NodeData): string {

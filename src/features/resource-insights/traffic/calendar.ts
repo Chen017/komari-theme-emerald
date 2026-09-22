@@ -1,69 +1,14 @@
 import type { ResetWindow, TrafficRange } from './types'
 
-const TRD_TAG_REGEX = /<TRD\s*:\s*(\d+)>/i
-const TRTZ_TAG_REGEX = /<TRTZ\s*:\s*([^>\s]+)>/i
+import {
+  DEFAULT_TRAFFIC_RESET_TIMEZONE,
+  isValidTimeZone,
+  parseTrafficResetMetadata,
+} from '../../../utils/trafficResetMetadata'
 
-export const BEIJING_TIMEZONE = 'Asia/Shanghai'
+export { isValidTimeZone, parseTrafficResetMetadata as parseResetMetadata }
+export const BEIJING_TIMEZONE = DEFAULT_TRAFFIC_RESET_TIMEZONE
 export const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000 // UTC+8
-
-export function isValidTimeZone(tz: string | null | undefined): boolean {
-  if (!tz || typeof tz !== 'string')
-    return false
-  try {
-    Intl.DateTimeFormat(undefined, { timeZone: tz.trim() })
-    return true
-  }
-  catch {
-    return false
-  }
-}
-
-export function parseResetMetadata(tags?: string | readonly string[] | null): {
-  resetDay: number | null
-  resetTimezone: string
-  isFallbackTimezone: boolean
-} {
-  if (!tags) {
-    return { resetDay: null, resetTimezone: BEIJING_TIMEZONE, isFallbackTimezone: false }
-  }
-
-  const list = Array.isArray(tags) ? tags : [tags]
-  let resetDay: number | null = null
-  let resetTimezone: string | null = null
-
-  for (const item of list) {
-    if (typeof item !== 'string')
-      continue
-    if (resetDay === null) {
-      const matchD = TRD_TAG_REGEX.exec(item)
-      if (matchD && matchD[1]) {
-        const parsed = Number.parseInt(matchD[1], 10)
-        if (Number.isInteger(parsed) && parsed >= 1 && parsed <= 31) {
-          resetDay = parsed
-        }
-      }
-    }
-    if (resetTimezone === null) {
-      const matchTz = TRTZ_TAG_REGEX.exec(item)
-      if (matchTz && matchTz[1]) {
-        const candidate = matchTz[1].trim()
-        if (isValidTimeZone(candidate)) {
-          resetTimezone = candidate
-        }
-      }
-    }
-  }
-
-  if (resetDay === null) {
-    return { resetDay: null, resetTimezone: BEIJING_TIMEZONE, isFallbackTimezone: false }
-  }
-
-  if (resetTimezone !== null) {
-    return { resetDay, resetTimezone, isFallbackTimezone: false }
-  }
-
-  return { resetDay, resetTimezone: BEIJING_TIMEZONE, isFallbackTimezone: true }
-}
 
 function getZonedParts(epochMs: number, timeZone: string): { year: number, month: number, day: number, hour: number, minute: number } {
   const formatter = new Intl.DateTimeFormat('en-US', {
