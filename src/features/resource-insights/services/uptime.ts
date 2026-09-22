@@ -155,6 +155,7 @@ export function calculateNode30dUptimeFromMetrics(
 
   // Node retention start must be strictly derived from the node's own history.
   // Never pull it backward to fleet earliestTelemetryMs, which would treat unobserved pre-node time as downtime!
+  // Per Section 6 & 7: Do not let fill_empty=true create fake 30-day coverage when server retention or node history is shorter.
   const firstPointMs = points.length > 0 ? Date.parse(points[0]!.time) : windowStartMs
   let nodeRetentionStartMs = Number.isFinite(firstPointMs)
     ? Math.max(windowStartMs, firstPointMs)
@@ -167,10 +168,21 @@ export function calculateNode30dUptimeFromMetrics(
     }
   }
 
+  // Server metric retention policy limit (e.g. Komari default 1 day)
   if (typeof series?.retentionDays === 'number' && series.retentionDays > 0) {
-    const retentionLimitMs = windowEndMs - series.retentionDays * 86400 * 1000
-    if (retentionLimitMs > nodeRetentionStartMs) {
-      nodeRetentionStartMs = retentionLimitMs
+    const policyStartMs = windowEndMs - series.retentionDays * 86400 * 1000
+    if (policyStartMs > nodeRetentionStartMs) {
+      nodeRetentionStartMs = policyStartMs
+    }
+  }
+
+  // If fill_empty generated an extended stretch of empty points before the first observed metric
+  // (e.g. >= 1 day before any active telemetry), align retention start with the first observed metric
+  if (firstActiveIdx > 0) {
+    const firstObservedPoint = points[firstActiveIdx]!
+    const firstObservedMs = Date.parse(firstObservedPoint.time)
+    if (Number.isFinite(firstObservedMs) && firstObservedMs - nodeRetentionStartMs >= 86400 * 1000) {
+      nodeRetentionStartMs = firstObservedMs
     }
   }
 
@@ -252,10 +264,11 @@ export function calculateNode30dUptimeFromMetrics(
     const isCurrentActiveBucket = bucketEndMs >= windowEndMs && bucketStartMs < windowEndMs
     if (isCurrentActiveBucket && !isOnline) {
       // Live tail rule: node is currently offline!
-      // Find when it went offline using latest heartbeat
-      const lastHeartbeatMs = Date.parse(node.updated_at || node.time)
+      // Per Section 3 & 4: Only use node.time as agent status heartbeat. Never use updated_at.
+      const statusTimeMs = Date.parse(node.time)
+      const lastHeartbeatMs = Number.isFinite(statusTimeMs) ? statusTimeMs : null
       const graceMs = 60 * 1000
-      const offlineStartMs = Number.isFinite(lastHeartbeatMs)
+      const offlineStartMs = lastHeartbeatMs !== null
         ? Math.max(startMs, lastHeartbeatMs + graceMs)
         : startMs
 

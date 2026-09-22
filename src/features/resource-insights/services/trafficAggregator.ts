@@ -161,21 +161,28 @@ export interface ResetWindowInfo {
   endDate: string
   diffDays: number
   resetDay: number
+  resetTimezone?: string
+  resetStartEpochMs?: number
+  resetStartText?: string
 }
 
 export function calculateResetWindow(
   resetDay: number,
   now = new Date(),
-  timeZone: AnalyticsTimeZone = 'browser',
+  timeZone: AnalyticsTimeZone = 'Asia/Shanghai',
   browserTimeZone?: string,
+  displayTimeZone: AnalyticsTimeZone = 'Asia/Shanghai',
 ): ResetWindowInfo {
-  const resolvedTimeZone = resolveAnalyticsTimeZone(timeZone, browserTimeZone)
-  const today = civilAt(now.getTime(), resolvedTimeZone)
+  const resolvedAgentTimeZone = resolveAnalyticsTimeZone(timeZone, browserTimeZone)
+  const resolvedDisplayTimeZone = resolveAnalyticsTimeZone(displayTimeZone, browserTimeZone)
 
-  let resetYear = today.year
-  let resetMonth = today.month // 1-based (1..12)
+  // 1. Calculate reset date boundary in Agent's timezone
+  const todayInAgent = civilAt(now.getTime(), resolvedAgentTimeZone)
 
-  if (today.day < resetDay) {
+  let resetYear = todayInAgent.year
+  let resetMonth = todayInAgent.month // 1-based (1..12)
+
+  if (todayInAgent.day < resetDay) {
     resetMonth -= 1
     if (resetMonth < 1) {
       resetMonth = 12
@@ -186,24 +193,46 @@ export function calculateResetWindow(
   const maxDayInResetMonth = getLastDayOfMonth(resetYear, resetMonth - 1)
   const effectiveResetDay = Math.min(resetDay, maxDayInResetMonth)
 
-  const startCivil: CivilDate = {
+  const startCivilInAgent: CivilDate = {
     year: resetYear,
     month: resetMonth,
     day: effectiveResetDay,
   }
 
-  const startDate = formatCivil(startCivil)
-  const endDate = formatCivil(today)
+  // Exact epoch when reset occurred in agent's timezone
+  const resetStartEpochMs = zonedDateBoundary(startCivilInAgent, resolvedAgentTimeZone)
 
-  const startOrdinal = civilOrdinal(startCivil)
-  const todayOrdinal = civilOrdinal(today)
+  // 2. Convert to display timezone (Asia/Shanghai)
+  const startCivilInDisplay = civilAt(resetStartEpochMs, resolvedDisplayTimeZone)
+  const todayInDisplay = civilAt(now.getTime(), resolvedDisplayTimeZone)
+
+  const startDate = formatCivil(startCivilInDisplay)
+  const endDate = formatCivil(todayInDisplay)
+
+  const startOrdinal = civilOrdinal(startCivilInDisplay)
+  const todayOrdinal = civilOrdinal(todayInDisplay)
   const diffDays = Math.max(1, todayOrdinal - startOrdinal + 1)
+
+  // Format resetStartText in display timezone: e.g. "08-27 12:00 BJT"
+  const startParts = getDateFormatter(resolvedDisplayTimeZone).formatToParts(new Date(resetStartEpochMs))
+  const partMap = new Map(startParts.map(p => [p.type, p.value]))
+  const hourFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: resolvedDisplayTimeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+  const timeStr = hourFormatter.format(new Date(resetStartEpochMs))
+  const resetStartText = `${partMap.get('month')}-${partMap.get('day')} ${timeStr} BJT`
 
   return {
     startDate,
     endDate,
     diffDays,
     resetDay: effectiveResetDay,
+    resetTimezone: resolvedAgentTimeZone,
+    resetStartEpochMs,
+    resetStartText,
   }
 }
 

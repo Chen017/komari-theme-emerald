@@ -8,7 +8,7 @@ import type { TrafficTrendAvailability } from './trafficTrendAvailability'
 import type { HistoryFailureKind } from './historyErrorPolicy'
 import { resolveTrafficResetDay } from './trafficResetConfig'
 
-export type TrafficRange = '7d' | '30d' | 'since_reset'
+export type TrafficRange = '7d' | '30d' | 'since_reset' | 'current_cycle'
 export type TrafficTrendState = 'idle' | 'loading' | 'ready' | 'empty' | 'unsupported' | 'error'
 export type TrafficTrendCapability
   = 'full'
@@ -177,10 +177,24 @@ export {
 
 export {
   extractResetDayFromTags,
+  extractResetTimezoneFromTags,
+  isValidTimeZone,
+  resolveTrafficResetConfig,
   resolveTrafficResetDay,
   type TrafficResetConfigResult,
   type TrafficResetSettings,
 } from './trafficResetConfig'
+
+export function resolveNodeResetConfig(node: any, settings?: any): { day: number | null, timezone: string | null } {
+  if (!node || typeof node !== 'object')
+    return { day: null, timezone: null }
+  const config = resolveTrafficResetConfig(node, settings)
+  if (config.day !== null) {
+    return { day: config.day, timezone: config.timezone }
+  }
+  const day = resolveNodeResetDay(node, settings)
+  return { day, timezone: config.timezone }
+}
 
 export function resolveNodeResetDay(node: any, settings?: any): number | null {
   if (!node || typeof node !== 'object')

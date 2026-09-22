@@ -13,6 +13,7 @@ import {
   buildTrafficTrendViewModel,
   calculateResetWindow,
   canRequestSinceReset,
+  resolveNodeResetConfig,
   resolveNodeResetDay,
 } from '../services/trafficTrend'
 import {
@@ -62,16 +63,43 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
     return canRequestSinceReset(selectedEntity.value, selectedNode.value, options.settings?.())
   })
 
-  const resetWindow = computed(() => {
+  const resetConfig = computed(() => {
     if (!selectedNode.value) return null
-    const day = resolveNodeResetDay(selectedNode.value, options.settings?.())
-    if (!day) return null
-    return calculateResetWindow(day, new Date(), TIME_ZONE)
+    return resolveNodeResetConfig(selectedNode.value, options.settings?.())
+  })
+
+  const resetWindow = computed(() => {
+    if (!resetConfig.value || !resetConfig.value.day) return null
+    return calculateResetWindow(
+      resetConfig.value.day,
+      new Date(),
+      resetConfig.value.timezone || TIME_ZONE,
+      undefined,
+      TIME_ZONE,
+    )
+  })
+
+  // Per Section 22: Prioritize Agent's own cycle cumulative traffic (net_total_up / net_total_down)
+  const cycleCumulative = computed(() => {
+    if (!selectedNode.value) return null
+    const node = selectedNode.value
+    const hasAgentTotals = typeof node.net_total_up === 'number' || typeof node.net_total_down === 'number'
+    if (hasAgentTotals) {
+      const up = node.net_total_up ?? 0
+      const down = node.net_total_down ?? 0
+      return {
+        up,
+        down,
+        total: up + down,
+        source: 'agent' as const,
+      }
+    }
+    return null
   })
 
   // Fallback to 7d if since_reset is no longer supported for selected node
   watch(canUseSinceReset, (canUse) => {
-    if (!canUse && selectedRange.value === 'since_reset') {
+    if (!canUse && (selectedRange.value === 'since_reset' || selectedRange.value === 'current_cycle')) {
       selectedRange.value = '7d'
     }
   })
@@ -85,7 +113,7 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
 
   // Determine dates based on range
   const dates = computed(() => {
-    if (selectedRange.value === 'since_reset') {
+    if (selectedRange.value === 'since_reset' || selectedRange.value === 'current_cycle') {
       if (resetWindow.value) {
         return buildInclusiveDateRange(resetWindow.value.startDate, resetWindow.value.endDate)
       }
@@ -164,12 +192,13 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
       const lease = requestPool.acquire(cacheKey, async (signal) => {
         const queryStart = new Date(startMs - 86400000).toISOString()
         const queryEnd = new Date(endMs + 86400000).toISOString()
+        const maxPoints = selectedRange.value === '7d' ? 240 : 800
 
         const result = await gateway.queryTraffic({
           entityIds,
           start: queryStart,
           end: queryEnd,
-          maxPoints: 800,
+          maxPoints,
           signal,
         })
 
@@ -265,8 +294,10 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
     refreshing,
     selectedEntity,
     selectedRange,
+    selectedNode,
     canUseSinceReset,
     resetWindow,
+    cycleCumulative,
     capabilities,
     refresh: () => fetchTrend(true),
   }

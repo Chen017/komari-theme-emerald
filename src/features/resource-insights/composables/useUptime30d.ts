@@ -74,8 +74,9 @@ export function useUptime30d(options: UseUptime30dOptions) {
   }
 
   // Watch node list and state transitions (e.g. online -> offline, heartbeat updates)
+  // Per Section 5: Watch node.time strictly, never updated_at.
   const nodesSignature = computed(() => {
-    return options.nodes().map(n => `${n.uuid}:${n.online}:${n.updated_at || n.time}`).join(';')
+    return options.nodes().map(n => `${n.uuid}:${n.online}:${n.time}`).join(';')
   })
 
   let debounceTimer: ReturnType<typeof setTimeout> | null = null

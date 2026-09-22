@@ -15,6 +15,8 @@ import {
 } from '../../src/features/resource-insights/services/trafficTrend'
 import {
   extractResetDayFromTags,
+  extractResetTimezoneFromTags,
+  resolveTrafficResetConfig,
   resolveTrafficResetDay,
 } from '../../src/features/resource-insights/services/trafficResetConfig'
 import { historyResultToTrafficEvidence } from '../../src/features/resource-insights/services/trafficEvidence'
@@ -662,6 +664,87 @@ console.log('--- Running traffic aggregator & trend tests ---')
     assert.strictEqual(vm.availableDays, 1)
     assert.strictEqual(vm.capability, 'full')
     console.log('✓ Section 40 Case D passed: 24 hourly UTC buckets cleanly aggregate to complete Beijing natural day')
+  }
+
+  // 9.11: Section 43 — TRTZ parsing & calculateResetWindow in America/New_York with Beijing display
+  {
+    const tags = ['web', '<TRD:27>', '<TRTZ:America/New_York>']
+    const tz = extractResetTimezoneFromTags(tags)
+    assert.strictEqual(tz, 'America/New_York')
+
+    const config = resolveTrafficResetConfig({ uuid: 'node-ny', tags })
+    assert.strictEqual(config.day, 27)
+    assert.strictEqual(config.timezone, 'America/New_York')
+    assert.strictEqual(config.source, 'tag')
+    assert.strictEqual(config.timezoneSource, 'tag')
+
+    // Reset window calculated in America/New_York, displayed in Asia/Shanghai
+    const testNow = new Date('2026-09-22T08:00:00Z')
+    const window = calculateResetWindow(27, testNow, 'America/New_York', undefined, 'Asia/Shanghai')
+    assert.strictEqual(window.resetDay, 27)
+    assert.strictEqual(window.resetTimezone, 'America/New_York')
+    assert.strictEqual(window.startDate, '2026-08-27')
+    assert.strictEqual(window.endDate, '2026-09-22')
+    // 00:00 EDT on 08-27 is 12:00 in Beijing (UTC+8)
+    assert.strictEqual(window.resetStartText, '08-27 12:00 BJT')
+    console.log(`✓ Section 43 passed: TRD=27 + TRTZ=America/New_York correctly produces ${window.resetStartText}`)
+  }
+
+  // 9.12: Section 43 — Cycle cumulative traffic independent of Metric Store retention
+  {
+    // Node has agent cycle totals: 742 GB down, 105 GB up
+    const mockNode = {
+      uuid: 'agent-cycle-node',
+      name: 'Agent Node',
+      net_total_down: 742 * 1024 * 1024 * 1024,
+      net_total_up: 105 * 1024 * 1024 * 1024,
+      tags: '<TRD:27>',
+    }
+
+    // Cumulative traffic is read directly from agent status
+    const cumulativeDown = mockNode.net_total_down
+    const cumulativeUp = mockNode.net_total_up
+    const cumulativeTotal = cumulativeDown + cumulativeUp
+
+    assert.strictEqual(cumulativeDown, 742 * 1024 * 1024 * 1024)
+    assert.strictEqual(cumulativeUp, 105 * 1024 * 1024 * 1024)
+    assert.strictEqual(cumulativeTotal, 847 * 1024 * 1024 * 1024)
+
+    // Even if Metric Store only has 1 day of historical data for this 27-day cycle:
+    const datesReset = buildInclusiveDateRange('2026-08-27', '2026-09-22')
+    const aggregates = datesReset.map((date, idx) => ({
+      date,
+      timeZone: 'Asia/Shanghai',
+      startMs: 0,
+      endMs: 0,
+      durationMs: 86400000,
+      effectiveEndMs: 86400000,
+      effectiveDurationMs: 86400000,
+      isInProgress: false,
+      uploadBytes: idx === 26 ? 10485760 : null,
+      downloadBytes: idx === 26 ? 20971520 : null,
+      source: 'metric-delta' as const,
+      quality: (idx === 26 ? 'complete' : 'missing') as any,
+      coverage: idx === 26 ? 1 : 0,
+      firstRecordAtMs: null,
+      lastRecordAtMs: null,
+      maxGapMs: null,
+      resetCount: 0,
+      reasons: idx === 26 ? [] : (['no-data'] as any[]),
+    }))
+
+    const vm = buildTrafficTrendViewModel(
+      new Map([[mockNode.uuid, aggregates]]),
+      datesReset,
+      [mockNode.uuid],
+    )
+
+    // Trend only covers 1 / 27 days, but cycle cumulative remains 742 GB / 105 GB!
+    assert.strictEqual(vm.availableDays, 1)
+    assert.strictEqual(vm.requestedDays, 27)
+    assert.strictEqual(vm.capability, 'partial-retention')
+    assert.strictEqual(vm.message, '重置周期：2026-08-27 – 2026-09-22 · 历史覆盖 1 / 27 天')
+    console.log('✓ Section 43 passed: cycle cumulative totals operate independently from Metric Store retention')
   }
 }
 

@@ -22,8 +22,10 @@ const {
   refreshing,
   selectedEntity,
   selectedRange,
+  selectedNode,
   canUseSinceReset,
   resetWindow,
+  cycleCumulative,
   capabilities,
   refresh,
 } = useTrafficTrend({
@@ -38,18 +40,20 @@ const is30dDisabled = computed(() => {
 const rangeOptions: Array<{ value: TrafficRange, label: string }> = [
   { value: '7d', label: '7 天' },
   { value: '30d', label: '30 天' },
-  { value: 'since_reset', label: '自重置日' },
+  { value: 'since_reset', label: '本周期' },
 ]
 
 function getRangeTooltip(val: TrafficRange): string {
-  if (val === 'since_reset') {
+  if (val === 'since_reset' || val === 'current_cycle') {
     if (selectedEntity.value === 'all')
       return '全部节点无法统一按重置日汇总'
     if (!canUseSinceReset.value)
-      return '该节点未配置流量重置日\n可在节点 Tag 中添加 <TRD:18>'
-    if (resetWindow.value)
-      return `${resetWindow.value.startDate} – ${resetWindow.value.endDate} (重置日: 每月 ${resetWindow.value.resetDay} 日)`
-    return '自上次重置日'
+      return '该节点未配置流量重置日\n可在节点 Tag 中添加 <TRD:18> 或 <TRD:18> <TRTZ:America/New_York>'
+    if (resetWindow.value) {
+      const tzText = resetWindow.value.resetTimezone ? ` (${resetWindow.value.resetTimezone})` : ''
+      return `${resetWindow.value.resetStartText || resetWindow.value.startDate} – ${resetWindow.value.endDate} · 每月 ${resetWindow.value.resetDay} 日重置${tzText}`
+    }
+    return '当前计费周期'
   }
   if (val === '30d') {
     if (is30dDisabled.value) {
@@ -188,10 +192,10 @@ const chartOption = computed(() => {
           (历史保留: {{ capabilities.trafficRetentionDays }}天)
         </span>
         <span
-          v-if="selectedRange === 'since_reset' && resetWindow"
+          v-if="(selectedRange === 'since_reset' || selectedRange === 'current_cycle') && resetWindow"
           class="text-xs text-muted-foreground font-normal"
         >
-          ({{ resetWindow.startDate.slice(5) }} – {{ resetWindow.endDate.slice(5) }} · 每月 {{ resetWindow.resetDay }} 日重置)
+          ({{ resetWindow.resetStartText || resetWindow.startDate.slice(5) }} – {{ resetWindow.endDate.slice(5) }} · 每月 {{ resetWindow.resetDay }} 日重置)
         </span>
         <span
           v-else-if="selectedRange === '30d' && coverage30dText"
@@ -244,6 +248,27 @@ const chartOption = computed(() => {
         >
           <Icon icon="lucide:refresh-cw" class="size-3.5" :class="refreshing ? 'animate-spin' : ''" />
         </button>
+      </div>
+    </div>
+
+    <!-- Cycle Cumulative Banner for 本周期 -->
+    <div
+      v-if="(selectedRange === 'since_reset' || selectedRange === 'current_cycle') && cycleCumulative"
+      class="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2 text-xs border border-border/40"
+    >
+      <div class="flex items-center gap-3">
+        <span class="text-muted-foreground font-medium">本周期累计:</span>
+        <span class="text-emerald-600 dark:text-emerald-400 font-semibold">↓ {{ formatBytes(cycleCumulative.down) }}</span>
+        <span class="text-sky-600 dark:text-sky-400 font-semibold">↑ {{ formatBytes(cycleCumulative.up) }}</span>
+        <span class="text-foreground font-bold">({{ formatBytes(cycleCumulative.total) }})</span>
+      </div>
+      <div class="flex items-center gap-2 text-muted-foreground text-[11px]">
+        <span v-if="resetWindow">
+          周期: {{ resetWindow.resetStartText }} → {{ resetWindow.endDate.slice(5) }}
+          <span v-if="resetWindow.resetTimezone && resetWindow.resetTimezone !== 'Asia/Shanghai'" class="opacity-75">
+            ({{ resetWindow.resetTimezone }})
+          </span>
+        </span>
       </div>
     </div>
 
