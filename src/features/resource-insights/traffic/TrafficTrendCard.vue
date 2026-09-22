@@ -6,6 +6,7 @@ import { computed } from 'vue'
 import VChart from 'vue-echarts'
 import { useAppStore } from '@/stores/app'
 import { formatBytes } from '@/utils/helper'
+import TrafficNodeSelect from './TrafficNodeSelect.vue'
 import { useTrafficTrend } from './useTrafficTrend'
 import '@/utils/echarts'
 
@@ -215,18 +216,10 @@ const chartOption = computed(() => {
       <!-- Controls: Node Selector & Range -->
       <div class="flex flex-wrap items-center gap-2">
         <!-- Node selector -->
-        <select
+        <TrafficNodeSelect
           v-model="selectedEntity"
-          class="h-7 rounded border border-border/60 bg-background/80 px-2 text-xs text-foreground outline-none transition-colors hover:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-          aria-label="选择节点"
-        >
-          <option value="all">
-            全部节点汇总
-          </option>
-          <option v-for="node in nodes" :key="node.uuid" :value="node.uuid">
-            {{ node.name }}
-          </option>
-        </select>
+          :nodes="nodes"
+        />
 
         <!-- Range Buttons: 7 天, 30 天, 本周期 -->
         <div class="flex items-center rounded-md bg-muted/60 p-0.5" role="group">
@@ -248,7 +241,7 @@ const chartOption = computed(() => {
 
         <button
           type="button"
-          class="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+          class="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
           :disabled="trafficView.state === 'loading' || refreshing"
           title="刷新流量数据"
           @click="refresh"
