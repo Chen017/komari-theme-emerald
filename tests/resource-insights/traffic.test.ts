@@ -1,4 +1,7 @@
 import assert from 'node:assert'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   aggregateDailyTraffic,
   buildZonedDayWindow,
@@ -9,6 +12,16 @@ import {
   canRequestSinceReset,
   resolveNodeResetDay,
 } from '../../src/features/resource-insights/services/trafficTrend'
+import {
+  extractResetDayFromTags,
+  resolveTrafficResetDay,
+} from '../../src/features/resource-insights/services/trafficResetConfig'
+import { historyResultToTrafficEvidence } from '../../src/features/resource-insights/services/trafficEvidence'
+import { createHistoryGateway } from '../../src/features/resource-insights/services/historyGateway'
+import { RpcError } from '../../src/utils/rpc'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 console.log('--- Running traffic aggregator & trend tests ---')
 
@@ -278,6 +291,230 @@ console.log('--- Running traffic aggregator & trend tests ---')
   assert.strictEqual(vm.message, '历史覆盖 12 / 30 天')
 
   console.log('✓ Section 28 & 30: 30D traffic range and partial coverage label tests pass')
+}
+
+// 8. Traffic Reset Day Config Tests (Section 8.4 & 18)
+{
+  // Tag extraction tests
+  assert.strictEqual(extractResetDayFromTags(['web', '<TRD:18>', 'us']), 18)
+  assert.strictEqual(extractResetDayFromTags(['<TRD:1>']), 1)
+  assert.strictEqual(extractResetDayFromTags(['<TRD:31>']), 31)
+  assert.strictEqual(extractResetDayFromTags(['<TRD:0>']), null, '<TRD:0> must be invalid')
+  assert.strictEqual(extractResetDayFromTags(['<TRD:32>']), null, '<TRD:32> must be invalid')
+  assert.strictEqual(extractResetDayFromTags(['<TRD:abc>']), null, 'malformed TRD must be invalid')
+  assert.strictEqual(extractResetDayFromTags(['<TRD:>']), null)
+  assert.strictEqual(extractResetDayFromTags([]), null)
+  assert.strictEqual(extractResetDayFromTags(undefined), null)
+
+  // resolveTrafficResetDay tests
+  const nodeWithTag = { uuid: 'uuid-1', tags: ['<TRD:25>'] }
+  const resTag = resolveTrafficResetDay(nodeWithTag)
+  assert.strictEqual(resTag.day, 25)
+  assert.strictEqual(resTag.source, 'tag')
+
+  // Settings fallback
+  const nodeWithSettings = { uuid: 'uuid-2', tags: ['web'] }
+  const settings = { trafficResetDays: { 'uuid-2': 15 } }
+  const resSettings = resolveTrafficResetDay(nodeWithSettings, settings)
+  assert.strictEqual(resSettings.day, 15)
+  assert.strictEqual(resSettings.source, 'settings')
+
+  // Tag priority over settings
+  const nodeWithBoth = { uuid: 'uuid-3', tags: ['<TRD:18>'] }
+  const settingsBoth = { trafficResetDays: { 'uuid-3': 5 } }
+  const resBoth = resolveTrafficResetDay(nodeWithBoth, settingsBoth)
+  assert.strictEqual(resBoth.day, 18, 'Tag must take precedence over settings')
+  assert.strictEqual(resBoth.source, 'tag')
+
+  // Neither configured
+  const nodeNone = { uuid: 'uuid-4', tags: ['web'] }
+  const resNone = resolveTrafficResetDay(nodeNone, settings)
+  assert.strictEqual(resNone.day, null)
+  assert.strictEqual(resNone.source, 'none')
+
+  console.log('✓ Section 8.4 & 18: Traffic Reset Day config & tag extraction tests pass')
+}
+
+// 9. Real-Response Metric Fixtures Contract Tests (Section 15 & 18)
+{
+  const fixturesDir = path.resolve(__dirname, '../fixtures/metrics')
+
+  // 9.1: traffic-7d.json contract test
+  {
+    const raw7d = JSON.parse(fs.readFileSync(path.join(fixturesDir, 'traffic-7d.json'), 'utf8'))
+    const gateway = createHistoryGateway(async () => raw7d)
+    const result = await gateway.queryTraffic({
+      entityIds: ['e22e73c6-1bce-423a-8e5e-31cf35c94739'],
+      start: '2026-09-15T00:00:00.000Z',
+      end: '2026-09-22T00:00:00.000Z',
+    })
+    assert.strictEqual(result.kind, 'metrics')
+    if (result.kind === 'metrics') {
+      assert.strictEqual(result.retentionDays, 30)
+      assert.strictEqual(result.series.length, 2)
+    }
+
+    const evidence = historyResultToTrafficEvidence(result, {
+      startMs: Date.parse('2026-09-15T00:00:00.000Z'),
+      endMs: Date.parse('2026-09-22T00:00:00.000Z'),
+    })
+    assert.strictEqual(evidence.length, 1)
+
+    const dates7 = [
+      '2026-09-15', '2026-09-16', '2026-09-17', '2026-09-18',
+      '2026-09-19', '2026-09-20', '2026-09-21',
+    ]
+    const aggregates = aggregateDailyTraffic({
+      timeZone: 'UTC',
+      dates: dates7,
+      deltas: evidence[0]!.deltas,
+      counters: evidence[0]!.counters,
+    })
+    const byEntity = new Map([['e22e73c6-1bce-423a-8e5e-31cf35c94739', aggregates]])
+    const vm = buildTrafficTrendViewModel(byEntity, dates7, ['e22e73c6-1bce-423a-8e5e-31cf35c94739'])
+
+    assert.strictEqual(vm.state, 'ready')
+    assert.strictEqual(vm.days.length, 7)
+    assert.strictEqual(vm.days[0]!.uploadBytes, 104857600)
+    assert.strictEqual(vm.days[0]!.downloadBytes, 209715200)
+    assert.strictEqual(vm.days[0]!.totalBytes, 314572800)
+    console.log('✓ Section 15: traffic-7d.json contract test passed')
+  }
+
+  // 9.2: traffic-30d-full.json contract test
+  {
+    const raw30d = JSON.parse(fs.readFileSync(path.join(fixturesDir, 'traffic-30d-full.json'), 'utf8'))
+    const gateway = createHistoryGateway(async () => raw30d)
+    const result = await gateway.queryTraffic({
+      entityIds: ['e22e73c6-1bce-423a-8e5e-31cf35c94739'],
+      start: '2026-08-23T00:00:00.000Z',
+      end: '2026-09-22T00:00:00.000Z',
+    })
+    assert.strictEqual(result.kind, 'metrics')
+
+    const dates30: string[] = []
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(Date.parse('2026-09-21T00:00:00Z') - i * 86400000)
+      dates30.push(d.toISOString().slice(0, 10))
+    }
+    const evidence = historyResultToTrafficEvidence(result, {
+      startMs: Date.parse('2026-08-23T00:00:00.000Z'),
+      endMs: Date.parse('2026-09-22T00:00:00.000Z'),
+    })
+    const aggregates = aggregateDailyTraffic({
+      timeZone: 'UTC',
+      dates: dates30,
+      deltas: evidence[0]!.deltas,
+      counters: evidence[0]!.counters,
+    })
+    const byEntity = new Map([['e22e73c6-1bce-423a-8e5e-31cf35c94739', aggregates]])
+    const vm = buildTrafficTrendViewModel(byEntity, dates30, ['e22e73c6-1bce-423a-8e5e-31cf35c94739'])
+
+    assert.strictEqual(vm.state, 'ready')
+    assert.strictEqual(vm.days.length, 30)
+    assert.strictEqual(vm.message, '历史覆盖 30 / 30 天')
+    console.log('✓ Section 15: traffic-30d-full.json contract test passed')
+  }
+
+  // 9.3: traffic-30d-partial-retention.json contract test (12 days retention)
+  {
+    const rawPartial = JSON.parse(fs.readFileSync(path.join(fixturesDir, 'traffic-30d-partial-retention.json'), 'utf8'))
+    const gateway = createHistoryGateway(async () => rawPartial)
+    const result = await gateway.queryTraffic({
+      entityIds: ['e22e73c6-1bce-423a-8e5e-31cf35c94739'],
+      start: '2026-08-23T00:00:00.000Z',
+      end: '2026-09-22T00:00:00.000Z',
+    })
+    assert.strictEqual(result.kind, 'metrics')
+    if (result.kind === 'metrics') {
+      assert.strictEqual(result.retentionDays, 12)
+    }
+
+    const dates30: string[] = []
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(Date.parse('2026-09-21T00:00:00Z') - i * 86400000)
+      dates30.push(d.toISOString().slice(0, 10))
+    }
+    const evidence = historyResultToTrafficEvidence(result, {
+      startMs: Date.parse('2026-08-23T00:00:00.000Z'),
+      endMs: Date.parse('2026-09-22T00:00:00.000Z'),
+    })
+    const aggregates = aggregateDailyTraffic({
+      timeZone: 'UTC',
+      dates: dates30,
+      deltas: evidence[0]!.deltas,
+      counters: evidence[0]!.counters,
+    })
+    const byEntity = new Map([['e22e73c6-1bce-423a-8e5e-31cf35c94739', aggregates]])
+    const vm = buildTrafficTrendViewModel(byEntity, dates30, ['e22e73c6-1bce-423a-8e5e-31cf35c94739'])
+
+    assert.strictEqual(vm.state, 'ready')
+    assert.strictEqual(vm.days.length, 30)
+    assert.strictEqual(vm.message, '历史覆盖 12 / 30 天')
+    // First 18 days must be null, not 0!
+    for (let i = 0; i < 18; i++) {
+      assert.strictEqual(vm.days[i]!.totalBytes, null)
+    }
+    // Last 12 days must have non-null traffic
+    for (let i = 18; i < 30; i++) {
+      assert.ok(vm.days[i]!.totalBytes !== null && vm.days[i]!.totalBytes! > 0)
+    }
+    console.log('招标 ✓ Section 15: traffic-30d-partial-retention.json contract test passed (12/30 coverage, first 18 null)')
+  }
+
+  // 9.4: traffic-empty.json contract test
+  {
+    const rawEmpty = JSON.parse(fs.readFileSync(path.join(fixturesDir, 'traffic-empty.json'), 'utf8'))
+    const gateway = createHistoryGateway(async () => rawEmpty)
+    const result = await gateway.queryTraffic({
+      entityIds: ['e22e73c6-1bce-423a-8e5e-31cf35c94739'],
+      start: '2026-09-15T00:00:00.000Z',
+      end: '2026-09-22T00:00:00.000Z',
+    })
+    assert.strictEqual(result.kind, 'metrics')
+    const dates7 = ['2026-09-15', '2026-09-16', '2026-09-17', '2026-09-18', '2026-09-19', '2026-09-20', '2026-09-21']
+    const evidence = historyResultToTrafficEvidence(result, {
+      startMs: Date.parse('2026-09-15T00:00:00.000Z'),
+      endMs: Date.parse('2026-09-22T00:00:00.000Z'),
+    })
+    const aggregates = aggregateDailyTraffic({
+      timeZone: 'UTC',
+      dates: dates7,
+      deltas: evidence[0]?.deltas ?? [],
+      counters: evidence[0]?.counters ?? [],
+    })
+    const byEntity = new Map([['e22e73c6-1bce-423a-8e5e-31cf35c94739', aggregates]])
+    const vm = buildTrafficTrendViewModel(byEntity, dates7, ['e22e73c6-1bce-423a-8e5e-31cf35c94739'])
+    assert.strictEqual(vm.state, 'empty')
+    for (const day of vm.days) {
+      assert.strictEqual(day.totalBytes, null)
+    }
+    console.log('✓ Section 15: traffic-empty.json contract test passed (state is empty, all null)')
+  }
+
+  // 9.5: traffic-rpc-error.json contract test
+  {
+    const { RpcError } = await import('../../src/utils/rpc')
+    const gateway = createHistoryGateway(async () => {
+      throw new RpcError(-32602, 'Invalid params: unknown metric key or unsupported aggregation')
+    })
+    const result = await gateway.queryTraffic({
+      entityIds: ['e22e73c6-1bce-423a-8e5e-31cf35c94739'],
+      start: '2026-09-15T00:00:00.000Z',
+      end: '2026-09-22T00:00:00.000Z',
+    })
+    // Must return explicit unavailable state, not silent 0/30!
+    assert.strictEqual(result.kind, 'unavailable')
+    if (result.kind === 'unavailable') {
+      assert.strictEqual(result.reason, 'metrics-query-failed')
+    }
+    const evidence = historyResultToTrafficEvidence(result, {
+      startMs: Date.parse('2026-09-15T00:00:00.000Z'),
+      endMs: Date.parse('2026-09-22T00:00:00.000Z'),
+    })
+    assert.deepStrictEqual(evidence, [])
+    console.log('✓ Section 15: traffic-rpc-error.json contract test passed (returns explicit unavailable, never silent 0/30)')
+  }
 }
 
 console.log('All traffic tests passed successfully!')

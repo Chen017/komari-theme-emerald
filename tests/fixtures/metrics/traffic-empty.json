@@ -1,0 +1,26 @@
+{
+  "start": "2026-09-15T00:00:00.000Z",
+  "end": "2026-09-22T00:00:00.000Z",
+  "series": [
+    {
+      "metric_key": "traffic.up",
+      "entity_id": "e22e73c6-1bce-423a-8e5e-31cf35c94739",
+      "tags": { "interface": "eth0" },
+      "retention_days": 30,
+      "downsampled": true,
+      "downsample_algorithm": "sum",
+      "interval_seconds": 86400,
+      "points": []
+    },
+    {
+      "metric_key": "traffic.down",
+      "entity_id": "e22e73c6-1bce-423a-8e5e-31cf35c94739",
+      "tags": { "interface": "eth0" },
+      "retention_days": 30,
+      "downsampled": true,
+      "downsample_algorithm": "sum",
+      "interval_seconds": 86400,
+      "points": []
+    }
+  ]
+}

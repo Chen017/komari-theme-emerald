@@ -1,0 +1,42 @@
+{
+  "start": "2026-09-15T00:00:00.000Z",
+  "end": "2026-09-22T00:00:00.000Z",
+  "series": [
+    {
+      "metric_key": "traffic.up",
+      "entity_id": "e22e73c6-1bce-423a-8e5e-31cf35c94739",
+      "tags": { "interface": "eth0" },
+      "retention_days": 30,
+      "downsampled": true,
+      "downsample_algorithm": "sum",
+      "interval_seconds": 86400,
+      "points": [
+        { "time": "2026-09-15T00:00:00.000Z", "value": 104857600, "count": 1440 },
+        { "time": "2026-09-16T00:00:00.000Z", "value": 209715200, "count": 1440 },
+        { "time": "2026-09-17T00:00:00.000Z", "value": 314572800, "count": 1440 },
+        { "time": "2026-09-18T00:00:00.000Z", "value": 419430400, "count": 1440 },
+        { "time": "2026-09-19T00:00:00.000Z", "value": 524288000, "count": 1440 },
+        { "time": "2026-09-20T00:00:00.000Z", "value": 629145600, "count": 1440 },
+        { "time": "2026-09-21T00:00:00.000Z", "value": 734003200, "count": 1440 }
+      ]
+    },
+    {
+      "metric_key": "traffic.down",
+      "entity_id": "e22e73c6-1bce-423a-8e5e-31cf35c94739",
+      "tags": { "interface": "eth0" },
+      "retention_days": 30,
+      "downsampled": true,
+      "downsample_algorithm": "sum",
+      "interval_seconds": 86400,
+      "points": [
+        { "time": "2026-09-15T00:00:00.000Z", "value": 209715200, "count": 1440 },
+        { "time": "2026-09-16T00:00:00.000Z", "value": 419430400, "count": 1440 },
+        { "time": "2026-09-17T00:00:00.000Z", "value": 629145600, "count": 1440 },
+        { "time": "2026-09-18T00:00:00.000Z", "value": 838860800, "count": 1440 },
+        { "time": "2026-09-19T00:00:00.000Z", "value": 1048576000, "count": 1440 },
+        { "time": "2026-09-20T00:00:00.000Z", "value": 1258291200, "count": 1440 },
+        { "time": "2026-09-21T00:00:00.000Z", "value": 1468006400, "count": 1440 }
+      ]
+    }
+  ]
+}
