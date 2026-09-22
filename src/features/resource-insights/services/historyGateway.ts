@@ -274,55 +274,6 @@ export function createHistoryGateway(call: RpcCall) {
     }
   }
 
-  async function queryUptime(query: {
-    entityIds: string[]
-    start: string
-    end: string
-    signal?: AbortSignal
-  }): Promise<{ kind: 'metrics', series: NormalizedMetricSeries[] } | { kind: 'records', records: Record<string, RawStatusRecord[]> }> {
-    const entityIds = [...new Set(query.entityIds.filter(entityId => entityId.length > 0))]
-    if (entityIds.length === 0)
-      return { kind: 'metrics', series: [] }
-
-    try {
-      const payload = await call<RawMetricsResponse>('public:queryMetrics', {
-        metric_keys: ['cpu.usage'],
-        entity_ids: entityIds,
-        start: query.start,
-        end: query.end,
-        fill_empty: true,
-      }, { signal: query.signal })
-
-      const normalized = normalizeMetrics(payload)
-      const series = normalized.series.filter(item => item.metricKey === 'cpu.usage' && entityIds.includes(item.entityId))
-      if (series.length > 0) {
-        return { kind: 'metrics', series }
-      }
-      // If empty series, fallback to legacy
-      const legacyRes = await queryLegacyRecords({
-        entityIds,
-        start: query.start,
-        end: query.end,
-        signal: query.signal,
-      }, entityIds)
-      return { kind: 'records', records: legacyRes.records }
-    }
-    catch {
-      try {
-        const legacyRes = await queryLegacyRecords({
-          entityIds,
-          start: query.start,
-          end: query.end,
-          signal: query.signal,
-        }, entityIds)
-        return { kind: 'records', records: legacyRes.records }
-      }
-      catch {
-        return { kind: 'records', records: {} }
-      }
-    }
-  }
-
   async function probeCapabilities(): Promise<{ metrics: boolean, records: boolean }> {
     try {
       const methods = await call<string[]>('rpc.methods')
@@ -338,5 +289,5 @@ export function createHistoryGateway(call: RpcCall) {
     }
   }
 
-  return { queryTraffic, queryUptime, queryLegacyRecords, probeCapabilities }
+  return { queryTraffic, queryLegacyRecords, probeCapabilities }
 }

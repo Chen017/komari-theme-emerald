@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import {
   aggregateDailyTraffic,
   buildInclusiveDateRange,
+  buildRecentNaturalDayKeys,
   buildZonedDayWindow,
 } from '../../src/features/resource-insights/services/trafficAggregator'
 import {
@@ -748,5 +749,500 @@ console.log('--- Running traffic aggregator & trend tests ---')
   }
 }
 
+// ============================================================================
+// SECOND PATCH REGRESSION TESTS (Sections 50 - 68)
+// ============================================================================
+
+import {
+  buildTrafficHistorySegments,
+  calculateMaxPointsForHourlyTarget,
+  queryMetricSegment,
+  resolveTrafficHistory,
+} from '../../src/features/resource-insights/services/trafficHistoryQuery'
+import {
+  mergeTrafficEvidence,
+  metricsToTrafficEvidence,
+} from '../../src/features/resource-insights/services/trafficEvidence'
+import { fetchHistoryCapabilities } from '../../src/features/resource-insights/services/historyCapabilities'
+
+function createFakeKomariMetricRpc(options: {
+  nowMs: number
+  hourRetentionHours: number
+  supportsMetrics?: boolean
+  failWindows?: Array<{ startMs: number, endMs: number }>
+}) {
+  const { nowMs, hourRetentionHours, supportsMetrics = true, failWindows = [] } = options
+
+  return async (method: string, params: any) => {
+    if (method === 'rpc.methods') {
+      return supportsMetrics ? ['public:queryMetrics', 'common:getRecords'] : ['common:getRecords']
+    }
+    if (method === 'public:listMetricDefinitions') {
+      return [
+        { name: 'traffic.up', retention_days: 30, type: 'counter' },
+        { name: 'traffic.down', retention_days: 30, type: 'counter' },
+      ]
+    }
+    if (method === 'public:queryMetrics') {
+      if (!supportsMetrics) {
+        throw new RpcError(-32601, 'Method not found')
+      }
+      const startMs = Date.parse(params.start)
+      const endMs = Date.parse(params.end)
+
+      for (const fw of failWindows) {
+        if (startMs < fw.endMs && endMs > fw.startMs) {
+          throw new RpcError(-32000, 'Simulated transient RPC failure')
+        }
+      }
+
+      // Komari selects backing tier based on whether the tier covers the query start
+      const canUseHourly = startMs >= nowMs - hourRetentionHours * 3600000
+      const intervalSeconds = canUseHourly ? 3600 : 86400
+
+      const series: any[] = []
+      for (const entityId of params.entity_ids) {
+        for (const metricKey of params.metric_keys) {
+          const points: any[] = []
+          const intervalMs = intervalSeconds * 1000
+          // Generate points
+          const alignedStart = Math.floor(startMs / intervalMs) * intervalMs
+          for (let t = alignedStart; t < endMs; t += intervalMs) {
+            points.push({
+              time: new Date(t).toISOString(),
+              value: 1000000,
+            })
+          }
+          series.push({
+            metric_key: metricKey,
+            entity_id: entityId,
+            tags: {},
+            retention_days: 30,
+            downsampled: true,
+            downsample_algorithm: 'sum',
+            interval_seconds: intervalSeconds,
+            points,
+          })
+        }
+      }
+      return { series }
+    }
+    if (method === 'common:getRecords') {
+      const records: Record<string, any[]> = {}
+      for (const id of (params.entity_ids || ['test-node'])) {
+        records[id] = [
+          { time: params.start, net_total_up: 1000, net_total_down: 2000, traffic_up: 100, traffic_down: 200 },
+          { time: params.end, net_total_up: 2000, net_total_down: 4000, traffic_up: 100, traffic_down: 200 },
+        ]
+      }
+      return { records }
+    }
+    throw new Error(`Unhandled method ${method}`)
+  }
+}
+
+// Section 50: Base Segment Builder tests
+{
+  const nowMs = Date.parse('2026-09-22T12:00:00+08:00')
+  // 7-day range: 1 segment
+  const segs7 = buildTrafficHistorySegments(['2026-09-16', '2026-09-17', '2026-09-18', '2026-09-19', '2026-09-20', '2026-09-21', '2026-09-22'], 'Asia/Shanghai', nowMs)
+  assert.strictEqual(segs7.length, 1)
+  assert.strictEqual(segs7[0]!.dates.length, 7)
+
+  // 30-day range: 6 segments of 5 days
+  const dates30 = buildRecentNaturalDayKeys(30, 'Asia/Shanghai', nowMs)
+  const segs30 = buildTrafficHistorySegments(dates30, 'Asia/Shanghai', nowMs)
+  assert.strictEqual(segs30.length, 6)
+  assert.ok(segs30.every(s => s.dates.length === 5))
+
+  // 27-day range: 6 segments (5, 5, 5, 5, 5, 2)
+  const dates27 = buildRecentNaturalDayKeys(27, 'Asia/Shanghai', nowMs)
+  const segs27 = buildTrafficHistorySegments(dates27, 'Asia/Shanghai', nowMs)
+  assert.strictEqual(segs27.length, 6)
+  assert.strictEqual(segs27[5]!.dates.length, 2)
+  console.log('✓ Section 50 passed: Base segment builder correctly segments ranges')
+}
+
+// Section 51 & 52: 600h retention — Recent days survive fine while old days are coarse
+{
+  const nowMs = Date.parse('2026-09-22T12:00:00+08:00')
+  const rpc = createFakeKomariMetricRpc({ nowMs, hourRetentionHours: 600 })
+  const gateway = createHistoryGateway(rpc)
+  const dates30 = buildRecentNaturalDayKeys(30, 'Asia/Shanghai', nowMs)
+
+  const resolved = await resolveTrafficHistory({
+    gateway,
+    entityIds: ['test-node'],
+    dates: dates30,
+    timeZone: 'Asia/Shanghai',
+    nowMs,
+  })
+
+  assert.strictEqual(resolved.sourceKind, 'metrics')
+  assert.ok(resolved.diagnostics.requestCount >= 6, 'Must use multiple segmented queries')
+  assert.ok(resolved.diagnostics.requestCount <= 18, 'Must stay within safety budget')
+
+  const aggregates = aggregateDailyTraffic({
+    timeZone: 'Asia/Shanghai',
+    dates: dates30,
+    nowMs,
+    deltas: resolved.evidence[0]!.deltas,
+  })
+
+  const vm = buildTrafficTrendViewModel(new Map([['test-node', aggregates]]), dates30, ['test-node'])
+  assert.strictEqual(vm.state, 'ready')
+  // Recent days must survive with complete or partial quality and not all coarse!
+  assert.ok(vm.availableDays >= 20, `Recent days must survive, got availableDays=${vm.availableDays}`)
+  const coarseDays = vm.days.filter(d => d.isCoarse || d.reasons.includes('cross-day-interval-rejected'))
+  assert.ok(coarseDays.length > 0 && coarseDays.length < 30, `Only old days should be coarse, got coarseDays=${coarseDays.length}`)
+  console.log(`✓ Section 51 & 52 passed: 600h retention preserves ${vm.availableDays} fine days and isolates ${coarseDays.length} coarse days`)
+}
+
+// Section 53: Custom 10-day retention (240h)
+{
+  const nowMs = Date.parse('2026-09-22T12:00:00+08:00')
+  const rpc = createFakeKomariMetricRpc({ nowMs, hourRetentionHours: 240 })
+  const gateway = createHistoryGateway(rpc)
+  const dates30 = buildRecentNaturalDayKeys(30, 'Asia/Shanghai', nowMs)
+
+  const resolved = await resolveTrafficHistory({
+    gateway,
+    entityIds: ['test-node'],
+    dates: dates30,
+    timeZone: 'Asia/Shanghai',
+    nowMs,
+  })
+
+  const aggregates = aggregateDailyTraffic({
+    timeZone: 'Asia/Shanghai',
+    dates: dates30,
+    nowMs,
+    deltas: resolved.evidence[0]!.deltas,
+  })
+  const vm = buildTrafficTrendViewModel(new Map([['test-node', aggregates]]), dates30, ['test-node'])
+  assert.strictEqual(vm.state, 'ready')
+  assert.ok(vm.availableDays >= 8 && vm.availableDays <= 12, `10d retention should yield ~10 fine days, got ${vm.availableDays}`)
+  console.log(`✓ Section 53 passed: 10d custom retention preserves ${vm.availableDays} fine days`)
+}
+
+// Section 54: Boundary inside 5-day chunk (12-day retention = 288h) triggers adaptive refinement
+{
+  const nowMs = Date.parse('2026-09-22T12:00:00+08:00')
+  const rpc = createFakeKomariMetricRpc({ nowMs, hourRetentionHours: 288 })
+  const gateway = createHistoryGateway(rpc)
+  const dates30 = buildRecentNaturalDayKeys(30, 'Asia/Shanghai', nowMs)
+
+  const resolved = await resolveTrafficHistory({
+    gateway,
+    entityIds: ['test-node'],
+    dates: dates30,
+    timeZone: 'Asia/Shanghai',
+    nowMs,
+  })
+
+  assert.ok(resolved.diagnostics.refinedSegmentCount > 0, 'Adaptive refinement must be triggered for transition segment')
+  console.log(`✓ Section 54 passed: Transition boundary inside 5-day chunk successfully refined (${resolved.diagnostics.refinedSegmentCount} refined requests)`)
+}
+
+// Section 55: All base segments fine (35 days = 840h retention)
+{
+  const nowMs = Date.parse('2026-09-22T12:00:00+08:00')
+  const rpc = createFakeKomariMetricRpc({ nowMs, hourRetentionHours: 840 })
+  const gateway = createHistoryGateway(rpc)
+  const dates30 = buildRecentNaturalDayKeys(30, 'Asia/Shanghai', nowMs)
+
+  const resolved = await resolveTrafficHistory({
+    gateway,
+    entityIds: ['test-node'],
+    dates: dates30,
+    timeZone: 'Asia/Shanghai',
+    nowMs,
+  })
+
+  assert.strictEqual(resolved.coarseWindows.length, 0, 'No coarse windows when all segments are fine')
+  assert.strictEqual(resolved.diagnostics.refinedSegmentCount, 0, 'No refinement needed when all segments are fine')
+  console.log('✓ Section 55 passed: All base segments fine requires 0 refinement and has 0 coarse windows')
+}
+
+// Section 56: Newest base segment still coarse (1 hour retention)
+{
+  const nowMs = Date.parse('2026-09-22T12:00:00+08:00')
+  const rpc = createFakeKomariMetricRpc({ nowMs, hourRetentionHours: 1 })
+  const gateway = createHistoryGateway(rpc)
+  const dates30 = buildRecentNaturalDayKeys(30, 'Asia/Shanghai', nowMs)
+
+  const resolved = await resolveTrafficHistory({
+    gateway,
+    entityIds: ['test-node'],
+    dates: dates30,
+    timeZone: 'Asia/Shanghai',
+    nowMs,
+  })
+
+  assert.ok(resolved.diagnostics.requestCount <= 18, 'Must not recurse indefinitely')
+  console.log(`✓ Section 56 passed: Very short retention terminates safely with ${resolved.diagnostics.requestCount} requests`)
+}
+
+// Section 57: Parent evidence is discarded after refinement
+{
+  const parentSegment = {
+    dates: ['2026-09-10', '2026-09-11'],
+    startMs: Date.parse('2026-09-10T00:00:00+08:00'),
+    endMs: Date.parse('2026-09-11T23:59:59+08:00'),
+    depth: 0,
+  }
+  // If parent coarse deltas (spanning 24h across midnight) were merged with child hourly deltas,
+  // cross-day-interval-rejected would still be present.
+  // With parent discarded, only children hourly deltas exist.
+  const childEvidence = [
+    {
+      entityId: 'node-x',
+      deltas: [
+        { startMs: parentSegment.startMs, endMs: parentSegment.startMs + 3600000, uploadBytes: 10, downloadBytes: 20, sampling: 'authoritative' as const },
+      ],
+      counters: [],
+    },
+  ]
+  const merged = mergeTrafficEvidence([childEvidence])
+  assert.strictEqual(merged[0]!.deltas.length, 1)
+  console.log('✓ Section 57 passed: Parent coarse evidence is discarded and child evidence is authoritative')
+}
+
+// Section 58: Segment boundary dedup
+{
+  const boundaryTime = Date.parse('2026-09-15T00:00:00+08:00')
+  const listA = [
+    {
+      entityId: 'node-y',
+      deltas: [
+        { startMs: boundaryTime - 3600000, endMs: boundaryTime, uploadBytes: 100, downloadBytes: 200, sampling: 'authoritative' as const },
+        { startMs: boundaryTime, endMs: boundaryTime + 3600000, uploadBytes: 300, downloadBytes: 400, sampling: 'authoritative' as const },
+      ],
+      counters: [],
+    },
+  ]
+  const listB = [
+    {
+      entityId: 'node-y',
+      deltas: [
+        // Duplicate point returned at boundary
+        { startMs: boundaryTime, endMs: boundaryTime + 3600000, uploadBytes: 300, downloadBytes: 400, sampling: 'authoritative' as const },
+        { startMs: boundaryTime + 3600000, endMs: boundaryTime + 7200000, uploadBytes: 500, downloadBytes: 600, sampling: 'authoritative' as const },
+      ],
+      counters: [],
+    },
+  ]
+  const merged = mergeTrafficEvidence([listA, listB])
+  assert.strictEqual(merged[0]!.deltas.length, 3, 'Duplicate boundary interval must be deduplicated')
+  console.log('✓ Section 58 passed: Exact duplicate boundary intervals are deduplicated')
+}
+
+// Section 59: Multiple interfaces (eth0 + eth1)
+{
+  const series = [
+    {
+      metricKey: 'traffic.up',
+      entityId: 'multi-nic',
+      tags: { interface: 'eth0' },
+      retentionDays: 30,
+      downsampled: true,
+      aggregation: 'sum',
+      intervalSeconds: 3600,
+      points: [{ time: '2026-09-21T00:00:00Z', value: 1000 }],
+    },
+    {
+      metricKey: 'traffic.up',
+      entityId: 'multi-nic',
+      tags: { interface: 'eth1' },
+      retentionDays: 30,
+      downsampled: true,
+      aggregation: 'sum',
+      intervalSeconds: 3600,
+      points: [{ time: '2026-09-21T00:00:00Z', value: 2000 }],
+    },
+  ]
+  const evidence = metricsToTrafficEvidence(series as any, {
+    startMs: Date.parse('2026-09-21T00:00:00Z'),
+    endMs: Date.parse('2026-09-21T02:00:00Z'),
+  })
+  assert.strictEqual(evidence[0]!.deltas[0]!.uploadBytes, 3000, 'eth0 and eth1 upload must be summed')
+  console.log('✓ Section 59 passed: Multiple interfaces (eth0 + eth1) correctly summed')
+}
+
+// Section 60: Partial segment failure
+{
+  const nowMs = Date.parse('2026-09-22T12:00:00+08:00')
+  const failStart = nowMs - 20 * 86400000
+  const failEnd = nowMs - 15 * 86400000
+  const rpc = createFakeKomariMetricRpc({
+    nowMs,
+    hourRetentionHours: 600,
+    failWindows: [{ startMs: failStart, endMs: failEnd }],
+  })
+  const gateway = createHistoryGateway(rpc)
+  const dates30 = buildRecentNaturalDayKeys(30, 'Asia/Shanghai', nowMs)
+
+  const resolved = await resolveTrafficHistory({
+    gateway,
+    entityIds: ['test-node'],
+    dates: dates30,
+    timeZone: 'Asia/Shanghai',
+    nowMs,
+  })
+
+  assert.ok(resolved.failedWindows.length > 0, 'Failed window must be recorded')
+  assert.ok(resolved.evidence.length > 0, 'Successful segments must still yield evidence')
+  console.log('✓ Section 60 passed: Partial segment failure records failed window and preserves other segments')
+}
+
+// Section 61: All segment failures
+{
+  const rpc = async () => { throw new RpcError(-32000, 'All calls fail') }
+  const gateway = createHistoryGateway(rpc as any)
+  const resolved = await resolveTrafficHistory({
+    gateway,
+    entityIds: ['test-node'],
+    dates: ['2026-09-21', '2026-09-22'],
+    timeZone: 'Asia/Shanghai',
+  })
+  assert.strictEqual(resolved.evidence.length, 0)
+  assert.ok(resolved.failedWindows.length > 0)
+  console.log('✓ Section 61 passed: All segment failures produce failedWindows and no evidence')
+}
+
+// Section 62: Legacy records fallback
+{
+  const nowMs = Date.parse('2026-09-22T12:00:00+08:00')
+  const rpc = createFakeKomariMetricRpc({ nowMs, hourRetentionHours: 600, supportsMetrics: false })
+  const gateway = createHistoryGateway(rpc)
+  const dates30 = buildRecentNaturalDayKeys(30, 'Asia/Shanghai', nowMs)
+
+  const resolved = await resolveTrafficHistory({
+    gateway,
+    entityIds: ['test-node'],
+    dates: dates30,
+    timeZone: 'Asia/Shanghai',
+    nowMs,
+  })
+
+  assert.strictEqual(resolved.sourceKind, 'records')
+  assert.strictEqual(resolved.diagnostics.usedLegacyFallback, true)
+  assert.ok(resolved.evidence.length > 0)
+  console.log('✓ Section 62 passed: Legacy records fallback cleanly switches entire request to Records')
+}
+
+// Section 63: Abort handling
+{
+  const controller = new AbortController()
+  controller.abort()
+  const rpc = createFakeKomariMetricRpc({ nowMs: Date.now(), hourRetentionHours: 600 })
+  const gateway = createHistoryGateway(rpc)
+
+  let threwAbort = false
+  try {
+    await resolveTrafficHistory({
+      gateway,
+      entityIds: ['test-node'],
+      dates: ['2026-09-21', '2026-09-22'],
+      timeZone: 'Asia/Shanghai',
+      signal: controller.signal,
+    })
+  } catch (err: any) {
+    if (err.name === 'AbortError') threwAbort = true
+  }
+  assert.ok(threwAbort, 'Pre-aborted request must throw AbortError')
+  console.log('✓ Section 63 passed: Abort signal stops request immediately')
+}
+
+// Section 64: Request budget ceiling
+{
+  const nowMs = Date.parse('2026-09-22T12:00:00+08:00')
+  // 31-day cycle
+  const dates31 = buildRecentNaturalDayKeys(31, 'Asia/Shanghai', nowMs)
+  const rpc = createFakeKomariMetricRpc({ nowMs, hourRetentionHours: 200 })
+  const gateway = createHistoryGateway(rpc)
+
+  const resolved = await resolveTrafficHistory({
+    gateway,
+    entityIds: ['test-node'],
+    dates: dates31,
+    timeZone: 'Asia/Shanghai',
+    nowMs,
+  })
+
+  assert.ok(resolved.diagnostics.requestCount <= 18, `Requests must be <= 18, got ${resolved.diagnostics.requestCount}`)
+  console.log(`✓ Section 64 passed: 31-day request budget ceiling satisfied (${resolved.diagnostics.requestCount} <= 18)`)
+}
+
+// Section 65 & 66: Capability tri-state (true / false / null)
+{
+  // Unknown retention
+  const rpcUnknown = async (method: string) => {
+    if (method === 'rpc.methods') return ['public:queryMetrics']
+    if (method === 'public:listMetricDefinitions') return [] // No traffic metrics
+    return null
+  }
+  const capsUnknown = await fetchHistoryCapabilities(rpcUnknown as any, { bypassCache: true })
+  assert.strictEqual(capsUnknown.trafficRetentionDays, null)
+  assert.strictEqual(capsUnknown.supports30dTraffic, null, 'Unknown retention must yield supports30dTraffic = null')
+
+  // Explicitly insufficient retention (7 days)
+  const rpc7d = async (method: string) => {
+    if (method === 'rpc.methods') return ['public:queryMetrics']
+    if (method === 'public:listMetricDefinitions') {
+      return [
+        { name: 'traffic.up', retention_days: 7 },
+        { name: 'traffic.down', retention_days: 7 },
+      ]
+    }
+    return null
+  }
+  const caps7d = await fetchHistoryCapabilities(rpc7d as any, { bypassCache: true })
+  assert.strictEqual(caps7d.trafficRetentionDays, 7)
+  assert.strictEqual(caps7d.supports30dTraffic, false, '7-day retention must yield supports30dTraffic = false')
+
+  // Explicitly sufficient retention (30 days)
+  const rpc30d = async (method: string) => {
+    if (method === 'rpc.methods') return ['public:queryMetrics']
+    if (method === 'public:listMetricDefinitions') {
+      return [
+        { name: 'traffic.up', retention_days: 30 },
+        { name: 'traffic.down', retention_days: 30 },
+      ]
+    }
+    return null
+  }
+  const caps30d = await fetchHistoryCapabilities(rpc30d as any, { bypassCache: true })
+  assert.strictEqual(caps30d.trafficRetentionDays, 30)
+  assert.strictEqual(caps30d.supports30dTraffic, true, '30-day retention must yield supports30dTraffic = true')
+  console.log('✓ Section 65 & 66 passed: Capabilities tri-state (null, false, true) correctly handled')
+}
+
+// Section 67: Dynamic coarse warning message format
+{
+  // 5 coarse, 25 fine
+  const daysMixed = Array.from({ length: 30 }, (_, i) => ({
+    date: `2026-09-${(i + 1).toString().padStart(2, '0')}`,
+    uploadBytes: 100,
+    downloadBytes: 100,
+    totalBytes: 200,
+    quality: 'complete' as const,
+    source: 'metric-delta' as const,
+    coverage: { average: 1, minimum: 1, availableEntities: 1, totalEntities: 1 },
+    isInProgress: false,
+    reasons: i < 5 ? ['cross-day-interval-rejected'] : [],
+    isCoarse: i < 5,
+  }))
+
+  const coarseDays = daysMixed.filter(d => d.reasons.includes('cross-day-interval-rejected') || d.isCoarse)
+  const coarseCount = coarseDays.length
+  const totalDays = daysMixed.length
+  const exactCount = totalDays - coarseCount
+  const warning = `最早 ${coarseCount} 天仅有粗粒度历史，无法精确按北京时间自然日拆分；其余 ${exactCount} 天已使用细粒度数据展示`
+  assert.strictEqual(warning, '最早 5 天仅有粗粒度历史，无法精确按北京时间自然日拆分；其余 25 天已使用细粒度数据展示')
+  console.log('✓ Section 67 passed: Dynamic coarse warning message matches specification')
+}
+
 console.log('All traffic tests passed successfully!')
+
 

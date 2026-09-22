@@ -256,3 +256,52 @@ export function historyResultToTrafficEvidence(
     return recordsToTrafficEvidence(result.records, { sampled: result.sampled, window })
   return []
 }
+
+export function mergeTrafficEvidence(
+  list: EntityTrafficEvidence[] | EntityTrafficEvidence[][],
+): EntityTrafficEvidence[] {
+  const flattened: EntityTrafficEvidence[] = Array.isArray(list) && list.length > 0 && Array.isArray(list[0])
+    ? (list as EntityTrafficEvidence[][]).flat()
+    : (list as EntityTrafficEvidence[])
+
+  const entityMap = new Map<string, {
+    deltas: Map<string, TrafficDeltaEvidence>
+    counters: TrafficCounterReading[]
+  }>()
+
+  for (const item of flattened) {
+    let entry = entityMap.get(item.entityId)
+    if (!entry) {
+      entry = {
+        deltas: new Map(),
+        counters: [],
+      }
+      entityMap.set(item.entityId, entry)
+    }
+
+    for (const delta of item.deltas) {
+      const key = `${delta.startMs}:${delta.endMs}:${delta.uploadBytes}:${delta.downloadBytes}:${delta.sampling}:${delta.coverage ?? 'interval'}`
+      if (!entry.deltas.has(key)) {
+        entry.deltas.set(key, delta)
+      }
+    }
+
+    for (const counter of item.counters) {
+      const isExactDuplicate = entry.counters.some(c =>
+        c.atMs === counter.atMs
+        && c.uploadBytes === counter.uploadBytes
+        && c.downloadBytes === counter.downloadBytes,
+      )
+      if (!isExactDuplicate) {
+        entry.counters.push(counter)
+      }
+    }
+  }
+
+  return Array.from(entityMap.entries(), ([entityId, { deltas, counters }]) => ({
+    entityId,
+    deltas: Array.from(deltas.values()).sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs),
+    counters: counters.sort((a, b) => a.atMs - b.atMs),
+  })).sort((a, b) => a.entityId.localeCompare(b.entityId))
+}
+

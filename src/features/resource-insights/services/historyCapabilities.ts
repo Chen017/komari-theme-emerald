@@ -11,7 +11,7 @@ export interface ResourceHistoryCapabilities {
   trafficUp: MetricCapability | null
   trafficDown: MetricCapability | null
   trafficRetentionDays: number | null
-  supports30dTraffic: boolean
+  supports30dTraffic: boolean | null
   hasMetricsApi: boolean
   hasRecordsApi: boolean
 }
@@ -87,7 +87,7 @@ export async function fetchHistoryCapabilities(
     trafficUp,
     trafficDown,
     trafficRetentionDays,
-    supports30dTraffic: trafficRetentionDays !== null ? trafficRetentionDays >= 30 : false,
+    supports30dTraffic: trafficRetentionDays !== null ? trafficRetentionDays >= 30 : null,
     hasMetricsApi,
     hasRecordsApi,
   }

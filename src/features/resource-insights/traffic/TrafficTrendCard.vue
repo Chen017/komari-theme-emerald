@@ -54,11 +54,14 @@ function getRangeTooltip(val: TrafficRange): string {
     return '当前计费周期'
   }
   if (val === '30d') {
-    if (capability.value && !capability.value.supports30d) {
+    if (capability.value && capability.value.supports30d === false) {
       const note = capability.value.retentionDays !== null
         ? `当前 Komari 仅保留 ${capability.value.retentionDays} 天流量历史`
         : '无法确定当前 Metric Store 的流量历史保留天数'
       return `${note}\n30 天趋势需要至少 30 天 Metric Store retention`
+    }
+    if (capability.value && capability.value.supports30d === null) {
+      return '无法确定当前 Metric Store 的流量历史保留策略，将尝试查询实际历史数据'
     }
     return '近 30 天每日流量趋势'
   }
@@ -227,7 +230,7 @@ const chartOption = computed(() => {
             v-for="opt in rangeOptions"
             :key="opt.value"
             type="button"
-            :disabled="(opt.value === 'cycle' && !canUseCycle) || (opt.value === '30d' && capability !== null && !capability.supports30d)"
+            :disabled="(opt.value === 'cycle' && !canUseCycle) || (opt.value === '30d' && capability !== null && capability.supports30d === false)"
             :title="getRangeTooltip(opt.value)"
             class="rounded px-2 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40"
             :class="selectedRange === opt.value
@@ -322,7 +325,7 @@ const chartOption = computed(() => {
     <!-- Footer -->
     <div class="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
       <span>{{ trafficView.message }}</span>
-      <span>来源: Metric Store</span>
+      <span>来源: {{ trafficView.sourceKind === 'records' ? 'Records' : 'Metric Store' }}</span>
     </div>
   </div>
 </template>

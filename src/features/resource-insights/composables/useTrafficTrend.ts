@@ -13,7 +13,7 @@ import {
   buildRecentNaturalDayKeys,
   calculateResetWindow,
 } from '../services/trafficAggregator'
-import { historyResultToTrafficEvidence } from '../services/trafficEvidence'
+import { resolveTrafficHistory } from '../services/trafficHistoryQuery'
 import {
   buildTrafficTrendViewModel,
   canRequestSinceReset,
@@ -136,8 +136,22 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
   })
 
   const trafficView = computed(() => {
-    const hasCoarseRollup = snapshot.value.days.some(d => d.reasons?.includes('cross-day-interval-rejected') || d.isCoarse) || snapshot.value.capability === 'coarse-rollup'
-    const coarseWarning = hasCoarseRollup ? '存在跨越午夜的粗粒度历史聚合，无法精确切分' : null
+    const days = snapshot.value.days
+    const coarseDays = days.filter(d => d.reasons?.includes('cross-day-interval-rejected') || d.isCoarse)
+    const coarseCount = coarseDays.length
+    const totalDays = days.length
+    const hasCoarseRollup = coarseCount > 0 || snapshot.value.capability === 'coarse-rollup'
+
+    let coarseWarning: string | null = null
+    if (hasCoarseRollup) {
+      if (coarseCount > 0 && coarseCount < totalDays) {
+        const exactCount = totalDays - coarseCount
+        coarseWarning = `最早 ${coarseCount} 天仅有粗粒度历史，无法精确按北京时间自然日拆分；其余 ${exactCount} 天已使用细粒度数据展示`
+      }
+      else {
+        coarseWarning = '历史数据仅剩粗粒度聚合，无法精确按北京时间自然日拆分'
+      }
+    }
 
     return {
       state: snapshot.value.state,
@@ -146,13 +160,14 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
       message: snapshot.value.message,
       hasCoarseRollup,
       coarseWarning,
+      sourceKind: snapshot.value.sourceKind ?? 'metrics',
     }
   })
 
   const capability = computed(() => {
     return {
       retentionDays: capabilities.value?.trafficRetentionDays ?? null,
-      supports30d: capabilities.value?.supports30dTraffic ?? false,
+      supports30d: capabilities.value?.supports30dTraffic ?? null,
     }
   })
 
@@ -180,8 +195,8 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
       range: selectedRange.value,
       timeZone: TIME_ZONE,
       dates: dates.value,
-      schema: 2,
-      capabilityVersion: 2,
+      schema: 3,
+      capabilityVersion: 3,
     })
 
     if (!isManualRefresh && typeof localStorage !== 'undefined') {
@@ -208,59 +223,34 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
         // Continue even if capabilities probe fails
       }
 
-      const startDate = dates.value[0]!
-      const endDate = dates.value.at(-1)!
-      const startMs = Date.parse(`${startDate}T00:00:00+08:00`)
-      const endMs = Date.parse(`${endDate}T23:59:59.999+08:00`)
-
       const lease = requestPool.acquire(cacheKey, async (signal) => {
-        const queryStart = new Date(startMs - 86400000).toISOString()
-        const queryEnd = new Date(endMs + 86400000).toISOString()
-        const maxPoints = selectedRange.value === '7d' ? 240 : 800
-
-        const result = await gateway.queryTraffic({
+        const resolved = await resolveTrafficHistory({
+          gateway,
           entityIds,
-          start: queryStart,
-          end: queryEnd,
-          maxPoints,
+          dates: dates.value,
+          timeZone: TIME_ZONE,
+          nowMs: Date.now(),
           signal,
         })
 
-        if (result.kind === 'unavailable') {
-          const failureMessage = result.reason === 'metrics-unsupported'
-            ? '当前服务不支持历史流量指标'
-            : result.reason === 'retention-insufficient'
-              ? '历史保留时长不足'
-              : result.reason === 'no-data'
-                ? '暂无历史流量数据'
-                : '历史流量获取失败'
-          const availability = result.reason === 'retention-insufficient'
-            ? 'retention-insufficient'
-            : 'available'
-          const failureKind: HistoryFailureKind = result.reason === 'metrics-unsupported'
-            ? 'unsupported'
-            : 'rpc-error'
+        if (resolved.failedWindows.length > 0 && resolved.evidence.length === 0) {
           const builtSnapshot: TrafficTrendSnapshot = {
             state: 'error',
             days: [],
             fetchedAt: Date.now(),
             sourceKind: null,
             retentionDays: null,
-            availability,
-            failureKind,
+            availability: 'available',
+            failureKind: 'rpc-error',
             retryable: true,
-            message: failureMessage,
+            message: '历史流量获取失败',
           }
           return builtSnapshot as any
         }
 
-        const evidence = historyResultToTrafficEvidence(result, {
-          startMs: startMs - 86400000,
-          endMs: endMs + 86400000,
-        })
         const byEntity = new Map<string, DailyTrafficAggregate[]>()
 
-        for (const item of evidence) {
+        for (const item of resolved.evidence) {
           const aggregates = aggregateDailyTraffic({
             timeZone: TIME_ZONE,
             dates: dates.value,
@@ -275,8 +265,8 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
           state: vm.state,
           days: vm.days,
           fetchedAt: Date.now(),
-          sourceKind: result.kind === 'metrics' ? 'metrics' : 'records',
-          retentionDays: result.kind === 'metrics' ? result.retentionDays : (capabilities.value?.trafficRetentionDays ?? null),
+          sourceKind: resolved.sourceKind,
+          retentionDays: resolved.retentionDays ?? (capabilities.value?.trafficRetentionDays ?? null),
           requestedDays: vm.requestedDays,
           availableDays: vm.availableDays,
           capability: vm.capability,
@@ -286,7 +276,8 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
           message: vm.message,
         }
 
-        if (typeof localStorage !== 'undefined')
+        // Only persist if there were no transient segment failures
+        if (resolved.failedWindows.length === 0 && typeof localStorage !== 'undefined')
           writeTrafficTrendCache(localStorage, cacheKey, builtSnapshot)
 
         return builtSnapshot as any
