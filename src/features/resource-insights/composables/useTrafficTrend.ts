@@ -188,6 +188,8 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
         activeLease.release()
         activeLease = null
       }
+      loading.value = false
+      refreshing.value = false
       snapshot.value = {
         state: 'empty',
         days: [],

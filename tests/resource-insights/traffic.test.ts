@@ -1248,6 +1248,7 @@ function createFakeKomariMetricRpc(options: {
 // THIRD PATCH MINIMAL HARDENING TESTS (Tests A - H)
 // ============================================================================
 
+import { ref } from 'vue'
 import { useTrafficTrend } from '../../src/features/resource-insights/composables/useTrafficTrend'
 import { getSharedRpc, resetSharedRpc } from '../../src/utils/rpc'
 import {
@@ -1349,7 +1350,8 @@ import {
   resetSharedRpc()
   const rpc = getSharedRpc()
 
-  let resolveSlow30d: ((val: any) => void) | null = null
+  let resolveSlow30d: (() => void) | null = null
+  let hasBlocked30d = false
 
   rpc.call = async (method: string, params: any) => {
     if (method === 'rpc.methods') return ['public:queryMetrics']
@@ -1361,10 +1363,11 @@ import {
     }
     if (method === 'public:queryMetrics') {
       const startMs = Date.parse(params.start)
-      // 30d queries segments older than 8 days; 7d only queries dates within the last 7 days
       const is30dOnly = startMs < Date.now() - 8 * 86400000
 
-      if (is30dOnly) {
+      // Block only the first 30d-only segment to simulate slow 30d
+      if (is30dOnly && !hasBlocked30d) {
+        hasBlocked30d = true
         return new Promise(resolve => {
           resolveSlow30d = () => {
             resolve({
@@ -1380,6 +1383,21 @@ import {
           }
         })
       }
+
+      // Other 30d segments return immediately with 3000
+      if (is30dOnly) {
+        return {
+          series: [
+            {
+              metric_key: 'traffic.up',
+              entity_id: params.entity_ids[0],
+              interval_seconds: 3600,
+              points: [{ time: params.start, value: 3000 }],
+            },
+          ],
+        }
+      }
+
       // Fast 7d response
       return {
         series: [
@@ -1407,11 +1425,12 @@ import {
   assert.ok(initialDay)
   assert.strictEqual(initialDay.uploadBytes, 700)
 
-  // Switch to 30d (slow 30d segments hang on resolveSlow30d)
+  // Switch to 30d (the single blocked 30d segment hangs on resolveSlow30d)
   trend.selectedRange.value = '30d'
   await new Promise(r => setTimeout(r, 20))
+  assert.ok(resolveSlow30d, 'resolveSlow30d must have been captured for the slow 30d segment')
 
-  // Rapidly switch back to 7d (fast)
+  // Rapidly switch back to 7d (fast query returns 700 immediately)
   trend.selectedRange.value = '7d'
   await new Promise(r => setTimeout(r, 50))
   assert.strictEqual(trend.selectedRange.value, '7d')
@@ -1420,21 +1439,18 @@ import {
   assert.ok(dayBefore30dResolves)
   assert.strictEqual(dayBefore30dResolves.uploadBytes, 700)
 
-  // Now the slow 30d completes later
-  assert.ok(resolveSlow30d, 'resolveSlow30d must have been captured for 30d-only segment')
-  if (resolveSlow30d) {
-    (resolveSlow30d as any)()
-  }
-  await new Promise(r => setTimeout(r, 50))
+  // Now resolve the single blocked 30d segment so the ENTIRE 30d request completes in the background
+  ;(resolveSlow30d as any)()
+  await new Promise(r => setTimeout(r, 100))
 
-  // State must still be 7d and NOT overwritten by 30d
+  // State must still be 7d and NOT overwritten by the fully completed 30d
   assert.strictEqual(trend.selectedRange.value, '7d')
   assert.strictEqual(trend.trafficView.value.days.length, 7)
   const dayAfter30dResolves = trend.trafficView.value.days.find(d => d.uploadBytes !== null)
   assert.ok(dayAfter30dResolves)
-  assert.strictEqual(dayAfter30dResolves.uploadBytes, 700, 'Visible data must remain 700 from 7d, NOT overwritten by 3000 from 30d')
+  assert.strictEqual(dayAfter30dResolves.uploadBytes, 700, 'Visible data must remain 700 from 7d, NOT overwritten by completed 30d (3000)')
   assert.notStrictEqual(dayAfter30dResolves.uploadBytes, 3000)
-  console.log('✓ Test C passed: Range race (slow 30d does not overwrite fast 7d)')
+  console.log('✓ Test C passed: Range race (slow 30d completes fully without overwriting fast 7d)')
   resetSharedRpc()
 }
 
@@ -1680,21 +1696,26 @@ import {
   console.log('✓ Test H passed: Partial query failure marks queryFailed and preserves successful days')
 }
 
-// Test I: Today hourly bucket (18:00-19:00 at 18:37 BJT) is fine, not coarse
+// Test I: Today hourly bucket (18:00-19:00 at 18:37 BJT) does not cause coarse misclassification
 {
   const nowMs = Date.parse('2026-09-22T18:37:00+08:00')
   const window = buildZonedDayWindow('2026-09-22', 'Asia/Shanghai', nowMs)
-  // Hourly bucket: 18:00 to 19:00 today.
-  // 19:00 > window.effectiveEndMs (18:37), but 19:00 <= window.endMs (23:59:59.999).
-  // It is within the natural day and must NOT be marked as coarse!
-  const bucketStart = Date.parse('2026-09-22T18:00:00+08:00')
+  // Server returns an ended bucket (17:00-18:00) and the in-progress bucket (18:00-19:00).
+  // In production, segment.endMs is window.effectiveEndMs (18:37).
+  // 18:00-19:00 overlaps the query range but ends at 19:00 <= window.endMs (23:59:59.999).
+  // It must NOT be marked as coarse!
+  const p17 = Date.parse('2026-09-22T17:00:00+08:00')
+  const p18 = Date.parse('2026-09-22T18:00:00+08:00')
   const gateway = createHistoryGateway(async () => ({
     series: [
       {
         metric_key: 'traffic.up',
         entity_id: 'test-node',
         interval_seconds: 3600,
-        points: [{ time: new Date(bucketStart).toISOString(), value: 1000 }],
+        points: [
+          { time: new Date(p17).toISOString(), value: 1000 },
+          { time: new Date(p18).toISOString(), value: 500 },
+        ],
       },
     ],
   }))
@@ -1704,15 +1725,15 @@ import {
     segment: {
       dates: ['2026-09-22'],
       startMs: window.startMs,
-      endMs: window.endMs,
+      endMs: window.effectiveEndMs,
       depth: 0,
     },
     timeZone: 'Asia/Shanghai',
     nowMs,
   })
-  assert.strictEqual(result.status, 'fine', 'Current day hourly bucket must be fine, not coarse')
+  assert.strictEqual(result.status, 'fine', 'Current day with in-progress hourly bucket must be fine, not coarse')
   assert.strictEqual(result.coarseDates.length, 0, 'Current day must not be in coarseDates')
-  console.log('✓ Test I passed: Today hourly bucket (18:00-19:00 at 18:37 BJT) is fine, not coarse')
+  console.log('✓ Test I passed: Today hourly bucket (18:00-19:00 at 18:37 BJT) does not cause coarse misclassification')
 }
 
 // Test J: Cache-hit clears loading state and prevents UI stuck in loading
@@ -1905,6 +1926,23 @@ import {
   })
   assert.strictEqual(resOutside.status, 'empty', 'Points entirely outside window must be classified as empty')
   console.log('✓ Test K passed: Null points and points outside window correctly classified as empty')
+}
+
+// Test L: When nodes change to 0, loading and refreshing are cleared immediately
+{
+  const nodesRef = ref([{ uuid: 'node-1', name: 'Node 1' }])
+  const trend = useTrafficTrend({
+    nodes: () => nodesRef.value as any,
+  })
+
+  // Set nodes to empty
+  nodesRef.value = []
+  await new Promise(r => setTimeout(r, 20))
+
+  assert.strictEqual(trend.loading.value, false, 'loading must be false when nodes are empty')
+  assert.strictEqual(trend.refreshing.value, false, 'refreshing must be false when nodes are empty')
+  assert.strictEqual(trend.snapshot.value.state, 'empty')
+  console.log('✓ Test L passed: When nodes become empty, loading and refreshing are cleared')
 }
 
 console.log('All traffic tests passed successfully!')

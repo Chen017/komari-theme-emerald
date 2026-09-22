@@ -277,16 +277,13 @@ function overlaps(left: AcceptedInterval, right: AcceptedInterval): boolean {
 }
 
 function findContainingDay(states: DayState[], startMs: number, endMs: number): DayState | undefined {
-  return states.find(({ window }) => startMs >= window.startMs && endMs <= window.endMs)
+  return states.find(({ window }) => startMs >= window.startMs && endMs <= window.effectiveEndMs)
 }
 
 function markCrossDay(states: DayState[], startMs: number, endMs: number): void {
   for (const state of states) {
-    if (startMs < state.window.effectiveEndMs && state.window.startMs < endMs) {
-      if (startMs < state.window.startMs || endMs > state.window.endMs) {
-        state.reasons.add('cross-day-interval-rejected')
-      }
-    }
+    if (startMs < state.window.effectiveEndMs && state.window.startMs < endMs)
+      state.reasons.add('cross-day-interval-rejected')
   }
 }
 
