@@ -1,5 +1,23 @@
 export type RiskCategory = 'Low' | 'Medium' | 'High' | 'Critical' | 'Unknown';
-export type NodeIpqaStatus = 'ok' | 'not_installed' | 'no_archive' | 'stale' | 'collection_error';
+export type NodeIpqaStatus =
+  | 'ok'
+  | 'not_installed'
+  | 'no_archive'
+  | 'stale'
+  | 'collection_error'
+  | 'fresh'
+  | 'pending_today'
+  | 'sync_error'
+  | 'future_date';
+
+export interface NodeFreshness {
+  status: NodeIpqaStatus;
+  latestDate: string | null;
+  expectedDate: string;
+  lastSyncAttemptAt?: string | null;
+  lastSyncSuccessAt?: string | null;
+  reason?: string | null;
+}
 
 export interface IpqaCapabilities {
   schema_version: number;
@@ -25,6 +43,7 @@ export interface IpqaNodeOverview {
   uuid: string;
   name: string;
   status: NodeIpqaStatus;
+  freshness?: NodeFreshness;
   latest_date: string | null;
   has_ipv4: boolean;
   has_ipv6: boolean;

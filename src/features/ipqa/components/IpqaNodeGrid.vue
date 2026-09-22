@@ -29,13 +29,17 @@ function setCardVersion(node: IpqaNodeOverview, version: 'v4' | 'v6') {
 function getStatusBadge(status: string): { label: string, color: string } {
   switch (status) {
     case 'ok':
+    case 'fresh':
       return { label: '运行正常', color: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' }
+    case 'pending_today':
+      return { label: '等待生成', color: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300' }
     case 'not_installed':
       return { label: '未安装', color: 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400' }
     case 'no_archive':
       return { label: '暂无归档', color: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' }
     case 'stale':
       return { label: '归档过期', color: 'bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300' }
+    case 'sync_error':
     case 'collection_error':
       return { label: '采集异常', color: 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300' }
     default:
