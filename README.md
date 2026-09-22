@@ -1,4 +1,4 @@
-<h3 align="center"> Komari Emerald </h3>
+<h3 align="center"> Komari Emerald Insights </h3>
 <p align="center">
 现代化 Komari 主题，集成流量趋势、精确在线率、IPQA 可视化、成本与续费分析。
 <br>
@@ -44,7 +44,7 @@ Modern Komari theme with Resource Insights, traffic trends, exact availability, 
 
 ### 优雅降级说明
 
-若未安装上述可选插件，Komari Emerald 仍可完整使用常规监控、流量趋势、成本续费等内置功能；对应的插件特性区域仅会展示友好的安装指引卡片，绝不阻塞主题正常加载与运行。
+若未安装上述可选插件，Komari Emerald Insights 仍可完整使用常规监控、流量趋势、成本续费等内置功能；对应的插件特性区域仅会展示友好的安装指引卡片，绝不阻塞主题正常加载与运行。
 
 ### 汇率服务与隐私保护
 
@@ -55,9 +55,9 @@ Modern Komari theme with Resource Insights, traffic trends, exact availability, 
 
 ## 使用
 
-1. 从 [Release 页面](https://github.com/Chen017/komari-theme-emerald/releases) 下载最新的 `komari-theme-emerald-build-*.zip` 文件
+1. 从 [Release 页面](https://github.com/Chen017/komari-theme-emerald-insights/releases) 下载最新的 `komari-theme-emerald-insights-build-*.zip` 文件
 2. 登录 Komari Monitor 后，点击 `设置`，选择 `主题管理` 选项卡
-3. 点击 `上传主题` 按钮，选择下载的 `komari-theme-emerald-build-*.zip` 文件
+3. 点击 `上传主题` 按钮，选择下载的 `komari-theme-emerald-insights-build-*.zip` 文件
 4. 刷新页面，即可看到新的主题
 
 ---
@@ -133,7 +133,7 @@ bun run preview
                │                         │
                └────────────┬────────────┘
                             ▼
-                     Komari Emerald
+                Komari Emerald Insights
                     Resource Insights
                        (★ 本项目)
 ```
@@ -158,10 +158,10 @@ bun run preview
 ## 鸣谢与开源致谢
 
 - [Komari](https://github.com/komari-monitor/komari)
-- [Komari Emerald (Tokinx)](https://github.com/Tokinx/komari-theme-emerald)
+- [Komari Emerald (Tokinx)](https://github.com/Tokinx/komari-theme-emerald)：本项目基于 Tokinx 的原版 Emerald 主题进行二次开发与重构，保留了其优秀的极简设计语言与经典监控视图。
+- [komari-theme-emerald-globe-pro (allen0039)](https://github.com/allen0039/komari-theme-emerald-globe-pro)：资源概览 (Resource Insights)、历史流量汇聚、在线率及成本续费核心逻辑深度参考并适配自该项目 (MIT License)，特此致以诚挚敬意与感谢！
 - [Komari Next](https://github.com/tonyliuzj/komari-next)
 - [Komari Naive](https://github.com/lyimoexiao/komari-theme-naive)
-- [komari-theme-emerald-globe-pro (allen0039)](https://github.com/allen0039/komari-theme-emerald-globe-pro)：资源概览、历史流量汇聚、在线率及成本续费核心逻辑参考并适配自该项目 (MIT License)，特此鸣谢。
 - [IP-Quality-Archive (Chen017)](https://github.com/Chen017/IP-Quality-Archive)：IP 质量数据格式标准。
 
 ---
