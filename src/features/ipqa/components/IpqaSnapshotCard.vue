@@ -91,12 +91,13 @@ function getMediaItem(media: Record<string, any> | undefined, ...names: string[]
       </RouterLink>
     </div>
 
-    <div v-else class="flex flex-col md:flex-row items-stretch gap-3 text-xs">
-      <!-- Risk Category (Narrow) -->
-      <div class="p-2.5 rounded-sm bg-slate-500/5 shrink-0 min-w-[130px]">
-        <div class="text-[11px] text-muted-foreground mb-1">
-          综合风控评级
-        </div>
+    <div
+      v-else
+      class="rounded-sm bg-slate-500/5 p-2.5 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs"
+    >
+      <!-- Risk Category -->
+      <div class="inline-flex items-center gap-2">
+        <span class="text-muted-foreground shrink-0">综合风控评级：</span>
         <div
           class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium border"
           :class="[
@@ -111,11 +112,9 @@ function getMediaItem(media: Record<string, any> | undefined, ...names: string[]
       </div>
 
       <!-- Media Unlocking with v4 & v6 in ONE row -->
-      <div class="p-2.5 rounded-sm bg-slate-500/5 flex-1 min-w-0">
-        <div class="text-[11px] text-muted-foreground mb-1">
-          流媒体解锁
-        </div>
-        <div class="flex items-center gap-5 flex-wrap text-[11px] pt-0.5">
+      <div class="inline-flex items-center gap-2 flex-wrap min-w-0">
+        <span class="text-muted-foreground shrink-0">流媒体解锁：</span>
+        <div class="inline-flex items-center gap-4 flex-wrap text-[11px]">
           <!-- v4 -->
           <div v-if="latestReport.v4" class="inline-flex items-center gap-1.5 flex-wrap">
             <span class="font-mono text-[10px] px-1 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300 font-semibold">v4</span>
@@ -156,12 +155,10 @@ function getMediaItem(media: Record<string, any> | undefined, ...names: string[]
         </div>
       </div>
 
-      <!-- AI Unlocking (Narrow) -->
-      <div class="p-2.5 rounded-sm bg-slate-500/5 shrink-0 min-w-[130px]">
-        <div class="text-[11px] text-muted-foreground mb-1">
-          AI 解锁
-        </div>
-        <div class="font-medium text-[11px] pt-0.5">
+      <!-- AI Unlocking -->
+      <div class="inline-flex items-center gap-2 shrink-0">
+        <span class="text-muted-foreground shrink-0">AI 解锁：</span>
+        <div class="font-medium text-[11px]">
           <span
             v-if="latestReport.summary.aiSummary.ChatGPT"
             :class="latestReport.summary.aiSummary.ChatGPT.unlocked ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'"
