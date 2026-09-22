@@ -24,8 +24,8 @@ defineProps<{
           :key="engine"
           class="p-3 rounded-xl border flex flex-col justify-between"
           :class="[
-            getRiskColor(evaluateProviderScore(String(engine), scoreVal).category).bg,
-            getRiskColor(evaluateProviderScore(String(engine), scoreVal).category).border,
+            getRiskColor(evaluateProviderScore(String(engine), scoreVal, report.classifiedScores?.[String(engine)]).category).bg,
+            getRiskColor(evaluateProviderScore(String(engine), scoreVal, report.classifiedScores?.[String(engine)]).category).border,
           ]"
         >
           <div class="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 mb-1">
@@ -36,13 +36,13 @@ defineProps<{
               class="text-base font-bold text-neutral-800 dark:text-neutral-100 truncate"
               :class="{ 'font-mono text-sm text-neutral-400 dark:text-neutral-500': scoreVal === null || scoreVal === 'null' }"
             >
-              {{ evaluateProviderScore(String(engine), scoreVal).text }}
+              {{ evaluateProviderScore(String(engine), scoreVal, report.classifiedScores?.[String(engine)]).text }}
             </div>
             <div
               class="text-[10px] font-medium mt-0.5"
-              :class="getRiskColor(evaluateProviderScore(String(engine), scoreVal).category).text"
+              :class="getRiskColor(evaluateProviderScore(String(engine), scoreVal, report.classifiedScores?.[String(engine)]).category).text"
             >
-              {{ evaluateProviderScore(String(engine), scoreVal).tagLabel }}
+              {{ evaluateProviderScore(String(engine), scoreVal, report.classifiedScores?.[String(engine)]).tagLabel }}
             </div>
           </div>
         </div>

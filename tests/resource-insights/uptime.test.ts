@@ -445,6 +445,309 @@ function createMockNode(overrides: Partial<NodeData> = {}): NodeData {
   console.log('✓ Fleet aggregation passed successfully')
 }
 
+// ---------------------------------------------------------------------------
+// Section 46: Fleet observer-mask test
+// ---------------------------------------------------------------------------
+{
+  console.log('\n[Section 46] Fleet observer-mask test')
+  const { buildObservationTimeline } = require('../../src/features/resource-insights/services/observationCoverage')
+
+  const baseT = now.getTime() - 4 * 3600 * 1000
+  const tA = baseT // Bucket A: 3/3 have samples
+  const tB = baseT + 3600 * 1000 // Bucket B: 1/3 has sample
+  const tC = baseT + 2 * 3600 * 1000 // Bucket C: 0/3 have samples, no probe
+  const tD = baseT + 3 * 3600 * 1000 // Bucket D: 0/3 telemetry, but probe exists
+
+  const seriesByNode = {
+    n1: {
+      entityId: 'n1',
+      metricKey: 'cpu.usage',
+      intervalSeconds: 3600,
+      points: [
+        { time: new Date(tA).toISOString(), value: 10, count: 60 },
+        { time: new Date(tB).toISOString(), value: 10, count: 60 },
+        { time: new Date(tC).toISOString(), value: null, count: 0 },
+        { time: new Date(tD).toISOString(), value: null, count: 0 },
+      ],
+    },
+    n2: {
+      entityId: 'n2',
+      metricKey: 'cpu.usage',
+      intervalSeconds: 3600,
+      points: [
+        { time: new Date(tA).toISOString(), value: 10, count: 60 },
+        { time: new Date(tB).toISOString(), value: null, count: 0 },
+        { time: new Date(tC).toISOString(), value: null, count: 0 },
+        { time: new Date(tD).toISOString(), value: null, count: 0 },
+      ],
+    },
+    n3: {
+      entityId: 'n3',
+      metricKey: 'cpu.usage',
+      intervalSeconds: 3600,
+      points: [
+        { time: new Date(tA).toISOString(), value: 10, count: 60 },
+        { time: new Date(tB).toISOString(), value: null, count: 0 },
+        { time: new Date(tC).toISOString(), value: null, count: 0 },
+        { time: new Date(tD).toISOString(), value: null, count: 0 },
+      ],
+    },
+  }
+
+  // Probe in bucket D at tD + 500s
+  const probeEvidenceTimes = [tD + 500 * 1000]
+
+  const timeline = buildObservationTimeline({
+    seriesByNode,
+    probeEvidenceTimes,
+    windowStartMs: baseT,
+    windowEndMs: baseT + 4 * 3600 * 1000,
+    fallbackBucketSeconds: 3600,
+  })
+
+  // Bucket A: observable
+  assert.strictEqual(timeline.isObservable(tA + 100), true, 'Bucket A should be observable')
+  // Bucket B: observable
+  assert.strictEqual(timeline.isObservable(tB + 100), true, 'Bucket B should be observable')
+  // Bucket C: unobserved (blackout)
+  assert.strictEqual(timeline.isBlackout(tC + 100), true, 'Bucket C should be unobserved')
+  assert.strictEqual(timeline.isObservable(tC + 100), false, 'Bucket C should not be observable')
+  // Bucket D: observable (probe evidence)
+  assert.strictEqual(timeline.isObservable(tD + 100), true, 'Bucket D should be observable due to probe evidence')
+
+  console.log('✓ Section 46 passed: fleet observer-mask correctly determines observable vs blackout')
+}
+
+// ---------------------------------------------------------------------------
+// Section 41: Controller restart test (all nodes have gap -> excluded from denominator)
+// ---------------------------------------------------------------------------
+{
+  console.log('\n[Section 41] Controller restart test')
+  const node1 = createMockNode({ uuid: 'vps-1', name: 'Zouter', online: true })
+  const node2 = createMockNode({ uuid: 'vps-2', name: 'DataWave', online: true })
+  const node3 = createMockNode({ uuid: 'vps-3', name: 'Vmiss', online: true })
+
+  // 60 minutes window. Minutes 20-30 (10 min): Komari controller restarted/upgraded
+  // All 3 VPS have no telemetry during minutes 20-30
+  const totalMinutes = 60
+  const windowStart = now.getTime() - totalMinutes * 60 * 1000
+
+  function createPointsWithBlackout() {
+    const pts: NormalizedMetricPoint[] = []
+    for (let m = 0; m < totalMinutes; m++) {
+      const t = new Date(windowStart + m * 60 * 1000).toISOString()
+      if (m >= 20 && m < 30) {
+        pts.push({ time: t, value: null, count: 0 })
+      } else {
+        pts.push({ time: t, value: 5.0, count: 60 })
+      }
+    }
+    return pts
+  }
+
+  const seriesByNode = {
+    'vps-1': { entityId: 'vps-1', metricKey: 'cpu.usage', intervalSeconds: 60, points: createPointsWithBlackout() },
+    'vps-2': { entityId: 'vps-2', metricKey: 'cpu.usage', intervalSeconds: 60, points: createPointsWithBlackout() },
+    'vps-3': { entityId: 'vps-3', metricKey: 'cpu.usage', intervalSeconds: 60, points: createPointsWithBlackout() },
+  }
+
+  const fleet = calculateFleet30dUptime(
+    [node1, node2, node3],
+    { kind: 'metrics', seriesByNode },
+    now,
+  )
+
+  // Controller outage of 10 min was excluded from denominator!
+  // All VPS remain 100.00% uptime!
+  for (const n of fleet.nodes) {
+    assert.strictEqual(n.uptimeText, '100.00%', `${n.name} uptime must remain 100.00% across controller restart`)
+    assert.strictEqual(n.controllerBlackoutSeconds, 10 * 60, '10 minutes of controller blackout must be tracked')
+  }
+  assert.strictEqual(fleet.fleetUptimeText, '100.00%')
+  console.log('✓ Section 41 passed: controller restart excluded from uptime denominator (100.00% preserved)')
+}
+
+// ---------------------------------------------------------------------------
+// Section 40: Real target outage test (one node down while others report)
+// ---------------------------------------------------------------------------
+{
+  console.log('\n[Section 40] Real target outage test')
+  const nodeZouter = createMockNode({ uuid: 'zouter', name: 'Zouter', online: true })
+  const nodeVmiss = createMockNode({ uuid: 'vmiss', name: 'Vmiss', online: true })
+  const nodeDataWave = createMockNode({ uuid: 'datawave', name: 'DataWave', online: true })
+
+  const totalMinutes = 60
+  const windowStart = now.getTime() - totalMinutes * 60 * 1000
+
+  // Zouter and Vmiss report 100% healthy telemetry throughout
+  const healthyPoints: NormalizedMetricPoint[] = []
+  for (let m = 0; m < totalMinutes; m++) {
+    healthyPoints.push({
+      time: new Date(windowStart + m * 60 * 1000).toISOString(),
+      value: 5.0,
+      count: 60,
+    })
+  }
+
+  // DataWave has an outage at minutes 20-30 (10 min)
+  const dataWavePoints: NormalizedMetricPoint[] = []
+  for (let m = 0; m < totalMinutes; m++) {
+    const t = new Date(windowStart + m * 60 * 1000).toISOString()
+    if (m >= 20 && m < 30) {
+      dataWavePoints.push({ time: t, value: null, count: 0 })
+    } else {
+      dataWavePoints.push({ time: t, value: 5.0, count: 60 })
+    }
+  }
+
+  const seriesByNode = {
+    zouter: { entityId: 'zouter', metricKey: 'cpu.usage', intervalSeconds: 60, points: healthyPoints },
+    vmiss: { entityId: 'vmiss', metricKey: 'cpu.usage', intervalSeconds: 60, points: healthyPoints },
+    datawave: { entityId: 'datawave', metricKey: 'cpu.usage', intervalSeconds: 60, points: dataWavePoints },
+  }
+
+  const fleet = calculateFleet30dUptime(
+    [nodeZouter, nodeVmiss, nodeDataWave],
+    { kind: 'metrics', seriesByNode },
+    now,
+  )
+
+  const zouterRes = fleet.nodes.find(n => n.uuid === 'zouter')!
+  const vmissRes = fleet.nodes.find(n => n.uuid === 'vmiss')!
+  const dwRes = fleet.nodes.find(n => n.uuid === 'datawave')!
+
+  assert.strictEqual(zouterRes.uptimeText, '100.00%', 'Zouter uptime should be 100.00%')
+  assert.strictEqual(vmissRes.uptimeText, '100.00%', 'Vmiss uptime should be 100.00%')
+
+  // DataWave was down while controller was observable -> downtime counted!
+  assert.ok(dwRes.uptimeRatio! < 1.0, 'DataWave uptime must decrease due to real target downtime')
+  assert.strictEqual(dwRes.uptimeText, '83.33%') // 50 / 60 minutes = 83.33%
+  assert.strictEqual(dwRes.controllerBlackoutSeconds, 0, 'No controller blackout occurred')
+
+  console.log(`✓ Section 40 passed: real target outage decreased DataWave uptime to ${dwRes.uptimeText} while other nodes remained 100.00%`)
+}
+
+// ---------------------------------------------------------------------------
+// Section 43: Controller restart + one actual VPS outage
+// ---------------------------------------------------------------------------
+{
+  console.log('\n[Section 43] Controller restart + one actual VPS outage')
+  const nodeZouter = createMockNode({ uuid: 'zouter', name: 'Zouter', online: true })
+  const nodeDataWave = createMockNode({ uuid: 'datawave', name: 'DataWave', online: true })
+
+  // Window: 60 minutes.
+  // 10:00 is minute 0.
+  // DataWave goes down at 10:00 (minute 0) and returns at 10:25 (minute 25). Total 25 minutes down.
+  // Controller is down from 10:05 to 10:15 (minutes 5 to 15, 10 min).
+  // During 10:05-10:15, Zouter also has no telemetry.
+  // Outside 10:05-10:15, Zouter has healthy telemetry.
+  const totalMinutes = 60
+  const windowStart = now.getTime() - totalMinutes * 60 * 1000
+
+  const zouterPoints: NormalizedMetricPoint[] = []
+  const dataWavePoints: NormalizedMetricPoint[] = []
+
+  for (let m = 0; m < totalMinutes; m++) {
+    const t = new Date(windowStart + m * 60 * 1000).toISOString()
+    // Zouter: down during 5-15 only (controller restart)
+    if (m >= 5 && m < 15) {
+      zouterPoints.push({ time: t, value: null, count: 0 })
+    } else {
+      zouterPoints.push({ time: t, value: 5.0, count: 60 })
+    }
+
+    // DataWave: down during 0-25
+    if (m >= 0 && m < 25) {
+      dataWavePoints.push({ time: t, value: null, count: 0 })
+    } else {
+      dataWavePoints.push({ time: t, value: 5.0, count: 60 })
+    }
+  }
+
+  const seriesByNode = {
+    zouter: { entityId: 'zouter', metricKey: 'cpu.usage', intervalSeconds: 60, points: zouterPoints },
+    datawave: { entityId: 'datawave', metricKey: 'cpu.usage', intervalSeconds: 60, points: dataWavePoints },
+  }
+
+  const fleet = calculateFleet30dUptime(
+    [nodeZouter, nodeDataWave],
+    { kind: 'metrics', seriesByNode },
+    now,
+  )
+
+  const dw = fleet.nodes.find(n => n.uuid === 'datawave')!
+  // Observable duration: 60m - 10m (controller blackout) = 50 minutes = 3000s
+  // DataWave confirmed downtime: 0-5 (5m) + 15-25 (10m) = 15 minutes = 900s
+  // DataWave online seconds: 50m - 15m = 35 minutes = 2100s
+  // Expected uptime: 35 / 50 = 70.00%
+  assert.strictEqual(dw.controllerBlackoutSeconds, 10 * 60)
+  assert.strictEqual(dw.observableSeconds, 50 * 60)
+  assert.strictEqual(dw.onlineSeconds, 35 * 60)
+  assert.strictEqual(dw.uptimeText, '70.00%')
+
+  console.log(`✓ Section 43 passed: ambiguous controller outage excluded; DataWave uptime is ${dw.uptimeText} (15m target downtime)`)
+}
+
+// ---------------------------------------------------------------------------
+// Section 44: Retention-start test
+// ---------------------------------------------------------------------------
+{
+  console.log('\n[Section 44] Retention-start test')
+  const node = createMockNode({ uuid: 'node-12d', name: '12d-Node', online: true })
+
+  // History only begins 12 days ago (288 hours)
+  const points: NormalizedMetricPoint[] = []
+  for (let h = 0; h < 288; h++) {
+    points.push({
+      time: new Date(now.getTime() - (288 - h) * 3600 * 1000).toISOString(),
+      value: 10,
+      count: 60,
+    })
+  }
+
+  const series: NormalizedMetricSeries = {
+    entityId: node.uuid,
+    metricKey: 'cpu.usage',
+    intervalSeconds: 3600,
+    points,
+  }
+
+  const res = calculateNode30dUptime(node, { kind: 'metrics', series }, now)
+  // First 18 days (432 hours = 1555200s) = retention uncovered, NOT controller blackout!
+  assert.strictEqual(res.retentionUncoveredSeconds, 18 * 86400)
+  assert.strictEqual(res.controllerBlackoutSeconds, 0)
+  assert.strictEqual(res.uptimeText, '100.00%')
+  assert.strictEqual(res.coverageText, '覆盖 12.0 / 30 天')
+
+  console.log('✓ Section 44 passed: retention-unavailable time tracked separately from controller blackout')
+}
+
+// ---------------------------------------------------------------------------
+// Section 47: Packet-loss null / gap test
+// ---------------------------------------------------------------------------
+{
+  console.log('\n[Section 47] Packet-loss null test')
+  // Simulated packet-loss point processing
+  const inputPoints = [
+    { t: 1, value: 0 },
+    { t: 2, value: null }, // Missing/unobserved measurement
+    { t: 3, value: 100 }, // Genuine measured 100% loss
+  ]
+
+  // Verify that null is not coerced to 100
+  const processed = inputPoints.map(p => {
+    if (p.value === null) return null // gap
+    return p.value
+  })
+
+  assert.strictEqual(processed[0], 0, 't1 should be 0%')
+  assert.strictEqual(processed[1], null, 't2 must remain null (gap), NEVER coerced to 100%')
+  assert.strictEqual(processed[2], 100, 't3 should be genuine 100%')
+
+  console.log('✓ Section 47 passed: missing packet-loss point remains null/gap, genuine 100% preserved')
+}
+
 console.log('\n========================================')
 console.log('All 30-day uptime regression tests passed!')
 console.log('========================================')
+

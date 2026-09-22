@@ -28,6 +28,18 @@ export interface IpqaCapabilities {
   ipv6: boolean;
 }
 
+export interface ClassifiedRiskScore {
+  provider: string;
+  rawValue: string | number | boolean | null;
+  numericValue: number | null;
+  unit: 'percent' | 'score' | 'category' | 'unknown';
+  available: boolean;
+  categoryKey: RiskCategory;
+  categoryLabel: string | null;
+  rank: number | null;
+  alertSeverity: 'INFO' | 'WARNING' | 'CRITICAL' | null;
+}
+
 export interface IpqaNodeProtocolSummary {
   date?: string | null;
   risk?: {
@@ -35,6 +47,7 @@ export interface IpqaNodeProtocolSummary {
     source: string;
   };
   scores: Record<string, string | number | boolean | null>;
+  classifiedScores?: Record<string, ClassifiedRiskScore>;
   media: Record<string, { status?: string; region?: string; unlocked?: boolean; [key: string]: unknown }>;
   ai: Record<string, { status?: string; region?: string; unlocked?: boolean; [key: string]: unknown }>;
 }
@@ -78,6 +91,10 @@ export interface IpqaSemanticChange {
   field: string;
   before: unknown;
   after: unknown;
+  beforeCategory?: string;
+  afterCategory?: string;
+  beforeRank?: number;
+  afterRank?: number;
   description: string;
 }
 
@@ -99,6 +116,7 @@ export interface IpqaNormalizedReport {
     [key: string]: unknown;
   };
   scores: Record<string, string | number | boolean | null>;
+  classifiedScores?: Record<string, ClassifiedRiskScore>;
   type: {
     usage: Record<string, unknown>;
     company: Record<string, unknown>;

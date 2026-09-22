@@ -240,10 +240,10 @@ const HISTORY_MAX_POINTS = 700
 
 /**
  * 将 metrics 延迟点转为图表记录。
- * 官方在 fill_empty=true 时会把丢包采样（latency=-1）转成 null；
- * 这里统一用 value=-1 表示断点/丢包，供合并与丢包标记复用。
- * 不要把 ping.loss 的聚合平均值（0~1）当成整点丢包写入延迟序列，
- * 否则 7 天等长范围会出现大量伪断点，曲线断断续续。
+ * 官方在 fill_empty=true 时会把空桶置为 null，把丢包探测置为 latency=-1；
+ * 这里区分：
+ * - point.value === null：观测缺失/主控停机，记为 -999，图表保持 null/断点，绝不作为丢包！
+ * - point.value < 0：真实探测超时（丢包），记为 -1，供丢包标记识别真实 100% 丢包。
  */
 function pushLatencyMetricPoint(
   records: PingRecord[],
@@ -251,7 +251,17 @@ function pushLatencyMetricPoint(
   taskId: number,
   point: MetricPoint,
 ) {
-  if (point.value === null || point.value < 0) {
+  if (point.value === null) {
+    records.push({
+      client: uuid,
+      task_id: taskId,
+      time: point.time,
+      value: -999,
+    })
+    return
+  }
+
+  if (point.value < 0) {
     records.push({
       client: uuid,
       task_id: taskId,
@@ -584,8 +594,9 @@ const packetLossMarkers = computed(() => {
   for (const task of selectedTasks.value) {
     const indexLossMap = new Map<number, number>()
 
-    // 来源 1：短周期原始探测点中延迟为 null / < 0（单次探测丢包，视为 100% 丢包）
-    const taskLatencyLossRecords = remoteData.value.filter(rec => rec.task_id === task.id && rec.value < 0)
+    // 来源 1：短周期原始探测点中延迟明确为超时（rec.value === -1，单次探测丢包，视为 100% 丢包）
+    // 注意：rec.value === -999 代表观测缺失/主控停机，绝不可作为 100% 丢包！
+    const taskLatencyLossRecords = remoteData.value.filter(rec => rec.task_id === task.id && rec.value === -1)
     for (const record of taskLatencyLossRecords) {
       const lossTs = dayjs(record.time).valueOf()
       let matchedIndex = -1

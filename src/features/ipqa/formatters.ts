@@ -1,4 +1,4 @@
-import type { RiskCategory } from './types'
+import type { ClassifiedRiskScore, RiskCategory } from './types'
 
 export function getRiskColor(category: RiskCategory): {
   bg: string
@@ -55,176 +55,191 @@ export function getRiskLabel(category: RiskCategory): string {
   }
 }
 
-export function evaluateProviderScore(providerKey: string, val: unknown): {
+function getScoreCls(category: RiskCategory): string {
+  switch (category) {
+    case 'Critical':
+      return 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 font-bold'
+    case 'High':
+      return 'bg-orange-100 text-orange-700 dark:bg-orange-950/60 dark:text-orange-300 font-medium'
+    case 'Medium':
+      return 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 font-medium'
+    case 'Low':
+      return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 font-medium'
+    default:
+      return 'bg-neutral-100 text-neutral-400 dark:bg-neutral-800 dark:text-neutral-500 font-mono'
+  }
+}
+
+export function evaluateProviderScore(
+  providerKey: string,
+  val: unknown,
+  classifiedScore?: ClassifiedRiskScore,
+): {
   text: string
   cls: string
   category: RiskCategory
   tagLabel: string
 } {
+  // If structured classifiedScore is already provided from backend, use it directly
+  if (classifiedScore && classifiedScore.available) {
+    const category = classifiedScore.categoryKey
+    const tagLabel = classifiedScore.categoryLabel || getRiskLabel(category)
+    const text = val === null || val === 'null' ? 'null' : String(val ?? '')
+    return {
+      text,
+      cls: getScoreCls(category),
+      category,
+      tagLabel,
+    }
+  }
+
+  // Null-like check
   if (val === null || val === 'null') {
     return {
       text: 'null',
       cls: 'bg-neutral-100 text-neutral-400 dark:bg-neutral-800 dark:text-neutral-500 font-mono',
       category: 'Unknown',
-      tagLabel: '未配置 / 无数据',
+      tagLabel: '无数据',
     }
   }
 
-  if (val === undefined || val === '') {
+  if (val === undefined || val === '' || val === 'N/A' || val === '--' || val === '-') {
     return {
       text: '--',
       cls: 'text-neutral-300 dark:text-neutral-600',
       category: 'Unknown',
-      tagLabel: '--',
+      tagLabel: '无数据',
     }
   }
 
   const str = String(val).trim()
   const key = providerKey.toUpperCase()
 
-  // 1. Scamalytics (0: 优秀, 1~24: 良好, 25~49: 中危, 50~74: 高危, 75~100: 极高危)
+  // 1. ipapi: percentage format (e.g. "2.73%", "18.16%", "0.73%")
+  // bp (basis points): 1% = 100 bp (e.g. 2.73% = 273 bp, 18.16% = 1816 bp)
+  // <15: 极低风险 | <85: 低风险 | <300: 较高风险 | <1000: 高风险 | >=1000: 极高风险
+  if (key.includes('IPAPI')) {
+    const num = Number(str.replace('%', ''))
+    if (Number.isFinite(num)) {
+      const bp = Math.round(num * 100)
+      if (bp < 15) {
+        return { text: str, cls: getScoreCls('Low'), category: 'Low', tagLabel: '极低风险' }
+      }
+      if (bp < 85) {
+        return { text: str, cls: getScoreCls('Low'), category: 'Low', tagLabel: '低风险' }
+      }
+      if (bp < 300) {
+        return { text: str, cls: getScoreCls('Medium'), category: 'Medium', tagLabel: '较高风险' }
+      }
+      if (bp < 1000) {
+        return { text: str, cls: getScoreCls('High'), category: 'High', tagLabel: '高风险' }
+      }
+      return { text: str, cls: getScoreCls('Critical'), category: 'Critical', tagLabel: '极高风险' }
+    }
+  }
+
+  // 2. IP2Location (0-32 低 | 33-65 中 | 66+ 高, or textual "VERY HIGH", "HIGH", "MEDIUM", "LOW")
+  if (key.includes('IP2LOCATION')) {
+    const upper = str.toUpperCase()
+    if (upper.includes('VERY HIGH') || upper.includes('CRITICAL')) {
+      return { text: str, cls: getScoreCls('Critical'), category: 'Critical', tagLabel: '极高风险' }
+    }
+    if (upper.includes('HIGH')) {
+      return { text: str, cls: getScoreCls('High'), category: 'High', tagLabel: '高风险' }
+    }
+    if (upper.includes('MEDIUM')) {
+      return { text: str, cls: getScoreCls('Medium'), category: 'Medium', tagLabel: '中风险' }
+    }
+    if (upper.includes('LOW') || upper.includes('CLEAN') || upper.includes('GOOD')) {
+      return { text: str, cls: getScoreCls('Low'), category: 'Low', tagLabel: '低风险' }
+    }
+    const num = Number(str)
+    if (Number.isFinite(num)) {
+      if (num < 33) {
+        return { text: str, cls: getScoreCls('Low'), category: 'Low', tagLabel: '低风险' }
+      }
+      if (num < 66) {
+        return { text: str, cls: getScoreCls('Medium'), category: 'Medium', tagLabel: '中风险' }
+      }
+      return { text: str, cls: getScoreCls('High'), category: 'High', tagLabel: '高风险' }
+    }
+  }
+
+  // 3. Scamalytics (0-19 低 | 20-59 中 | 60-89 高 | 90+ 极高)
   if (key.includes('SCAMALYTICS')) {
     const num = Number(str.replace('%', ''))
     if (Number.isFinite(num)) {
-      if (num === 0) {
-        return { text: `${num} (优秀)`, cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 font-medium', category: 'Low', tagLabel: '优秀' }
+      if (num < 20) {
+        return { text: str, cls: getScoreCls('Low'), category: 'Low', tagLabel: '低风险' }
       }
-      if (num < 25) {
-        return { text: `${num} (良好)`, cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 font-medium', category: 'Low', tagLabel: '良好' }
+      if (num < 60) {
+        return { text: str, cls: getScoreCls('Medium'), category: 'Medium', tagLabel: '中风险' }
       }
-      if (num < 50) {
-        return { text: `${num} (中危)`, cls: 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 font-medium', category: 'Medium', tagLabel: '中危' }
+      if (num < 90) {
+        return { text: str, cls: getScoreCls('High'), category: 'High', tagLabel: '高风险' }
       }
-      if (num < 75) {
-        return { text: `${num} (高危)`, cls: 'bg-orange-100 text-orange-700 dark:bg-orange-950/60 dark:text-orange-300 font-medium', category: 'High', tagLabel: '高危' }
-      }
-      return { text: `${num} (极高危)`, cls: 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 font-bold', category: 'Critical', tagLabel: '极高危' }
+      return { text: str, cls: getScoreCls('Critical'), category: 'Critical', tagLabel: '极高风险' }
     }
   }
 
-  // 2. AbuseIPDB (0%: 优秀, 1%~19%: 良好, 20%~49%: 中危, 50%+: 高危)
+  // 4. AbuseIPDB (0-24 低 | 25-74 高 | 75+ 建议封禁)
   if (key.includes('ABUSEIPDB')) {
     const num = Number(str.replace('%', ''))
     if (Number.isFinite(num)) {
-      if (num === 0) {
-        return { text: `0% (优秀)`, cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 font-medium', category: 'Low', tagLabel: '优秀' }
+      if (num < 25) {
+        return { text: str, cls: getScoreCls('Low'), category: 'Low', tagLabel: '低风险' }
       }
-      if (num < 20) {
-        return { text: `${num}% (良好)`, cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 font-medium', category: 'Low', tagLabel: '良好' }
+      if (num < 75) {
+        return { text: str, cls: getScoreCls('High'), category: 'High', tagLabel: '高风险' }
       }
-      if (num < 50) {
-        return { text: `${num}% (中危)`, cls: 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 font-medium', category: 'Medium', tagLabel: '中危' }
-      }
-      return { text: `${num}% (高危)`, cls: 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 font-bold', category: 'High', tagLabel: '高危' }
+      return { text: str, cls: getScoreCls('Critical'), category: 'Critical', tagLabel: '建议封禁' }
     }
   }
 
-  // 3. ipapi (0%~5%: 优秀, 5%~20%: 良好, 20%~50%: 中危, 50%+: 高危)
-  if (key.includes('IPAPI')) {
-    const num = Number(str.replace('%', ''))
-    const displayStr = str.includes('%') ? str : `${str}%`
-    if (Number.isFinite(num)) {
-      if (num <= 5) {
-        return { text: `${displayStr} (优秀)`, cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 font-medium', category: 'Low', tagLabel: '优秀' }
-      }
-      if (num <= 20) {
-        return { text: `${displayStr} (良好)`, cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 font-medium', category: 'Low', tagLabel: '良好' }
-      }
-      if (num <= 50) {
-        return { text: `${displayStr} (中危)`, cls: 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 font-medium', category: 'Medium', tagLabel: '中危' }
-      }
-      return { text: `${displayStr} (高危)`, cls: 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 font-bold', category: 'High', tagLabel: '高危' }
-    }
-  }
-
-  // 4. IP2Location (0~25 或 Low: 优秀, 26~50 或 Medium: 中危, 51~75 或 High: 高危, 76+ 或 Very High: 极高危)
-  if (key.includes('IP2LOCATION')) {
-    const num = Number(str)
-    if (Number.isFinite(num)) {
-      if (num <= 25) {
-        return { text: `${num} (优秀)`, cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 font-medium', category: 'Low', tagLabel: '优秀' }
-      }
-      if (num <= 50) {
-        return { text: `${num} (中危)`, cls: 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 font-medium', category: 'Medium', tagLabel: '中危' }
-      }
-      if (num <= 75) {
-        return { text: `${num} (高危)`, cls: 'bg-orange-100 text-orange-700 dark:bg-orange-950/60 dark:text-orange-300 font-medium', category: 'High', tagLabel: '高危' }
-      }
-      return { text: `${num} (极高危)`, cls: 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 font-bold', category: 'Critical', tagLabel: '极高危' }
-    }
-    const upper = str.toUpperCase()
-    if (upper.includes('VERY HIGH') || upper.includes('CRITICAL')) {
-      return { text: `${str} (极高危)`, cls: 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 font-bold', category: 'Critical', tagLabel: '极高危' }
-    }
-    if (upper.includes('HIGH')) {
-      return { text: `${str} (高危)`, cls: 'bg-orange-100 text-orange-700 dark:bg-orange-950/60 dark:text-orange-300 font-medium', category: 'High', tagLabel: '高危' }
-    }
-    if (upper.includes('MEDIUM')) {
-      return { text: `${str} (中危)`, cls: 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 font-medium', category: 'Medium', tagLabel: '中危' }
-    }
-    if (upper.includes('LOW') || upper.includes('CLEAN') || upper.includes('GOOD')) {
-      return { text: `${str} (优秀)`, cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 font-medium', category: 'Low', tagLabel: '优秀' }
-    }
-  }
-
-  // 5. IPQualityScore (IPQS) (0: 优秀, 1~49: 良好, 50~74: 可疑, 75~84: 高危, 85~100: 极高危)
+  // 5. IPQualityScore (IPQS) (0-74 低 | 75-84 可疑 | 85-89 存在风险 | 90+ 高风险)
   if (key.includes('IPQS') || key.includes('IPQUALITYSCORE')) {
     const num = Number(str)
     if (Number.isFinite(num)) {
-      if (num === 0) {
-        return { text: `0 (优秀)`, cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 font-medium', category: 'Low', tagLabel: '优秀' }
-      }
-      if (num < 50) {
-        return { text: `${num} (良好)`, cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 font-medium', category: 'Low', tagLabel: '良好' }
-      }
       if (num < 75) {
-        return { text: `${num} (可疑)`, cls: 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 font-medium', category: 'Medium', tagLabel: '可疑' }
+        return { text: str, cls: getScoreCls('Low'), category: 'Low', tagLabel: '低风险' }
       }
       if (num < 85) {
-        return { text: `${num} (高危)`, cls: 'bg-orange-100 text-orange-700 dark:bg-orange-950/60 dark:text-orange-300 font-medium', category: 'High', tagLabel: '高危' }
+        return { text: str, cls: getScoreCls('Medium'), category: 'Medium', tagLabel: '可疑IP' }
       }
-      return { text: `${num} (极高危)`, cls: 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 font-bold', category: 'Critical', tagLabel: '极高危' }
+      if (num < 90) {
+        return { text: str, cls: getScoreCls('High'), category: 'High', tagLabel: '存在风险' }
+      }
+      return { text: str, cls: getScoreCls('Critical'), category: 'Critical', tagLabel: '高风险' }
     }
   }
 
-  // 6. DB-IP (Clean/Low: 优秀, Medium: 中危, High: 高危)
+  // 6. DB-IP (0 低 | 50 中 | 100 高)
   if (key.includes('DBIP') || key.includes('DB-IP')) {
     const num = Number(str)
     if (Number.isFinite(num)) {
-      if (num <= 25) return { text: `${num} (优秀)`, cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 font-medium', category: 'Low', tagLabel: '优秀' }
-      if (num <= 50) return { text: `${num} (中危)`, cls: 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 font-medium', category: 'Medium', tagLabel: '中危' }
-      return { text: `${num} (高危)`, cls: 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 font-bold', category: 'High', tagLabel: '高危' }
+      if (num === 0) return { text: str, cls: getScoreCls('Low'), category: 'Low', tagLabel: '低风险' }
+      if (num <= 50) return { text: str, cls: getScoreCls('Medium'), category: 'Medium', tagLabel: '中风险' }
+      return { text: str, cls: getScoreCls('High'), category: 'High', tagLabel: '高风险' }
     }
     const upper = str.toUpperCase()
     if (upper.includes('HIGH') || upper.includes('CRITICAL')) {
-      return { text: `${str} (高危)`, cls: 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 font-bold', category: 'High', tagLabel: '高危' }
+      return { text: str, cls: getScoreCls('High'), category: 'High', tagLabel: '高风险' }
     }
     if (upper.includes('MEDIUM')) {
-      return { text: `${str} (中危)`, cls: 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 font-medium', category: 'Medium', tagLabel: '中危' }
+      return { text: str, cls: getScoreCls('Medium'), category: 'Medium', tagLabel: '中风险' }
     }
     if (upper.includes('CLEAN') || upper.includes('LOW') || upper.includes('GOOD')) {
-      return { text: `${str} (优秀)`, cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 font-medium', category: 'Low', tagLabel: '优秀' }
+      return { text: str, cls: getScoreCls('Low'), category: 'Low', tagLabel: '低风险' }
     }
   }
 
-  // Generic string matching
-  const upper = str.toUpperCase()
-  if (upper.includes('VERY HIGH') || upper.includes('CRITICAL')) {
-    return { text: `${str} (极高危)`, cls: 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 font-bold', category: 'Critical', tagLabel: '极高危' }
-  }
-  if (upper.includes('HIGH')) {
-    return { text: `${str} (高危)`, cls: 'bg-orange-100 text-orange-700 dark:bg-orange-950/60 dark:text-orange-300 font-medium', category: 'High', tagLabel: '高危' }
-  }
-  if (upper.includes('MEDIUM')) {
-    return { text: `${str} (中危)`, cls: 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 font-medium', category: 'Medium', tagLabel: '中危' }
-  }
-  if (upper.includes('LOW') || upper.includes('CLEAN') || upper.includes('GOOD')) {
-    return { text: `${str} (优秀)`, cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 font-medium', category: 'Low', tagLabel: '优秀' }
-  }
-
+  // Generic fallback
   const genericNum = Number(str.replace('%', ''))
-  if (Number.isFinite(genericNum) && genericNum === 0) {
-    return { text: `${str} (优秀)`, cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 font-medium', category: 'Low', tagLabel: '优秀' }
+  if (Number.isFinite(genericNum)) {
+    if (genericNum < 20) return { text: str, cls: getScoreCls('Low'), category: 'Low', tagLabel: '低风险' }
+    if (genericNum < 50) return { text: str, cls: getScoreCls('Medium'), category: 'Medium', tagLabel: '中风险' }
+    if (genericNum < 75) return { text: str, cls: getScoreCls('High'), category: 'High', tagLabel: '高风险' }
+    return { text: str, cls: getScoreCls('Critical'), category: 'Critical', tagLabel: '极高风险' }
   }
 
   return { text: str, cls: 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400 font-medium', category: 'Low', tagLabel: str }

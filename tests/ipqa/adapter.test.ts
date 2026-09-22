@@ -273,46 +273,76 @@ describe('IPQA adapters & domain model tests', () => {
   })
 
   // 9. Comprehensive evaluateProviderScore tests
-  it('correctly evaluates provider scores with 优秀/良好/中危/高危/极高危 and null display', () => {
+  it('correctly evaluates provider scores with canonical IPQA categories and null display', () => {
     const { evaluateProviderScore } = require('../../src/features/ipqa/formatters')
 
     // null display
     assert.equal(evaluateProviderScore('IPQS', null).text, 'null')
+    assert.equal(evaluateProviderScore('IPQS', null).tagLabel, '无数据')
+    assert.equal(evaluateProviderScore('IPQS', null).category, 'Unknown')
     assert.equal(evaluateProviderScore('DBIP', null).text, 'null')
     assert.equal(evaluateProviderScore('SCAMALYTICS', 'null').text, 'null')
 
-    // IP2Location: 3 -> 优秀
+    // DataWave regression: ipapi 18.16% -> 极高风险 (Critical), never 良好
+    const ipapiCritical = evaluateProviderScore('ipapi', '18.16%')
+    assert.equal(ipapiCritical.text, '18.16%')
+    assert.equal(ipapiCritical.tagLabel, '极高风险')
+    assert.equal(ipapiCritical.category, 'Critical')
+
+    // ipapi 2.73% -> 较高风险 (Medium)
+    const ipapiMedium = evaluateProviderScore('ipapi', '2.73%')
+    assert.equal(ipapiMedium.text, '2.73%')
+    assert.equal(ipapiMedium.tagLabel, '较高风险')
+    assert.equal(ipapiMedium.category, 'Medium')
+
+    // IP2Location: 3 -> 低风险 (Low)
     const ip2loc = evaluateProviderScore('IP2LOCATION', 3)
-    assert.equal(ip2loc.text, '3 (优秀)')
-    assert.equal(ip2loc.tagLabel, '优秀')
+    assert.equal(ip2loc.text, '3')
+    assert.equal(ip2loc.tagLabel, '低风险')
+    assert.equal(ip2loc.category, 'Low')
 
-    // ipapi: 4.69% -> 优秀
-    const ipapiRes = evaluateProviderScore('ipapi', '4.69%')
-    assert.equal(ipapiRes.text, '4.69% (优秀)')
-    assert.equal(ipapiRes.tagLabel, '优秀')
+    // Scamalytics: 0 -> 低风险, 15 -> 低风险, 35 -> 中风险, 80 -> 高风险, 95 -> 极高风险
+    assert.equal(evaluateProviderScore('SCAMALYTICS', 0).tagLabel, '低风险')
+    assert.equal(evaluateProviderScore('SCAMALYTICS', 15).tagLabel, '低风险')
+    assert.equal(evaluateProviderScore('SCAMALYTICS', 35).tagLabel, '中风险')
+    assert.equal(evaluateProviderScore('SCAMALYTICS', 80).tagLabel, '高风险')
+    assert.equal(evaluateProviderScore('SCAMALYTICS', 95).tagLabel, '极高风险')
+    assert.equal(evaluateProviderScore('SCAMALYTICS', 95).category, 'Critical')
 
-    // Scamalytics: 0 -> 优秀, 15 -> 良好, 35 -> 中危, 80 -> 极高危
-    assert.equal(evaluateProviderScore('SCAMALYTICS', 0).text, '0 (优秀)')
-    assert.equal(evaluateProviderScore('SCAMALYTICS', 15).text, '15 (良好)')
-    assert.equal(evaluateProviderScore('SCAMALYTICS', 35).text, '35 (中危)')
-    assert.equal(evaluateProviderScore('SCAMALYTICS', 80).text, '80 (极高危)')
+    // AbuseIPDB: 0% -> 低风险, 5% -> 低风险, 25% -> 高风险, 80% -> 建议封禁 (Critical)
+    assert.equal(evaluateProviderScore('AbuseIPDB', '0%').tagLabel, '低风险')
+    assert.equal(evaluateProviderScore('AbuseIPDB', '5%').tagLabel, '低风险')
+    assert.equal(evaluateProviderScore('AbuseIPDB', '25%').tagLabel, '高风险')
+    assert.equal(evaluateProviderScore('AbuseIPDB', '80%').tagLabel, '建议封禁')
+    assert.equal(evaluateProviderScore('AbuseIPDB', '80%').category, 'Critical')
 
-    // AbuseIPDB: 0% -> 优秀, 5% -> 良好, 25% -> 中危, 55% -> 高危
-    assert.equal(evaluateProviderScore('AbuseIPDB', '0%').text, '0% (优秀)')
-    assert.equal(evaluateProviderScore('AbuseIPDB', '5%').text, '5% (良好)')
-    assert.equal(evaluateProviderScore('AbuseIPDB', '25%').text, '25% (中危)')
-    assert.equal(evaluateProviderScore('AbuseIPDB', '55%').text, '55% (高危)')
+    // IPQS: 0 -> 低风险, 80 -> 可疑IP, 86 -> 存在风险, 95 -> 高风险 (Critical)
+    assert.equal(evaluateProviderScore('IPQS', 0).tagLabel, '低风险')
+    assert.equal(evaluateProviderScore('IPQS', 80).tagLabel, '可疑IP')
+    assert.equal(evaluateProviderScore('IPQS', 86).tagLabel, '存在风险')
+    assert.equal(evaluateProviderScore('IPQS', 95).tagLabel, '高风险')
+    assert.equal(evaluateProviderScore('IPQS', 95).category, 'Critical')
 
-    // IPQS: 0 -> 优秀, 20 -> 良好, 60 -> 可疑, 80 -> 高危, 90 -> 极高危
-    assert.equal(evaluateProviderScore('IPQS', 0).text, '0 (优秀)')
-    assert.equal(evaluateProviderScore('IPQS', 20).text, '20 (良好)')
-    assert.equal(evaluateProviderScore('IPQS', 60).text, '60 (可疑)')
-    assert.equal(evaluateProviderScore('IPQS', 80).text, '80 (高危)')
-    assert.equal(evaluateProviderScore('IPQS', 90).text, '90 (极高危)')
+    // DB-IP: Clean/Low -> 低风险, Medium -> 中风险, High -> 高风险
+    assert.equal(evaluateProviderScore('DBIP', 'Low').tagLabel, '低风险')
+    assert.equal(evaluateProviderScore('DBIP', 'Medium').tagLabel, '中风险')
+    assert.equal(evaluateProviderScore('DBIP', 'High').tagLabel, '高风险')
 
-    // DB-IP: Clean/Low -> 优秀
-    assert.equal(evaluateProviderScore('DBIP', 'Low').text, 'Low (优秀)')
-    assert.equal(evaluateProviderScore('DBIP', 'Medium').text, 'Medium (中危)')
-    assert.equal(evaluateProviderScore('DBIP', 'High').text, 'High (高危)')
+    // With structured classifiedScore from backend
+    const customClassified = {
+      provider: 'ipapi',
+      rawValue: '18.16%',
+      numericValue: 18.16,
+      unit: 'percent' as const,
+      available: true,
+      categoryKey: 'Critical' as const,
+      categoryLabel: '极高风险',
+      rank: 4,
+      alertSeverity: 'CRITICAL' as const,
+    }
+    const evaluatedCustom = evaluateProviderScore('ipapi', '18.16%', customClassified)
+    assert.equal(evaluatedCustom.text, '18.16%')
+    assert.equal(evaluatedCustom.tagLabel, '极高风险')
+    assert.equal(evaluatedCustom.category, 'Critical')
   })
 })
