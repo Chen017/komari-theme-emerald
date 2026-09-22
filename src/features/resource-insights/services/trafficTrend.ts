@@ -38,6 +38,7 @@ export interface TrafficTrendDayViewModel {
   isInProgress: boolean
   reasons: TrafficReason[]
   isCoarse?: boolean
+  queryFailed?: boolean
 }
 
 export interface TrafficTrendSnapshot {
@@ -78,6 +79,7 @@ export function buildTrafficTrendViewModel(
   byEntity: ReadonlyMap<string, readonly DailyTrafficAggregate[]>,
   dates: readonly string[],
   entityIds: readonly string[],
+  metadata?: { coarseDates?: string[], failedDates?: string[] },
 ): Pick<TrafficTrendSnapshot, 'state' | 'days' | 'message' | 'requestedDays' | 'availableDays' | 'capability'> {
   const visibleEntityIds = [...new Set(entityIds)]
   const days = dates.map((date): TrafficTrendDayViewModel => {
@@ -123,6 +125,8 @@ export function buildTrafficTrendViewModel(
         : 'mixed'
 
     const isCoarse = rows.some(r => r.reasons.includes('cross-day-interval-rejected') || (r.reasons as string[]).includes('coarse-interval'))
+      || (metadata?.coarseDates?.includes(date) ?? false)
+    const queryFailed = metadata?.failedDates?.includes(date) ?? false
 
     return {
       date,
@@ -135,6 +139,7 @@ export function buildTrafficTrendViewModel(
       isInProgress: rows.some(row => row.isInProgress),
       reasons: [...new Set(rows.flatMap(row => row.reasons))].sort(),
       isCoarse,
+      queryFailed,
     }
   })
   const missingDays = days.filter(day => day.totalBytes === null).length

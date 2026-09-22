@@ -29,6 +29,7 @@ const {
   refresh,
 } = useTrafficTrend({
   nodes: () => props.nodes,
+  settings: () => appStore.publicSettings?.theme_settings,
 })
 
 const rangeOptions: Array<{ value: TrafficRange, label: string }> = [
@@ -112,6 +113,10 @@ const chartOption = computed(() => {
         const qualityText = qualityLabels[day.quality] || day.quality
 
         let html = `<div style="font-weight:600;margin-bottom:4px;">${day.date} (${qualityText}${day.isCoarse ? ' · 粗粒度' : ''})</div>`
+        if (day.queryFailed) {
+          html += `<div style="color:${textColor};font-size:11px;margin-top:2px;">该日历史查询失败</div>`
+          return html
+        }
         if (day.quality === 'missing' && day.totalBytes === null) {
           html += `<div style="color:${textColor};font-size:11px;margin-top:2px;">该日暂无历史采集记录</div>`
           return html

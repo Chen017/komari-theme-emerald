@@ -36,6 +36,8 @@ export interface SegmentResolution {
   evidence: EntityTrafficEvidence[]
   retentionDays: number | null
   maxObservedIntervalSeconds: number | null
+  coarseDates: string[]
+  failedDates?: string[]
   error?: unknown
 }
 
@@ -45,6 +47,8 @@ export interface ResolvedTrafficHistory {
   retentionDays: number | null
   coarseWindows: TrafficHistoryWindow[]
   failedWindows: TrafficHistoryWindow[]
+  coarseDates: string[]
+  failedDates: string[]
   diagnostics: {
     requestCount: number
     baseSegmentCount: number
@@ -145,6 +149,8 @@ export async function queryMetricSegment(
       evidence: [],
       retentionDays: null,
       maxObservedIntervalSeconds: null,
+      coarseDates: [],
+      failedDates: [...segment.dates],
       error,
     }
   }
@@ -156,6 +162,8 @@ export async function queryMetricSegment(
       evidence: [],
       retentionDays: null,
       maxObservedIntervalSeconds: null,
+      coarseDates: [],
+      failedDates: [...segment.dates],
       error: result.error ?? result.reason,
     }
   }
@@ -167,6 +175,8 @@ export async function queryMetricSegment(
       evidence: [],
       retentionDays: null,
       maxObservedIntervalSeconds: null,
+      coarseDates: [],
+      failedDates: [],
     }
   }
 
@@ -183,10 +193,44 @@ export async function queryMetricSegment(
       evidence: [],
       retentionDays: result.retentionDays,
       maxObservedIntervalSeconds: null,
+      coarseDates: [],
+      failedDates: [],
     }
   }
 
-  let hasCrossDayRejected = false
+  const coarseDatesSet = new Set<string>()
+
+  // Raw interval inspection: inspect metric intervals directly from raw series
+  for (const s of result.series) {
+    let intervalMs = (s.intervalSeconds ?? 0) * 1000
+    if ((!Number.isFinite(intervalMs) || intervalMs <= 0) && s.points.length >= 2) {
+      const t0 = Date.parse(s.points[0]!.time)
+      const t1 = Date.parse(s.points[1]!.time)
+      if (Number.isFinite(t0) && Number.isFinite(t1) && t1 > t0) {
+        intervalMs = t1 - t0
+      }
+    }
+    for (const point of s.points) {
+      if (point.value === null)
+        continue
+      const startMs = Date.parse(point.time)
+      const endMs = startMs + (Number.isFinite(intervalMs) && intervalMs > 0 ? intervalMs : 0)
+      if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || startMs >= endMs)
+        continue
+
+      for (const date of segment.dates) {
+        const window = buildZonedDayWindow(date, timeZone, nowMs)
+        // Check if interval overlaps this requested natural day
+        if (startMs < window.effectiveEndMs && endMs > window.startMs) {
+          // If interval is not wholly contained within this natural day, mark as coarse!
+          if (startMs < window.startMs || endMs > window.effectiveEndMs) {
+            coarseDatesSet.add(date)
+          }
+        }
+      }
+    }
+  }
+
   for (const item of evidence) {
     const aggregates = aggregateDailyTraffic({
       timeZone,
@@ -195,11 +239,15 @@ export async function queryMetricSegment(
       deltas: item.deltas,
       counters: item.counters,
     })
-    if (aggregates.some(a => a.reasons.includes('cross-day-interval-rejected'))) {
-      hasCrossDayRejected = true
-      break
+    for (const a of aggregates) {
+      if (a.reasons.includes('cross-day-interval-rejected')) {
+        coarseDatesSet.add(a.date)
+      }
     }
   }
+
+  const coarseDates = Array.from(coarseDatesSet).sort()
+  const isCoarse = coarseDates.length > 0
 
   let maxObservedIntervalSeconds: number | null = null
   for (const s of result.series) {
@@ -212,10 +260,12 @@ export async function queryMetricSegment(
 
   return {
     segment,
-    status: hasCrossDayRejected ? 'coarse' : 'fine',
+    status: isCoarse ? 'coarse' : 'fine',
     evidence,
     retentionDays: result.retentionDays,
     maxObservedIntervalSeconds,
+    coarseDates,
+    failedDates: [],
   }
 }
 
@@ -265,6 +315,8 @@ export async function resolveTrafficHistory(
       retentionDays: null,
       coarseWindows: [],
       failedWindows: [],
+      coarseDates: [],
+      failedDates: [],
       diagnostics: {
         requestCount: 0,
         baseSegmentCount: 0,
@@ -305,6 +357,8 @@ export async function resolveTrafficHistory(
       retentionDays: null,
       coarseWindows: [],
       failedWindows: [],
+      coarseDates: [],
+      failedDates: [],
       diagnostics: {
         requestCount,
         baseSegmentCount: baseSegments.length,
@@ -351,12 +405,19 @@ export async function resolveTrafficHistory(
       })
     }
 
+    const coarseDates = [...res.coarseDates].sort()
+    const failedDates = res.status === 'failed'
+      ? (res.failedDates && res.failedDates.length > 0 ? [...res.failedDates] : [...res.segment.dates])
+      : []
+
     return {
       sourceKind: 'metrics',
       evidence: res.evidence,
       retentionDays: res.retentionDays,
       coarseWindows,
       failedWindows,
+      coarseDates,
+      failedDates,
       diagnostics: {
         requestCount,
         baseSegmentCount: 1,
@@ -410,6 +471,10 @@ export async function resolveTrafficHistory(
     options.signal,
   )
 
+  // Section 16: If any base segment switches to records, fallback whole request to records
+  if (remainingResults.some(r => r.status === 'records'))
+    return await executeLegacyFallback()
+
   for (const r of remainingResults) {
     if (r.maxObservedIntervalSeconds) {
       maxObservedIntervalSeconds = Math.max(
@@ -434,10 +499,11 @@ export async function resolveTrafficHistory(
   async function refineSegment(
     seg: TrafficHistorySegment,
   ): Promise<SegmentResolution[]> {
+    // Section 15: Fix request budget off-by-one
     if (
       seg.dates.length <= 1
       || seg.depth >= MAX_REFINEMENT_DEPTH
-      || requestCount >= MAX_TOTAL_METRIC_REQUESTS
+      || requestCount + 2 > MAX_TOTAL_METRIC_REQUESTS
     ) {
       return []
     }
@@ -507,7 +573,7 @@ export async function resolveTrafficHistory(
       if (
         olderSeg.dates.length > 1
         && olderSeg.depth < MAX_REFINEMENT_DEPTH
-        && requestCount < MAX_TOTAL_METRIC_REQUESTS
+        && requestCount + 2 <= MAX_TOTAL_METRIC_REQUESTS
       ) {
         const sub = await refineSegment(olderSeg)
         if (sub.length > 0)
@@ -521,7 +587,7 @@ export async function resolveTrafficHistory(
       if (
         newerSeg.dates.length > 1
         && newerSeg.depth < MAX_REFINEMENT_DEPTH
-        && requestCount < MAX_TOTAL_METRIC_REQUESTS
+        && requestCount + 2 <= MAX_TOTAL_METRIC_REQUESTS
       ) {
         const sub = await refineSegment(newerSeg)
         if (sub.length > 0)
@@ -561,6 +627,8 @@ export async function resolveTrafficHistory(
   const failedWindows: TrafficHistoryWindow[] = []
   const coarseWindows: TrafficHistoryWindow[] = []
   const evidenceList: EntityTrafficEvidence[][] = []
+  const coarseDatesSet = new Set<string>()
+  const failedDatesSet = new Set<string>()
   let retentionDays: number | null = null
 
   for (const res of leafResults) {
@@ -572,6 +640,9 @@ export async function resolveTrafficHistory(
         endDate: res.segment.dates.at(-1),
         reason: String(res.error ?? 'failed'),
       })
+      for (const d of (res.failedDates && res.failedDates.length > 0 ? res.failedDates : res.segment.dates)) {
+        failedDatesSet.add(d)
+      }
     }
     else {
       if (res.status === 'coarse') {
@@ -581,6 +652,9 @@ export async function resolveTrafficHistory(
           startDate: res.segment.dates[0],
           endDate: res.segment.dates.at(-1),
         })
+      }
+      for (const d of res.coarseDates) {
+        coarseDatesSet.add(d)
       }
       if (res.evidence.length > 0)
         evidenceList.push(res.evidence)
@@ -600,6 +674,8 @@ export async function resolveTrafficHistory(
     retentionDays,
     coarseWindows,
     failedWindows,
+    coarseDates: Array.from(coarseDatesSet).sort(),
+    failedDates: Array.from(failedDatesSet).sort(),
     diagnostics: {
       requestCount,
       baseSegmentCount: baseSegments.length,

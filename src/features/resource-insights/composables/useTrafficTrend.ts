@@ -135,8 +135,15 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
     message: '',
   })
 
+  let requestGeneration = 0
+  let activeLease: { release: () => void } | null = null
+
   const trafficView = computed(() => {
     const days = snapshot.value.days
+    const state = loading.value && !refreshing.value
+      ? 'loading'
+      : snapshot.value.state
+
     const coarseDays = days.filter(d => d.reasons?.includes('cross-day-interval-rejected') || d.isCoarse)
     const coarseCount = coarseDays.length
     const totalDays = days.length
@@ -144,9 +151,11 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
 
     let coarseWarning: string | null = null
     if (hasCoarseRollup) {
+      const isOldestPrefix = coarseDays.length > 0 && days.slice(0, coarseDays.length).every(d => d.reasons?.includes('cross-day-interval-rejected') || d.isCoarse)
+      const prefixText = isOldestPrefix ? `最早 ${coarseCount} 天` : `其中 ${coarseCount} 天`
       if (coarseCount > 0 && coarseCount < totalDays) {
-        const exactCount = totalDays - coarseCount
-        coarseWarning = `最早 ${coarseCount} 天仅有粗粒度历史，无法精确按北京时间自然日拆分；其余 ${exactCount} 天已使用细粒度数据展示`
+        const exactCount = days.filter(d => (d.quality === 'complete' || d.quality === 'partial') && !d.isCoarse && !d.queryFailed).length
+        coarseWarning = `${prefixText}仅有粗粒度历史，无法精确按北京时间自然日拆分；其余 ${exactCount} 天已使用细粒度数据展示`
       }
       else {
         coarseWarning = '历史数据仅剩粗粒度聚合，无法精确按北京时间自然日拆分'
@@ -154,7 +163,7 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
     }
 
     return {
-      state: snapshot.value.state,
+      state,
       days: snapshot.value.days,
       availableDays: snapshot.value.availableDays ?? snapshot.value.days.filter(d => d.totalBytes !== null).length,
       message: snapshot.value.message,
@@ -172,8 +181,13 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
   })
 
   async function fetchTrend(isManualRefresh = false) {
+    const generation = ++requestGeneration
     const entityIds = targetEntityIds.value
     if (entityIds.length === 0) {
+      if (activeLease) {
+        activeLease.release()
+        activeLease = null
+      }
       snapshot.value = {
         state: 'empty',
         days: [],
@@ -202,6 +216,11 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
     if (!isManualRefresh && typeof localStorage !== 'undefined') {
       const cached = readTrafficTrendCache(localStorage, cacheKey)
       if (cached) {
+        if (generation !== requestGeneration) return
+        if (activeLease) {
+          activeLease.release()
+          activeLease = null
+        }
         snapshot.value = cached
         return
       }
@@ -212,18 +231,29 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
     else
       loading.value = true
 
+    let lease: any = null
     try {
       try {
-        capabilities.value = await fetchHistoryCapabilities(
+        const fetchedCaps = await fetchHistoryCapabilities(
           (method, params, opts) => getSharedRpc().call(method, params, opts),
           { bypassCache: isManualRefresh },
         )
+        if (generation === requestGeneration) {
+          capabilities.value = fetchedCaps
+        }
       }
       catch {
         // Continue even if capabilities probe fails
       }
 
-      const lease = requestPool.acquire(cacheKey, async (signal) => {
+      if (generation !== requestGeneration) return
+
+      if (activeLease) {
+        activeLease.release()
+        activeLease = null
+      }
+
+      lease = requestPool.acquire(cacheKey, async (signal) => {
         const resolved = await resolveTrafficHistory({
           gateway,
           entityIds,
@@ -260,7 +290,10 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
           byEntity.set(item.entityId, aggregates)
         }
 
-        const vm = buildTrafficTrendViewModel(byEntity, dates.value, entityIds)
+        const vm = buildTrafficTrendViewModel(byEntity, dates.value, entityIds, {
+          coarseDates: resolved.coarseDates,
+          failedDates: resolved.failedDates,
+        })
         const builtSnapshot: TrafficTrendSnapshot = {
           state: vm.state,
           days: vm.days,
@@ -282,11 +315,14 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
 
         return builtSnapshot as any
       })
+      activeLease = lease
 
       const res = await lease.promise
+      if (generation !== requestGeneration) return
       snapshot.value = res as unknown as TrafficTrendSnapshot
     }
     catch (err: any) {
+      if (generation !== requestGeneration) return
       snapshot.value = {
         state: 'error',
         days: [],
@@ -300,8 +336,14 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
       }
     }
     finally {
-      loading.value = false
-      refreshing.value = false
+      if (generation === requestGeneration) {
+        loading.value = false
+        refreshing.value = false
+        if (activeLease === lease) {
+          lease?.release?.()
+          activeLease = null
+        }
+      }
     }
   }
 

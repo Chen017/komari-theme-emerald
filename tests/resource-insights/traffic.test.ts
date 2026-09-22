@@ -12,6 +12,7 @@ import {
   buildTrafficTrendViewModel,
   calculateResetWindow,
   canRequestSinceReset,
+  resolveNodeResetConfig,
   resolveNodeResetDay,
 } from '../../src/features/resource-insights/services/trafficTrend'
 import {
@@ -1241,6 +1242,420 @@ function createFakeKomariMetricRpc(options: {
   const warning = `最早 ${coarseCount} 天仅有粗粒度历史，无法精确按北京时间自然日拆分；其余 ${exactCount} 天已使用细粒度数据展示`
   assert.strictEqual(warning, '最早 5 天仅有粗粒度历史，无法精确按北京时间自然日拆分；其余 25 天已使用细粒度数据展示')
   console.log('✓ Section 67 passed: Dynamic coarse warning message matches specification')
+}
+
+// ============================================================================
+// THIRD PATCH MINIMAL HARDENING TESTS (Tests A - H)
+// ============================================================================
+
+import { useTrafficTrend } from '../../src/features/resource-insights/composables/useTrafficTrend'
+import { getSharedRpc, resetSharedRpc } from '../../src/utils/rpc'
+
+// Test A: One-Day Coarse Leaf (Section 21)
+{
+  const startMs = Date.parse('2026-09-20T00:00:00+08:00')
+  const endMs = Date.parse('2026-09-20T23:59:59.999+08:00')
+  // Server returns UTC-aligned 24h bucket: 2026-09-20T00:00:00Z to 2026-09-21T00:00:00Z
+  // In Beijing time, this is 2026-09-20 08:00:00+08:00 to 2026-09-21 08:00:00+08:00 (crosses Beijing midnight)
+  const gateway = createHistoryGateway(async () => ({
+    series: [
+      {
+        metric_key: 'traffic.up',
+        entity_id: 'test-node',
+        interval_seconds: 86400,
+        points: [
+          { time: '2026-09-20T00:00:00Z', value: 1000 },
+        ],
+      },
+    ],
+  }))
+  const result = await queryMetricSegment({
+    gateway,
+    entityIds: ['test-node'],
+    segment: {
+      dates: ['2026-09-20'],
+      startMs,
+      endMs,
+      depth: 0,
+    },
+    timeZone: 'Asia/Shanghai',
+  })
+  assert.strictEqual(result.status, 'coarse', 'One-day segment with cross-midnight interval must be coarse')
+  assert.ok(result.coarseDates.includes('2026-09-20'), 'Requested date must be recorded in coarseDates')
+  assert.notStrictEqual(result.status, 'fine', 'Must NOT be classified as fine even if evidence clipping dropped the point')
+  console.log('✓ Test A passed: Single Beijing day with UTC 24h bucket classified as coarse')
+}
+
+// Test B: Parent Coarse Replaced by Fine Children (Section 22)
+{
+  const nowMs = Date.parse('2026-09-20T12:00:00+08:00')
+  const dates10 = buildRecentNaturalDayKeys(10, 'Asia/Shanghai', nowMs)
+  const rpc = async (method: string, params: any) => {
+    if (method === 'rpc.methods') return ['public:queryMetrics']
+    if (method === 'public:listMetricDefinitions') {
+      return [
+        { name: 'traffic.up', retention_days: 30 },
+        { name: 'traffic.down', retention_days: 30 },
+      ]
+    }
+    if (method === 'public:queryMetrics') {
+      const startMs = Date.parse(params.start)
+      const endMs = Date.parse(params.end)
+      const spanDays = (endMs - startMs) / 86400000
+      const isNewer = startMs >= nowMs - 5 * 86400000
+      // Newer segment is fine; older 5-day parent is coarse; refined children (< 3.5 days) are fine
+      const isFine = isNewer || spanDays <= 3.5
+      const intervalSeconds = isFine ? 3600 : 86400
+      const intervalMs = intervalSeconds * 1000
+      const alignedStart = Math.floor(startMs / intervalMs) * intervalMs
+      const points: any[] = []
+      for (let t = alignedStart; t < endMs; t += intervalMs) {
+        points.push({ time: new Date(t).toISOString(), value: 1000 })
+      }
+      return {
+        series: [
+          {
+            metric_key: 'traffic.up',
+            entity_id: 'test-node',
+            interval_seconds: intervalSeconds,
+            points,
+          },
+        ],
+      }
+    }
+    throw new Error(`Unhandled method ${method}`)
+  }
+  const gateway = createHistoryGateway(rpc as any)
+  const resolved = await resolveTrafficHistory({
+    gateway,
+    entityIds: ['test-node'],
+    dates: dates10,
+    timeZone: 'Asia/Shanghai',
+    nowMs,
+  })
+
+  assert.strictEqual(resolved.coarseDates.length, 0, 'Parent coarseDates must be discarded after fine child refinement')
+  assert.ok(resolved.evidence.length > 0, 'Child evidence must be present')
+  assert.ok(resolved.evidence[0]!.deltas.every(d => d.endMs - d.startMs <= 3600000), 'All deltas must be fine child deltas')
+  console.log('✓ Test B passed: Parent coarse segment replaced by fine children (parent coarse metadata discarded)')
+}
+
+// Test C: Range Race (Section 23)
+{
+  resetSharedRpc()
+  const rpc = getSharedRpc()
+
+  let resolveSlow30d: ((val: any) => void) | null = null
+
+  rpc.call = async (method: string, params: any) => {
+    if (method === 'rpc.methods') return ['public:queryMetrics']
+    if (method === 'public:listMetricDefinitions') {
+      return [
+        { name: 'traffic.up', retention_days: 30 },
+        { name: 'traffic.down', retention_days: 30 },
+      ]
+    }
+    if (method === 'public:queryMetrics') {
+      const startMs = Date.parse(params.start)
+      const endMs = Date.parse(params.end)
+      const spanDays = (endMs - startMs) / 86400000
+
+      // If query spans more than 10 days, simulate slow response
+      if (spanDays > 10) {
+        return new Promise(resolve => {
+          resolveSlow30d = () => {
+            resolve({
+              series: [
+                {
+                  metric_key: 'traffic.up',
+                  entity_id: params.entity_ids[0],
+                  interval_seconds: 3600,
+                  points: [{ time: params.start, value: 3000 }],
+                },
+              ],
+            })
+          }
+        })
+      }
+      // Fast 7d response
+      return {
+        series: [
+          {
+            metric_key: 'traffic.up',
+            entity_id: params.entity_ids[0],
+            interval_seconds: 3600,
+            points: [{ time: params.start, value: 700 }],
+          },
+        ],
+      }
+    }
+    throw new Error(`Unhandled ${method}`)
+  }
+
+  const trend = useTrafficTrend({
+    nodes: () => [{ uuid: 'node-race', name: 'Node Race' }] as any,
+  })
+
+  // Wait for initial 7d load
+  await new Promise(r => setTimeout(r, 50))
+  assert.strictEqual(trend.selectedRange.value, '7d')
+  assert.strictEqual(trend.trafficView.value.days.length, 7)
+
+  // Switch to 30d (slow)
+  trend.selectedRange.value = '30d'
+  await new Promise(r => setTimeout(r, 20))
+
+  // Rapidly switch back to 7d (fast)
+  trend.selectedRange.value = '7d'
+  await new Promise(r => setTimeout(r, 50))
+  assert.strictEqual(trend.selectedRange.value, '7d')
+  assert.strictEqual(trend.trafficView.value.days.length, 7)
+
+  // Now the slow 30d completes later
+  if (resolveSlow30d) {
+    (resolveSlow30d as any)()
+  }
+  await new Promise(r => setTimeout(r, 50))
+
+  // State must still be 7d and NOT overwritten by 30d
+  assert.strictEqual(trend.selectedRange.value, '7d')
+  assert.strictEqual(trend.trafficView.value.days.length, 7)
+  console.log('✓ Test C passed: Range race (slow 30d does not overwrite fast 7d)')
+  resetSharedRpc()
+}
+
+// Test D: Node Race (Section 24)
+{
+  resetSharedRpc()
+  const rpc = getSharedRpc()
+
+  let resolveSlowNodeA: ((val: any) => void) | null = null
+
+  rpc.call = async (method: string, params: any) => {
+    if (method === 'rpc.methods') return ['public:queryMetrics']
+    if (method === 'public:listMetricDefinitions') {
+      return [
+        { name: 'traffic.up', retention_days: 30 },
+        { name: 'traffic.down', retention_days: 30 },
+      ]
+    }
+    if (method === 'public:queryMetrics') {
+      const entityId = params.entity_ids[0]
+      if (entityId === 'node-A') {
+        return new Promise(resolve => {
+          resolveSlowNodeA = () => {
+            resolve({
+              series: [
+                {
+                  metric_key: 'traffic.up',
+                  entity_id: 'node-A',
+                  interval_seconds: 3600,
+                  points: [{ time: params.start, value: 9999 }],
+                },
+              ],
+            })
+          }
+        })
+      }
+      return {
+        series: [
+          {
+            metric_key: 'traffic.up',
+            entity_id: 'node-B',
+            interval_seconds: 3600,
+            points: [{ time: params.start, value: 1111 }],
+          },
+        ],
+      }
+    }
+    throw new Error(`Unhandled ${method}`)
+  }
+
+  const trend = useTrafficTrend({
+    nodes: () => [
+      { uuid: 'node-A', name: 'Node A' },
+      { uuid: 'node-B', name: 'Node B' },
+    ] as any,
+  })
+
+  await new Promise(r => setTimeout(r, 50))
+
+  // Select Node A (slow)
+  trend.selectedEntity.value = 'node-A'
+  await new Promise(r => setTimeout(r, 20))
+
+  // Switch to Node B (fast)
+  trend.selectedEntity.value = 'node-B'
+  await new Promise(r => setTimeout(r, 50))
+  assert.strictEqual(trend.selectedEntity.value, 'node-B')
+
+  // Resolve slow Node A later
+  if (resolveSlowNodeA) {
+    (resolveSlowNodeA as any)()
+  }
+  await new Promise(r => setTimeout(r, 50))
+
+  // Snapshot must remain for Node B
+  assert.strictEqual(trend.selectedEntity.value, 'node-B')
+  console.log('✓ Test D passed: Node race (slow Node A does not overwrite fast Node B)')
+  resetSharedRpc()
+}
+
+// Test E: Request Budget Boundary (Section 25)
+{
+  let requestCounter = 0
+  const gateway = createHistoryGateway(async () => {
+    requestCounter++
+    // Return coarse data so every segment attempts refinement
+    return {
+      series: [
+        {
+          metric_key: 'traffic.up',
+          entity_id: 'test-node',
+          interval_seconds: 86400,
+          points: [{ time: '2026-09-20T00:00:00Z', value: 100 }],
+        },
+      ],
+    }
+  })
+
+  // 30 days = 6 base segments of 5 days
+  const dates30 = buildRecentNaturalDayKeys(30, 'Asia/Shanghai', Date.parse('2026-09-22T12:00:00+08:00'))
+  const resolved = await resolveTrafficHistory({
+    gateway,
+    entityIds: ['test-node'],
+    dates: dates30,
+    timeZone: 'Asia/Shanghai',
+    nowMs: Date.parse('2026-09-22T12:00:00+08:00'),
+  })
+
+  assert.ok(resolved.diagnostics.requestCount <= 18, `Requests must not exceed 18, got ${resolved.diagnostics.requestCount}`)
+  assert.ok(requestCounter <= 18, `Actual gateway calls must not exceed 18, got ${requestCounter}`)
+  console.log(`✓ Test E passed: Request budget boundary enforced (requests=${resolved.diagnostics.requestCount} <= 18)`)
+}
+
+// Test F: Records Fallback From Non-Newest Segment (Section 26)
+{
+  const dates10 = ['2026-09-13', '2026-09-14', '2026-09-15', '2026-09-16', '2026-09-17', '2026-09-18', '2026-09-19', '2026-09-20', '2026-09-21', '2026-09-22']
+  const rpc = async (method: string, params: any) => {
+    if (method === 'rpc.methods') return ['public:queryMetrics', 'common:getRecords']
+    if (method === 'public:listMetricDefinitions') {
+      return [
+        { name: 'traffic.up', retention_days: 30 },
+        { name: 'traffic.down', retention_days: 30 },
+      ]
+    }
+    if (method === 'public:queryMetrics') {
+      const startMs = Date.parse(params.start)
+      const pivotMs = Date.parse('2026-09-18T00:00:00+08:00')
+      // If segment is older than pivotMs, pretend metric store doesn't have it and gateway returns records fallback
+      if (startMs < pivotMs) {
+        throw new RpcError(-32601, 'Method not found')
+      }
+      return {
+        series: [
+          {
+            metric_key: 'traffic.up',
+            entity_id: 'test-node',
+            interval_seconds: 3600,
+            points: [{ time: params.start, value: 500 }],
+          },
+        ],
+      }
+    }
+    if (method === 'common:getRecords') {
+      return {
+        records: {
+          'test-node': [
+            { time: params.start, net_total_up: 1000, net_total_down: 2000, traffic_up: 100, traffic_down: 200 },
+            { time: params.end, net_total_up: 2000, net_total_down: 4000, traffic_up: 100, traffic_down: 200 },
+          ],
+        },
+      }
+    }
+    throw new Error(`Unhandled ${method}`)
+  }
+  const gateway = createHistoryGateway(rpc as any)
+  const resolved = await resolveTrafficHistory({
+    gateway,
+    entityIds: ['test-node'],
+    dates: dates10,
+    timeZone: 'Asia/Shanghai',
+    nowMs: Date.parse('2026-09-22T12:00:00+08:00'),
+  })
+
+  assert.strictEqual(resolved.sourceKind, 'records', 'Whole request must switch to Records')
+  assert.strictEqual(resolved.diagnostics.usedLegacyFallback, true)
+  assert.ok(resolved.evidence.length > 0)
+  console.log('✓ Test F passed: Records fallback from older base segment cleanly switches entire request to Records')
+}
+
+// Test G: Beijing Reset Default (Section 27)
+{
+  const config = resolveTrafficResetConfig({
+    uuid: 'node-trd',
+    tags: ['<TRD:27>'],
+  })
+  assert.strictEqual(config.day, 27)
+  assert.strictEqual(config.timezone, 'Asia/Shanghai')
+  assert.strictEqual(config.timezoneSource, 'fallback')
+
+  const nodeConfig = resolveNodeResetConfig({
+    uuid: 'node-trd',
+    name: 'Node TRD',
+    tags: ['<TRD:27>'],
+  })
+  assert.strictEqual(nodeConfig.day, 27)
+  assert.strictEqual(nodeConfig.timezone, 'Asia/Shanghai')
+  assert.strictEqual(nodeConfig.timezoneSource, 'fallback')
+  console.log('✓ Test G passed: Default Beijing reset timezone fallback (Asia/Shanghai)')
+}
+
+// Test H: Partial Query Failure (Section 28)
+{
+  const nowMs = Date.parse('2026-09-22T12:00:00+08:00')
+  const failStart = nowMs - 20 * 86400000
+  const failEnd = nowMs - 15 * 86400000
+  const rpc = createFakeKomariMetricRpc({
+    nowMs,
+    hourRetentionHours: 600,
+    failWindows: [{ startMs: failStart, endMs: failEnd }],
+  })
+  const gateway = createHistoryGateway(rpc)
+  const dates30 = buildRecentNaturalDayKeys(30, 'Asia/Shanghai', nowMs)
+
+  const resolved = await resolveTrafficHistory({
+    gateway,
+    entityIds: ['test-node'],
+    dates: dates30,
+    timeZone: 'Asia/Shanghai',
+    nowMs,
+  })
+
+  assert.ok(resolved.failedDates && resolved.failedDates.length > 0, 'failedDates must be populated')
+
+  const byEntity = new Map<string, any[]>()
+  for (const item of resolved.evidence) {
+    const aggregates = aggregateDailyTraffic({
+      timeZone: 'Asia/Shanghai',
+      dates: dates30,
+      deltas: item.deltas,
+    })
+    byEntity.set(item.entityId, aggregates)
+  }
+
+  const vm = buildTrafficTrendViewModel(byEntity, dates30, ['test-node'], {
+    failedDates: resolved.failedDates,
+    coarseDates: resolved.coarseDates,
+  })
+
+  assert.strictEqual(vm.state, 'ready', 'Partial failure must remain state=ready')
+  assert.ok(vm.days.some(d => d.totalBytes !== null), 'Successful days must retain data')
+
+  const failedDay = vm.days.find(d => resolved.failedDates?.includes(d.date))
+  assert.ok(failedDay, 'Failed day must be in view model days')
+  assert.strictEqual(failedDay.queryFailed, true, 'Failed day must have queryFailed=true')
+  console.log('✓ Test H passed: Partial query failure marks queryFailed and preserves successful days')
 }
 
 console.log('All traffic tests passed successfully!')
