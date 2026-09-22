@@ -2,10 +2,10 @@
 import { Icon } from '@iconify/vue'
 import { RouterLink } from 'vue-router'
 import { useNodesStore } from '@/stores/nodes'
+import Availability30dCard from '../availability/Availability30dCard.vue'
 import CostSummaryCard from '../components/CostSummaryCard.vue'
 import IpqaOverviewSection from '../components/IpqaOverviewSection.vue'
-import TrafficTrendCard from '../components/TrafficTrendCard.vue'
-import Uptime30dCard from '../components/Uptime30dCard.vue'
+import TrafficTrendCard from '../traffic/TrafficTrendCard.vue'
 
 defineOptions({ name: 'ResourceInsightsPage' })
 
@@ -44,7 +44,7 @@ const nodesStore = useNodesStore()
         <TrafficTrendCard :nodes="nodesStore.nodes" />
       </div>
       <div class="lg:col-span-5">
-        <Uptime30dCard :nodes="nodesStore.nodes" />
+        <Availability30dCard :nodes="nodesStore.nodes" />
       </div>
     </div>
 
