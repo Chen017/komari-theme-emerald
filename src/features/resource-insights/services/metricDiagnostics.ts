@@ -59,7 +59,7 @@ export async function probeMetricContract(
       const defs = await call<any>('public:listMetricDefinitions')
       if (Array.isArray(defs)) {
         report.definitions = defs.map((d: any) => ({
-          key: d.metric_key || d.key || String(d),
+          key: d.name || d.metric_key || d.key || String(d),
           retentionDays: d.retention_days,
           rollup: d.rollup,
           aggregations: d.aggregations,

@@ -161,7 +161,7 @@ function createMockNode(overrides: Partial<NodeData> = {}): NodeData {
 
   const res = calculateNode30dUptime(node, { kind: 'metrics', series }, now)
   assert.strictEqual(res.status, 'partial')
-  assert.ok(res.coverageText.includes('覆盖 12.0 / 30 天'), `Coverage text was ${res.coverageText}`)
+  assert.ok(res.coverageText.includes('覆盖约 12.0 / 30 天'), `Coverage text was ${res.coverageText}`)
   assert.ok(res.uptimeRatio! < 1.0, 'Uptime ratio must be < 100% due to 10m outage')
   // 12 days = 17280 min, 10 min down -> 17270 / 17280 ≈ 0.99942 -> 99.94%
   assert.strictEqual(res.uptimeText, '99.94%')
@@ -194,7 +194,7 @@ function createMockNode(overrides: Partial<NodeData> = {}): NodeData {
 
   const res = calculateNode30dUptime(node, { kind: 'metrics', series }, now)
   assert.strictEqual(res.status, 'partial')
-  assert.ok(res.coverageText.includes('覆盖 2.0 / 30 天'), `Coverage text was ${res.coverageText}`)
+  assert.ok(res.coverageText.includes('覆盖约 2.0 / 30 天'), `Coverage text was ${res.coverageText}`)
   // Previous 28 days must NOT be counted as downtime!
   assert.strictEqual(res.uptimeRatio, 1.0)
   assert.strictEqual(res.uptimeText, '100.00%')
@@ -719,7 +719,7 @@ function createMockNode(overrides: Partial<NodeData> = {}): NodeData {
   assert.strictEqual(res.retentionUncoveredSeconds, 18 * 86400)
   assert.strictEqual(res.controllerBlackoutSeconds, 0)
   assert.strictEqual(res.uptimeText, '100.00%')
-  assert.strictEqual(res.coverageText, '覆盖 12.0 / 30 天')
+  assert.strictEqual(res.coverageText, '覆盖约 12.0 / 30 天')
 
   console.log('✓ Section 44 passed: retention-unavailable time tracked separately from controller blackout')
 }
@@ -868,10 +868,85 @@ function createMockNode(overrides: Partial<NodeData> = {}): NodeData {
   assert.strictEqual(res.uptimeRatio, 1.0, `Node A uptime must be 1.0 (100%), got ${res.uptimeRatio}`)
   assert.strictEqual(res.uptimeText, '100.00%', `Node A uptime text must be 100.00%, got ${res.uptimeText}`)
   assert.strictEqual(res.status, 'partial', 'Node A status must be partial (12/30 days)')
-  assert.strictEqual(res.coverageText, '覆盖 12.0 / 30 天')
+  assert.strictEqual(res.coverageText, '覆盖约 12.0 / 30 天')
   assert.strictEqual(res.retentionUncoveredSeconds, 18 * 86400, 'Uncovered retention must be 18 days')
   assert.strictEqual(res.diagnostics?.offlineSeconds, 0, 'Offline seconds must be 0')
   console.log('✓ Section 6 & 18 Case E passed: Node A with 12d history retains 100.00% uptime despite fleet 30d history')
+}
+
+// ---------------------------------------------------------------------------
+// Section 39: Case A — Active 2-hour bucket, node goes offline mid-bucket
+// ---------------------------------------------------------------------------
+{
+  console.log('\n[Section 39] Case A — Active 2-hour bucket, node goes offline mid-bucket')
+  const testNow = new Date('2026-09-22T09:47:00Z')
+  // Active bucket: 08:00:00Z to 10:00:00Z (2 hours = 7200s)
+  // Node went offline at 09:20:00Z (last heartbeat)
+  const node = createMockNode({
+    uuid: 'vmiss-offline',
+    name: 'Vmiss',
+    online: false,
+    updated_at: '2026-09-22T09:20:00Z',
+    uptime: 0,
+  })
+
+  // Full 30 days of 2-hour buckets (360 buckets)
+  const startTime = testNow.getTime() - SECONDS_30_DAYS * 1000
+  const points: NormalizedMetricPoint[] = []
+  for (let b = 0; b < 360; b++) {
+    const bucketTime = new Date(startTime + b * 7200 * 1000).toISOString()
+    // All buckets including current active bucket have non-null sample from when node was online
+    points.push({ time: bucketTime, value: 5.0, count: 120 })
+  }
+
+  const series: NormalizedMetricSeries = {
+    entityId: node.uuid,
+    metricKey: 'cpu.usage',
+    intervalSeconds: 7200,
+    retentionDays: 30,
+    points,
+  }
+
+  const res = calculateNode30dUptime(node, { kind: 'metrics', series }, testNow)
+  // Even though active bucket has points and bucketEnd (10:00) > now (09:47),
+  // node is currently offline since 09:20.
+  // With 60s grace, confirmed downtime is 09:21 to 09:47 (26 minutes = 1560s).
+  assert.ok(res.uptimeRatio !== null, 'uptimeRatio should not be null')
+  assert.ok(res.uptimeRatio < 1.0, `Uptime must be < 100% immediately for offline node, got ${res.uptimeText}`)
+  assert.notStrictEqual(res.uptimeText, '100.00%', 'Uptime text must not be 100.00%')
+  assert.ok(res.diagnostics!.offlineSeconds >= 1500, `Confirmed offline seconds should be >= 1500, got ${res.diagnostics!.offlineSeconds}`)
+  console.log(`✓ Section 39 Case A passed: active 2-hour bucket immediately registers downtime, uptime is ${res.uptimeText}`)
+}
+
+// ---------------------------------------------------------------------------
+// Section 39: Case C — Metric retention only 1 day
+// ---------------------------------------------------------------------------
+{
+  console.log('\n[Section 39] Case C — Metric retention only 1 day')
+  const node = createMockNode({ name: '1d-Retention-Node', online: true })
+  const startTime1d = now.getTime() - 86400 * 1000
+
+  // 1 day of hourly buckets = 24 buckets
+  const points: NormalizedMetricPoint[] = []
+  for (let h = 0; h < 24; h++) {
+    const t = new Date(startTime1d + h * 3600 * 1000).toISOString()
+    points.push({ time: t, value: 8.0, count: 60 })
+  }
+
+  const series: NormalizedMetricSeries = {
+    entityId: node.uuid,
+    metricKey: 'cpu.usage',
+    intervalSeconds: 3600,
+    retentionDays: 1, // Komari default retention
+    points,
+  }
+
+  const res = calculateNode30dUptime(node, { kind: 'metrics', series }, now)
+  assert.strictEqual(res.status, 'partial')
+  assert.strictEqual(res.coverageText, '覆盖约 1.0 / 30 天')
+  assert.notStrictEqual(res.coverageText, '30 / 30 天')
+  assert.strictEqual(res.uptimeText, '100.00%')
+  console.log(`✓ Section 39 Case C passed: 1-day retention correctly shows ${res.coverageText}`)
 }
 
 console.log('\n========================================')

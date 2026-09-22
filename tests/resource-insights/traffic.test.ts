@@ -4,6 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   aggregateDailyTraffic,
+  buildInclusiveDateRange,
   buildZonedDayWindow,
 } from '../../src/features/resource-insights/services/trafficAggregator'
 import {
@@ -514,6 +515,153 @@ console.log('--- Running traffic aggregator & trend tests ---')
     })
     assert.deepStrictEqual(evidence, [])
     console.log('✓ Section 15: traffic-rpc-error.json contract test passed (returns explicit unavailable, never silent 0/30)')
+  }
+
+  // 9.6: buildInclusiveDateRange unit test
+  {
+    const dates = buildInclusiveDateRange('2026-08-27', '2026-09-22')
+    assert.strictEqual(dates.length, 27)
+    assert.strictEqual(dates[0], '2026-08-27')
+    assert.strictEqual(dates.at(-1), '2026-09-22')
+    console.log('✓ Section 33: buildInclusiveDateRange correctly generates 27 inclusive dates')
+  }
+
+  // 9.7: Section 40 Case A — traffic-default-retention-1d.json contract test (30D request with 1d retention)
+  {
+    const raw1d = JSON.parse(fs.readFileSync(path.join(fixturesDir, 'traffic-default-retention-1d.json'), 'utf8'))
+    const gateway = createHistoryGateway(async () => raw1d)
+    const result = await gateway.queryTraffic({
+      entityIds: ['e22e73c6-1bce-423a-8e5e-31cf35c94739'],
+      start: '2026-08-24T00:00:00.000Z',
+      end: '2026-09-22T00:00:00.000Z',
+      maxPoints: 800,
+    })
+    assert.strictEqual(result.kind, 'metrics')
+    if (result.kind === 'metrics') {
+      assert.strictEqual(result.retentionDays, 1)
+    }
+
+    // 30 days of dates ending on 2026-09-22
+    const dates30 = buildInclusiveDateRange('2026-08-24', '2026-09-22')
+    assert.strictEqual(dates30.length, 30)
+
+    const evidence = historyResultToTrafficEvidence(result, {
+      startMs: Date.parse('2026-08-24T00:00:00+08:00'),
+      endMs: Date.parse('2026-09-22T23:59:59+08:00'),
+    })
+    const aggregates = aggregateDailyTraffic({
+      timeZone: 'Asia/Shanghai',
+      dates: dates30,
+      deltas: evidence[0]?.deltas ?? [],
+      counters: evidence[0]?.counters ?? [],
+    })
+    const byEntity = new Map([['e22e73c6-1bce-423a-8e5e-31cf35c94739', aggregates]])
+    const vm = buildTrafficTrendViewModel(byEntity, dates30, ['e22e73c6-1bce-423a-8e5e-31cf35c94739'])
+
+    assert.strictEqual(vm.state, 'ready')
+    assert.strictEqual(vm.days.length, 30)
+    assert.strictEqual(vm.requestedDays, 30)
+    assert.strictEqual(vm.availableDays, 1)
+    assert.strictEqual(vm.capability, 'partial-retention')
+    assert.strictEqual(vm.message, '历史覆盖 1 / 30 天')
+    console.log('✓ Section 40 Case A passed: traffic-default-retention-1d.json (1 / 30 coverage, capability partial-retention)')
+  }
+
+  // 9.8: Section 40 Case B — Since Reset 27 days with 1-day retention
+  {
+    const raw1d = JSON.parse(fs.readFileSync(path.join(fixturesDir, 'traffic-default-retention-1d.json'), 'utf8'))
+    const gateway = createHistoryGateway(async () => raw1d)
+    const result = await gateway.queryTraffic({
+      entityIds: ['e22e73c6-1bce-423a-8e5e-31cf35c94739'],
+      start: '2026-08-27T00:00:00.000Z',
+      end: '2026-09-22T00:00:00.000Z',
+      maxPoints: 800,
+    })
+    const datesReset = buildInclusiveDateRange('2026-08-27', '2026-09-22')
+    assert.strictEqual(datesReset.length, 27)
+
+    const evidence = historyResultToTrafficEvidence(result, {
+      startMs: Date.parse('2026-08-27T00:00:00+08:00'),
+      endMs: Date.parse('2026-09-22T23:59:59+08:00'),
+    })
+    const aggregates = aggregateDailyTraffic({
+      timeZone: 'Asia/Shanghai',
+      dates: datesReset,
+      deltas: evidence[0]?.deltas ?? [],
+      counters: evidence[0]?.counters ?? [],
+    })
+    const byEntity = new Map([['e22e73c6-1bce-423a-8e5e-31cf35c94739', aggregates]])
+    const vm = buildTrafficTrendViewModel(byEntity, datesReset, ['e22e73c6-1bce-423a-8e5e-31cf35c94739'])
+
+    assert.strictEqual(vm.requestedDays, 27)
+    assert.strictEqual(vm.availableDays, 1)
+    assert.strictEqual(vm.capability, 'partial-retention')
+    assert.strictEqual(vm.message, '重置周期：2026-08-27 – 2026-09-22 · 历史覆盖 1 / 27 天')
+    console.log('✓ Section 40 Case B passed: Since Reset 27d with 1d retention correctly reports 1 / 27 天')
+  }
+
+  // 9.9: Section 40 Case C — UTC 24h rollup + Asia/Shanghai cross-day rejection & coarse-rollup capability
+  {
+    // UTC daily bucket: 00:00 UTC to 24:00 UTC (08:00 to 08:00 next day in Asia/Shanghai)
+    const coarseDeltas = [
+      {
+        startMs: Date.parse('2026-09-21T00:00:00.000Z'),
+        endMs: Date.parse('2026-09-22T00:00:00.000Z'),
+        uploadBytes: 1000000,
+        downloadBytes: 2000000,
+        sampling: 'authoritative' as const,
+      },
+    ]
+    const dates = ['2026-09-21', '2026-09-22']
+    const aggregates = aggregateDailyTraffic({
+      timeZone: 'Asia/Shanghai',
+      dates,
+      deltas: coarseDeltas,
+    })
+    const byEntity = new Map([['node-c', aggregates]])
+    const vm = buildTrafficTrendViewModel(byEntity, dates, ['node-c'])
+
+    assert.strictEqual(vm.state, 'empty')
+    assert.strictEqual(vm.availableDays, 0)
+    assert.strictEqual(vm.capability, 'coarse-rollup')
+    assert.strictEqual(vm.message, '历史数据粒度过粗，无法准确按本地自然日拆分')
+    console.log('✓ Section 40 Case C passed: UTC 24h rollup in Asia/Shanghai correctly identifies coarse-rollup')
+  }
+
+  // 9.10: Section 40 Case D — Hourly UTC rollup + Asia/Shanghai daily aggregation
+  {
+    // 24 hourly buckets from 2026-09-20T16:00:00Z to 2026-09-21T16:00:00Z
+    // In Asia/Shanghai (UTC+8), this spans exactly 2026-09-21 00:00:00 to 2026-09-21 24:00:00
+    const hourlyDeltas = []
+    const baseMs = Date.parse('2026-09-20T16:00:00.000Z')
+    for (let h = 0; h < 24; h++) {
+      hourlyDeltas.push({
+        startMs: baseMs + h * 3600 * 1000,
+        endMs: baseMs + (h + 1) * 3600 * 1000,
+        uploadBytes: 100,
+        downloadBytes: 200,
+        sampling: 'authoritative' as const,
+      })
+    }
+
+    const aggregates = aggregateDailyTraffic({
+      timeZone: 'Asia/Shanghai',
+      dates: ['2026-09-21'],
+      deltas: hourlyDeltas,
+    })
+    assert.strictEqual(aggregates.length, 1)
+    const day = aggregates[0]!
+    assert.strictEqual(day.uploadBytes, 24 * 100)
+    assert.strictEqual(day.downloadBytes, 24 * 200)
+    assert.strictEqual(day.quality, 'complete')
+    assert.strictEqual(day.coverage, 1)
+
+    const byEntity = new Map([['node-d', aggregates]])
+    const vm = buildTrafficTrendViewModel(byEntity, ['2026-09-21'], ['node-d'])
+    assert.strictEqual(vm.state, 'ready')
+    assert.strictEqual(vm.availableDays, 1)
+    assert.strictEqual(vm.capability, 'full')
+    console.log('✓ Section 40 Case D passed: 24 hourly UTC buckets cleanly aggregate to complete Beijing natural day')
   }
 }
 

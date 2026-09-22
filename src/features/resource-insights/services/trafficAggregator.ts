@@ -396,6 +396,19 @@ export function buildRecentNaturalDayKeys(
   })
 }
 
+export function buildInclusiveDateRange(startDate: string, endDate: string): string[] {
+  const dates: string[] = []
+  let current = parseDate(startDate)
+  const endCivil = parseDate(endDate)
+  const endOrdinal = civilOrdinal(endCivil)
+
+  while (civilOrdinal(current) <= endOrdinal) {
+    dates.push(formatCivil(current))
+    current = addCivilDays(current, 1)
+  }
+  return dates
+}
+
 export function buildZonedDayWindow(
   date: string,
   timeZone: AnalyticsTimeZone,

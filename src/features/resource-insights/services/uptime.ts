@@ -160,6 +160,13 @@ export function calculateNode30dUptimeFromMetrics(
     ? Math.max(windowStartMs, firstPointMs)
     : windowStartMs
 
+  if (node.created_at) {
+    const nodeCreatedMs = Date.parse(node.created_at)
+    if (Number.isFinite(nodeCreatedMs) && nodeCreatedMs > nodeRetentionStartMs) {
+      nodeRetentionStartMs = nodeCreatedMs
+    }
+  }
+
   if (typeof series?.retentionDays === 'number' && series.retentionDays > 0) {
     const retentionLimitMs = windowEndMs - series.retentionDays * 86400 * 1000
     if (retentionLimitMs > nodeRetentionStartMs) {
@@ -240,8 +247,33 @@ export function calculateNode30dUptimeFromMetrics(
     const actualCount = typeof p.count === 'number'
       ? p.count
       : (p.value !== null ? 1 : 0)
+    const hasSamples = actualCount > 0 || p.value !== null
 
-    const isBucketOnline = actualCount > 0 || p.value !== null
+    const isCurrentActiveBucket = bucketEndMs >= windowEndMs && bucketStartMs < windowEndMs
+    if (isCurrentActiveBucket && !isOnline) {
+      // Live tail rule: node is currently offline!
+      // Find when it went offline using latest heartbeat
+      const lastHeartbeatMs = Date.parse(node.updated_at || node.time)
+      const graceMs = 60 * 1000
+      const offlineStartMs = Number.isFinite(lastHeartbeatMs)
+        ? Math.max(startMs, lastHeartbeatMs + graceMs)
+        : startMs
+
+      // Pre-offline portion in this bucket (if any)
+      const activeOnlineSeconds = Math.max(0, (Math.min(endMs, offlineStartMs) - startMs) / 1000)
+      const activeOfflineSeconds = Math.max(0, (endMs - Math.max(startMs, offlineStartMs)) / 1000)
+
+      if (hasSamples) {
+        onlineSeconds += activeOnlineSeconds
+      }
+      observedSeconds += effectiveBucketSeconds
+      if (activeOfflineSeconds > 0) {
+        zeroSampleObservableBuckets++
+      }
+      continue
+    }
+
+    const isBucketOnline = hasSamples
     const onlineFraction = isBucketOnline ? 1 : 0
 
     if (!isBucketOnline) {
@@ -297,7 +329,8 @@ export function calculateNode30dUptimeFromMetrics(
       ? `30 / 30 天 (主控不可观测 ${(controllerBlackoutSeconds / 3600).toFixed(1)}h)`
       : '30 / 30 天'
   } else if (status === 'partial') {
-    coverageText = `覆盖 ${(coveredSeconds / 86400).toFixed(1)} / 30 天`
+    const daysCovered = coveredSeconds / 86400
+    coverageText = `覆盖约 ${daysCovered >= 1 ? daysCovered.toFixed(1) : daysCovered.toFixed(2)} / 30 天`
   }
 
   const uptimeText = uptimeRatio !== null

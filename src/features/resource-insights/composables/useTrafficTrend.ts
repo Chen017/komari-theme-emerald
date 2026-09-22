@@ -9,6 +9,7 @@ import {
   type DailyTrafficAggregate,
 } from '../services/trafficAggregator'
 import {
+  buildInclusiveDateRange,
   buildTrafficTrendViewModel,
   calculateResetWindow,
   canRequestSinceReset,
@@ -21,8 +22,13 @@ import {
 } from '../services/trafficTrendCache'
 import { historyResultToTrafficEvidence } from '../services/trafficEvidence'
 import { createTrafficTrendRequestPool } from '../services/trafficTrendRequestPool'
+import {
+  fetchHistoryCapabilities,
+  type ResourceHistoryCapabilities,
+} from '../services/historyCapabilities'
 
 const requestPool = createTrafficTrendRequestPool<DailyTrafficAggregate[]>()
+const TIME_ZONE = 'Asia/Shanghai'
 
 export interface UseTrafficTrendOptions {
   nodes: () => readonly NodeData[]
@@ -34,6 +40,7 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
   const selectedRange = ref<TrafficRange>('7d')
   const loading = ref(false)
   const refreshing = ref(false)
+  const capabilities = shallowRef<ResourceHistoryCapabilities | null>(null)
 
   const gateway = createHistoryGateway((method, params, opts) => {
     return getSharedRpc().call(method, params, opts)
@@ -59,7 +66,7 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
     if (!selectedNode.value) return null
     const day = resolveNodeResetDay(selectedNode.value, options.settings?.())
     if (!day) return null
-    return calculateResetWindow(day, new Date(), 'browser')
+    return calculateResetWindow(day, new Date(), TIME_ZONE)
   })
 
   // Fallback to 7d if since_reset is no longer supported for selected node
@@ -69,16 +76,23 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
     }
   })
 
+  // Fallback to 7d if 30d is selected but server retention is under 30 days
+  watch(() => capabilities.value?.trafficRetentionDays, (retention) => {
+    if (typeof retention === 'number' && retention < 30 && selectedRange.value === '30d') {
+      selectedRange.value = '7d'
+    }
+  })
+
   // Determine dates based on range
   const dates = computed(() => {
     if (selectedRange.value === 'since_reset') {
       if (resetWindow.value) {
-        return buildRecentNaturalDayKeys(resetWindow.value.diffDays, 'browser')
+        return buildInclusiveDateRange(resetWindow.value.startDate, resetWindow.value.endDate)
       }
-      return buildRecentNaturalDayKeys(7, 'browser')
+      return buildRecentNaturalDayKeys(7, TIME_ZONE)
     }
     const dayCount = selectedRange.value === '30d' ? 30 : 7
-    return buildRecentNaturalDayKeys(dayCount, 'browser')
+    return buildRecentNaturalDayKeys(dayCount, TIME_ZONE)
   })
 
   const snapshot = shallowRef<TrafficTrendSnapshot>({
@@ -114,9 +128,11 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
       origin: typeof window !== 'undefined' ? window.location.origin : '',
       loggedIn: false,
       entityIds,
-      timeZone: 'browser',
+      range: selectedRange.value,
+      timeZone: TIME_ZONE,
       dates: dates.value,
-      schema: 1,
+      schema: 2,
+      capabilityVersion: 2,
     })
 
     if (!isManualRefresh && typeof localStorage !== 'undefined') {
@@ -133,10 +149,17 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
       loading.value = true
 
     try {
+      try {
+        capabilities.value = await fetchHistoryCapabilities(getSharedRpc(), { bypassCache: isManualRefresh })
+      }
+      catch {
+        // Continue even if capabilities probe fails
+      }
+
       const startDate = dates.value[0]!
       const endDate = dates.value.at(-1)!
-      const startMs = Date.parse(`${startDate}T00:00:00`)
-      const endMs = Date.parse(`${endDate}T23:59:59.999`)
+      const startMs = Date.parse(`${startDate}T00:00:00+08:00`)
+      const endMs = Date.parse(`${endDate}T23:59:59.999+08:00`)
 
       const lease = requestPool.acquire(cacheKey, async (signal) => {
         const queryStart = new Date(startMs - 86400000).toISOString()
@@ -146,7 +169,7 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
           entityIds,
           start: queryStart,
           end: queryEnd,
-          maxPoints: selectedRange.value === '30d' ? 720 : 500,
+          maxPoints: 800,
           signal,
         })
 
@@ -180,7 +203,7 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
 
         for (const item of evidence) {
           const aggregates = aggregateDailyTraffic({
-            timeZone: 'browser',
+            timeZone: TIME_ZONE,
             dates: dates.value,
             deltas: item.deltas,
             counters: item.counters,
@@ -194,7 +217,10 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
           days: vm.days,
           fetchedAt: Date.now(),
           sourceKind: result.kind === 'metrics' ? 'metrics' : 'records',
-          retentionDays: result.kind === 'metrics' ? result.retentionDays : null,
+          retentionDays: result.kind === 'metrics' ? result.retentionDays : (capabilities.value?.trafficRetentionDays ?? null),
+          requestedDays: vm.requestedDays,
+          availableDays: vm.availableDays,
+          capability: vm.capability,
           availability: 'available',
           failureKind: null,
           retryable: true,
@@ -241,6 +267,7 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
     selectedRange,
     canUseSinceReset,
     resetWindow,
+    capabilities,
     refresh: () => fetchTrend(true),
   }
 }

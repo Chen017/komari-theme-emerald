@@ -1,6 +1,6 @@
 import type { NodeData } from '@/stores/nodes'
 import type { FleetUptime30d } from '../services/uptime'
-import { computed, ref, shallowRef, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { getSharedRpc } from '@/utils/rpc'
 import { createHistoryGateway } from '../services/historyGateway'
 import { calculateFleet30dUptime } from '../services/uptime'
@@ -73,9 +73,30 @@ export function useUptime30d(options: UseUptime30dOptions) {
     }
   }
 
-  watch(() => options.nodes().length, () => {
-    void fetchUptime()
+  // Watch node list and state transitions (e.g. online -> offline, heartbeat updates)
+  const nodesSignature = computed(() => {
+    return options.nodes().map(n => `${n.uuid}:${n.online}:${n.updated_at || n.time}`).join(';')
+  })
+
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null
+  watch(nodesSignature, () => {
+    if (debounceTimer) clearTimeout(debounceTimer)
+    debounceTimer = setTimeout(() => {
+      void fetchUptime()
+    }, 1500)
   }, { immediate: true })
+
+  let intervalId: ReturnType<typeof setInterval> | null = null
+  onMounted(() => {
+    intervalId = setInterval(() => {
+      void fetchUptime()
+    }, 60000)
+  })
+
+  onUnmounted(() => {
+    if (debounceTimer) clearTimeout(debounceTimer)
+    if (intervalId) clearInterval(intervalId)
+  })
 
   return {
     fleetUptime,

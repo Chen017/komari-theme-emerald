@@ -24,10 +24,15 @@ const {
   selectedRange,
   canUseSinceReset,
   resetWindow,
+  capabilities,
   refresh,
 } = useTrafficTrend({
   nodes: () => props.nodes,
   settings: () => appStore.publicSettings?.theme_settings,
+})
+
+const is30dDisabled = computed(() => {
+  return (capabilities.value?.trafficRetentionDays ?? 30) < 30
 })
 
 const rangeOptions: Array<{ value: TrafficRange, label: string }> = [
@@ -46,8 +51,12 @@ function getRangeTooltip(val: TrafficRange): string {
       return `${resetWindow.value.startDate} – ${resetWindow.value.endDate} (重置日: 每月 ${resetWindow.value.resetDay} 日)`
     return '自上次重置日'
   }
-  if (val === '30d')
+  if (val === '30d') {
+    if (is30dDisabled.value) {
+      return `当前 Komari 仅保留 ${capabilities.value?.trafficRetentionDays ?? 1} 天流量历史\n30 天趋势需要至少 30 天 Metric Store retention`
+    }
     return '近 30 天每日流量趋势'
+  }
   return '近 7 天每日流量趋势'
 }
 
@@ -172,6 +181,13 @@ const chartOption = computed(() => {
           每日流量趋势
         </h2>
         <span
+          v-if="capabilities && capabilities.trafficRetentionDays < 30"
+          class="text-xs text-amber-600 dark:text-amber-400 font-normal"
+          :title="'如需 30 天历史，请在 Komari Metric Store 中将 traffic.up / traffic.down 保留时间调整为至少 30 天'"
+        >
+          (历史保留: {{ capabilities.trafficRetentionDays }}天)
+        </span>
+        <span
           v-if="selectedRange === 'since_reset' && resetWindow"
           class="text-xs text-muted-foreground font-normal"
         >
@@ -207,7 +223,7 @@ const chartOption = computed(() => {
             v-for="opt in rangeOptions"
             :key="opt.value"
             type="button"
-            :disabled="opt.value === 'since_reset' && !canUseSinceReset"
+            :disabled="(opt.value === 'since_reset' && !canUseSinceReset) || (opt.value === '30d' && is30dDisabled)"
             :title="getRangeTooltip(opt.value)"
             class="rounded px-2 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40"
             :class="selectedRange === opt.value
@@ -238,19 +254,19 @@ const chartOption = computed(() => {
       </div>
 
       <div
-        v-else-if="snapshot.state === 'empty' || snapshot.days.length === 0"
-        class="flex h-64 flex-col items-center justify-center text-xs text-muted-foreground"
-      >
-        <Icon icon="lucide:bar-chart-2" class="mb-2 size-8 opacity-40" />
-        <p>暂无历史流量记录</p>
-      </div>
-
-      <div
-        v-else-if="snapshot.state === 'error'"
+        v-else-if="snapshot.state === 'error' || snapshot.state === 'unsupported'"
         class="flex h-64 flex-col items-center justify-center text-xs text-destructive"
       >
         <Icon icon="lucide:alert-circle" class="mb-2 size-8 opacity-60" />
         <p>{{ snapshot.message }}</p>
+      </div>
+
+      <div
+        v-else-if="snapshot.state === 'empty' || snapshot.days.length === 0"
+        class="flex h-64 flex-col items-center justify-center text-xs text-muted-foreground"
+      >
+        <Icon icon="lucide:bar-chart-2" class="mb-2 size-8 opacity-40" />
+        <p>{{ snapshot.message || '暂无历史流量记录' }}</p>
       </div>
 
       <div v-else class="h-64 w-full">

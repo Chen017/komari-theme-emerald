@@ -15,6 +15,8 @@ export interface TrafficTrendCacheKeyInput {
   loggedIn: boolean
   entityIds: readonly string[]
   timeZone: string
+  range?: string
+  capabilityVersion?: number
   dates: readonly string[]
   schema: number
 }
@@ -126,6 +128,8 @@ export function buildTrafficTrendCacheKey(input: TrafficTrendCacheKeyInput): str
     loggedIn: input.loggedIn,
     entityIds: normalizeEntityIds(input.entityIds),
     timeZone: input.timeZone,
+    range: input.range ?? '7d',
+    capabilityVersion: input.capabilityVersion ?? 2,
     dates: [...input.dates],
     schema: input.schema,
   })
@@ -160,6 +164,14 @@ export function writeTrafficTrendCache(
   snapshot: TrafficTrendSnapshot,
   cachedAt = Date.now(),
 ): void {
+  // Do not aggressively cache failed, error, unsupported, or 0-available-day results
+  if (snapshot.state === 'error' || snapshot.state === 'unsupported') {
+    return
+  }
+  const hasData = snapshot.days.some(d => d.totalBytes !== null && d.totalBytes > 0)
+  if (!hasData && snapshot.state === 'empty') {
+    return
+  }
   try {
     storage.setItem(key, JSON.stringify({ snapshot, cachedAt } satisfies TrafficTrendCacheEntry))
   }

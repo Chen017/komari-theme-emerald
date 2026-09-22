@@ -10,6 +10,12 @@ import { resolveTrafficResetDay } from './trafficResetConfig'
 
 export type TrafficRange = '7d' | '30d' | 'since_reset'
 export type TrafficTrendState = 'idle' | 'loading' | 'ready' | 'empty' | 'unsupported' | 'error'
+export type TrafficTrendCapability
+  = 'full'
+  | 'partial-retention'
+  | 'unsupported'
+  | 'coarse-rollup'
+  | 'no-data'
 
 export interface TrafficTrendCoverageViewModel {
   average: number
@@ -36,6 +42,9 @@ export interface TrafficTrendSnapshot {
   fetchedAt: number | null
   sourceKind: 'metrics' | 'records' | null
   retentionDays: number | null
+  requestedDays?: number
+  availableDays?: number
+  capability?: TrafficTrendCapability
   availability: TrafficTrendAvailability
   failureKind: HistoryFailureKind | null
   retryable: boolean
@@ -65,7 +74,7 @@ export function buildTrafficTrendViewModel(
   byEntity: ReadonlyMap<string, readonly DailyTrafficAggregate[]>,
   dates: readonly string[],
   entityIds: readonly string[],
-): Pick<TrafficTrendSnapshot, 'state' | 'days' | 'message'> {
+): Pick<TrafficTrendSnapshot, 'state' | 'days' | 'message' | 'requestedDays' | 'availableDays' | 'capability'> {
   const visibleEntityIds = [...new Set(entityIds)]
   const days = dates.map((date): TrafficTrendDayViewModel => {
     const rows = getDayRows(byEntity, visibleEntityIds, date)
@@ -123,20 +132,48 @@ export function buildTrafficTrendViewModel(
   })
   const missingDays = days.filter(day => day.totalBytes === null).length
   const availableDays = days.length - missingDays
+  const requestedDays = dates.length
+
+  let capability: TrafficTrendCapability = 'full'
+  const hasCrossDayRejected = days.some(day => day.reasons.includes('cross-day-interval-rejected'))
+  if (availableDays === 0) {
+    if (hasCrossDayRejected) {
+      capability = 'coarse-rollup'
+    }
+    else {
+      capability = 'no-data'
+    }
+  }
+  else if (availableDays < requestedDays) {
+    capability = 'partial-retention'
+  }
 
   let message = `采集：${availableDays}天，缺失：${missingDays}天`
-  if (dates.length === 30) {
+  if (capability === 'coarse-rollup') {
+    message = '历史数据粒度过粗，无法准确按本地自然日拆分'
+  }
+  else if (dates.length === 30) {
     message = `历史覆盖 ${availableDays} / 30 天`
+  }
+  else if (dates.length > 7) {
+    message = `重置周期：${dates[0]} – ${dates.at(-1)} · 历史覆盖 ${availableDays} / ${dates.length} 天`
   }
 
   return {
     state: days.every(day => day.uploadBytes === null && day.downloadBytes === null) ? 'empty' : 'ready',
     days,
     message,
+    requestedDays,
+    availableDays,
+    capability,
   }
 }
 
-export { calculateResetWindow, type ResetWindowInfo } from './trafficAggregator'
+export {
+  buildInclusiveDateRange,
+  calculateResetWindow,
+  type ResetWindowInfo,
+} from './trafficAggregator'
 
 export {
   extractResetDayFromTags,
