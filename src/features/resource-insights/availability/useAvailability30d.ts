@@ -9,6 +9,20 @@ export interface UseAvailability30dOptions {
 
 const REFRESH_INTERVAL_MS = 60 * 1000
 
+export function formatCoverageDays(seconds: number): string {
+  if (seconds <= 0) {
+    return '未观测'
+  }
+
+  const days = seconds / 86400
+
+  if (days < 1) {
+    return '覆盖 <1 / 30 天'
+  }
+
+  return `覆盖 ${days.toFixed(1)} / 30 天`
+}
+
 export function useAvailability30d(options: UseAvailability30dOptions) {
   const loadState = ref<AvailabilityLoadState>('idle')
   const errorMessage = ref<string>('')
@@ -90,26 +104,36 @@ export function useAvailability30d(options: UseAvailability30dOptions) {
       }
 
       const coverageDays = Number((summary.observableSeconds / 86400).toFixed(1))
-      const uptimeRatio = summary.uptimeRatio
+      const rawUptimeRatio = summary.uptimeRatio
+
+      // 样本覆盖太少时（覆盖 < 1 天）先不显示百分比，显示 --；覆盖 >= 1 天且 uptimeRatio 有效时开始显示实际在线率
+      const hasSufficientData = summary.observableSeconds >= 86400 && rawUptimeRatio !== null
+      const uptimeRatio = hasSufficientData ? rawUptimeRatio : null
+      const uptimeText = hasSufficientData
+        ? `${(rawUptimeRatio * 100).toFixed(2)}%`
+        : '--'
 
       return {
         uuid: node.uuid,
         name: node.name,
         isLiveOnline,
         uptimeRatio,
-        uptimeText: `${(uptimeRatio * 100).toFixed(2)}%`,
+        uptimeText,
         coverageDays,
-        coverageText: `覆盖 ${coverageDays} / 30 天`,
+        coverageText: formatCoverageDays(summary.observableSeconds),
         currentState: summary.currentState,
         outageCount: summary.outageCount,
-        hasData: true,
+        hasData: summary.observableSeconds > 0 && rawUptimeRatio !== null,
       }
     })
 
-    const fleetUptimeRatio = totalTrackedSeconds > 0
+    // Fleet 统计：如果没有任何节点拥有 >= 1 天的观测历史，不展示 Fleet 百分比（显示 --）
+    const hasMatureNode = nodeViews.some(n => n.coverageDays >= 1 && n.hasData)
+    const fleetHasSufficientData = hasMatureNode && totalTrackedSeconds > 0
+
+    const fleetUptimeRatio = fleetHasSufficientData
       ? totalOnlineSeconds / totalTrackedSeconds
       : null
-
     const fleetUptimeText = fleetUptimeRatio !== null
       ? `${(fleetUptimeRatio * 100).toFixed(2)}%`
       : '--'

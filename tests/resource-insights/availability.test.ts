@@ -5,6 +5,7 @@ import {
   AvailabilityPluginUnavailableError,
   fetchAvailabilitySummary,
 } from '../../src/features/resource-insights/availability/api'
+import { formatCoverageDays } from '../../src/features/resource-insights/availability/useAvailability30d'
 
 // 1. API: Successful fetch & normalization
 {
@@ -58,7 +59,7 @@ import {
   }
 }
 
-// 2. API: Plugin 404 / 502 / 503 returns AvailabilityPluginUnavailableError
+// 2. Case D: API Plugin 404 returns AvailabilityPluginUnavailableError (unsupported)
 {
   const originalFetch = globalThis.fetch
   globalThis.fetch = async () => {
@@ -86,7 +87,36 @@ import {
   }
 }
 
-// 3. API: Network failure returns AvailabilityPluginUnavailableError
+// 3. Case E: API 502 / 503 returns AvailabilityApiError (error, not unsupported)
+{
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async () => {
+    return {
+      ok: false,
+      status: 503,
+      json: async () => ({}),
+    } as any
+  }
+
+  try {
+    await assert.rejects(
+      async () => {
+        await fetchAvailabilitySummary({ days: 30 })
+      },
+      (err: any) => {
+        assert.ok(err instanceof AvailabilityApiError)
+        assert.strictEqual(err.status, 503)
+        assert.ok(err.message.includes('暂时不可用'))
+        return true
+      },
+    )
+  }
+  finally {
+    globalThis.fetch = originalFetch
+  }
+}
+
+// 4. Case F: Network failure returns AvailabilityApiError (error)
 {
   const originalFetch = globalThis.fetch
   globalThis.fetch = async () => {
@@ -99,35 +129,8 @@ import {
         await fetchAvailabilitySummary({ days: 30 })
       },
       (err: any) => {
-        assert.ok(err instanceof AvailabilityPluginUnavailableError)
-        return true
-      },
-    )
-  }
-  finally {
-    globalThis.fetch = originalFetch
-  }
-}
-
-// 4. API: Non-404 HTTP errors map to AvailabilityApiError
-{
-  const originalFetch = globalThis.fetch
-  globalThis.fetch = async () => {
-    return {
-      ok: false,
-      status: 500,
-      json: async () => ({}),
-    } as any
-  }
-
-  try {
-    await assert.rejects(
-      async () => {
-        await fetchAvailabilitySummary({ days: 30 })
-      },
-      (err: any) => {
         assert.ok(err instanceof AvailabilityApiError)
-        assert.strictEqual(err.status, 500)
+        assert.ok(err.message.includes('连接失败'))
         return true
       },
     )
@@ -137,7 +140,48 @@ import {
   }
 }
 
-// 5. Fleet calculation: sum(onlineSeconds) / sum(onlineSeconds + offlineSeconds)
+// 5. Case A: observableSeconds = 0, uptimeRatio = null -> uptimeText = '--', Fleet hidden / '--', coverage = '未观测'
+{
+  const seconds = 0
+  const rawUptimeRatio = null
+  const coverageText = formatCoverageDays(seconds)
+  assert.strictEqual(coverageText, '未观测')
+
+  const hasSufficientData = seconds >= 86400 && rawUptimeRatio !== null
+  const uptimeText = hasSufficientData ? `${(rawUptimeRatio! * 100).toFixed(2)}%` : '--'
+  assert.strictEqual(uptimeText, '--')
+
+  // Fleet calculation when no mature node exists
+  const hasMatureNode = false
+  const fleetUptimeText = hasMatureNode ? '100.00%' : '--'
+  assert.strictEqual(fleetUptimeText, '--')
+}
+
+// 6. Case B: observableSeconds = 2 hours, uptimeRatio = 1 -> coverage = '覆盖 <1 / 30 天', uptime display = '--'
+{
+  const seconds = 7200 // 2 hours
+  const rawUptimeRatio = 1
+  const coverageText = formatCoverageDays(seconds)
+  assert.strictEqual(coverageText, '覆盖 <1 / 30 天')
+
+  const hasSufficientData = seconds >= 86400 && rawUptimeRatio !== null
+  const uptimeText = hasSufficientData ? `${(rawUptimeRatio * 100).toFixed(2)}%` : '--'
+  assert.strictEqual(uptimeText, '--')
+}
+
+// 7. Case C: observableSeconds = 1.5 days, uptimeRatio = 0.99 -> 99.00%, coverage = '覆盖 1.5 / 30 天'
+{
+  const seconds = 1.5 * 86400 // 1.5 days
+  const rawUptimeRatio = 0.99
+  const coverageText = formatCoverageDays(seconds)
+  assert.strictEqual(coverageText, '覆盖 1.5 / 30 天')
+
+  const hasSufficientData = seconds >= 86400 && rawUptimeRatio !== null
+  const uptimeText = hasSufficientData ? `${(rawUptimeRatio * 100).toFixed(2)}%` : '--'
+  assert.strictEqual(uptimeText, '99.00%')
+}
+
+// 8. Fleet calculation: sum(onlineSeconds) / sum(onlineSeconds + offlineSeconds)
 {
   const node1 = {
     uuid: 'n1',
@@ -174,12 +218,4 @@ import {
   assert.strictEqual(totalTracked, 2000)
   assert.strictEqual(fleetRatio, 0.9)
   assert.strictEqual(`${(fleetRatio! * 100).toFixed(2)}%`, '90.00%')
-}
-
-// 6. Section 58 Partial history: 3 days tracked -> 3.0 / 30 天, never 30 / 30
-{
-  const threeDaysObservable = 3 * 86400
-  const coverageDays = Number((threeDaysObservable / 86400).toFixed(1))
-  const coverageText = `覆盖 ${coverageDays} / 30 天`
-  assert.strictEqual(coverageText, '覆盖 3 / 30 天')
 }

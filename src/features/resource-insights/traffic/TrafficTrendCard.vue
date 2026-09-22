@@ -54,7 +54,10 @@ function getRangeTooltip(val: TrafficRange): string {
   }
   if (val === '30d') {
     if (capability.value && !capability.value.supports30d) {
-      return `当前 Komari 仅保留 ${capability.value.retentionDays ?? 1} 天流量历史\n30 天趋势需要至少 30 天 Metric Store retention`
+      const note = capability.value.retentionDays !== null
+        ? `当前 Komari 仅保留 ${capability.value.retentionDays} 天流量历史`
+        : '无法确定当前 Metric Store 的流量历史保留天数'
+      return `${note}\n30 天趋势需要至少 30 天 Metric Store retention`
     }
     return '近 30 天每日流量趋势'
   }

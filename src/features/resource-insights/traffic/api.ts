@@ -15,49 +15,50 @@ export class TrafficApiError extends Error {
 }
 
 export async function fetchTrafficCapability(call: RpcCall = defaultRpcCall): Promise<TrafficCapability> {
+  let defs: MetricDefinitionItem[]
   try {
-    const defs = await call<MetricDefinitionItem[]>('public:listMetricDefinitions')
-    if (!Array.isArray(defs)) {
-      return { retentionDays: 1, supports7d: false, supports30d: false }
-    }
-
-    let upRetention: number | null = null
-    let downRetention: number | null = null
-
-    for (const item of defs) {
-      if (!item || typeof item !== 'object')
-        continue
-      const name = item.name || item.metric_key || item.key
-      const days = typeof item.retention_days === 'number' ? item.retention_days : null
-
-      if (name === 'traffic.up') {
-        upRetention = days
-      }
-      else if (name === 'traffic.down') {
-        downRetention = days
-      }
-    }
-
-    let retentionDays: number | null = null
-    if (upRetention !== null && downRetention !== null) {
-      retentionDays = Math.min(upRetention, downRetention)
-    }
-    else if (upRetention !== null) {
-      retentionDays = upRetention
-    }
-    else if (downRetention !== null) {
-      retentionDays = downRetention
-    }
-
-    const effectiveDays = retentionDays ?? 1
-    return {
-      retentionDays,
-      supports7d: effectiveDays >= 7,
-      supports30d: effectiveDays >= 30,
-    }
+    defs = await call<MetricDefinitionItem[]>('public:listMetricDefinitions')
   }
   catch {
-    return { retentionDays: 1, supports7d: false, supports30d: false }
+    throw new TrafficApiError('无法读取 Metric Store 保留策略')
+  }
+
+  if (!Array.isArray(defs)) {
+    throw new TrafficApiError('public:listMetricDefinitions 响应无效')
+  }
+
+  let upRetention: number | null = null
+  let downRetention: number | null = null
+
+  for (const item of defs) {
+    if (!item || typeof item !== 'object')
+      continue
+    if (typeof (item as any).name !== 'string' || typeof (item as any).retention_days !== 'number')
+      continue
+
+    if (item.name === 'traffic.up') {
+      upRetention = item.retention_days
+    }
+    else if (item.name === 'traffic.down') {
+      downRetention = item.retention_days
+    }
+  }
+
+  let retentionDays: number | null = null
+  if (upRetention !== null && downRetention !== null) {
+    retentionDays = Math.min(upRetention, downRetention)
+  }
+  else if (upRetention !== null) {
+    retentionDays = upRetention
+  }
+  else if (downRetention !== null) {
+    retentionDays = downRetention
+  }
+
+  return {
+    retentionDays,
+    supports7d: retentionDays !== null && retentionDays >= 7,
+    supports30d: retentionDays !== null && retentionDays >= 30,
   }
 }
 

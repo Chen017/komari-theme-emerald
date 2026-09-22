@@ -46,11 +46,15 @@ export async function fetchAvailabilitySummary(
     if (err instanceof Error && err.name === 'AbortError') {
       throw err
     }
+    throw new AvailabilityApiError('在线率接口连接失败')
+  }
+
+  if (res.status === 404) {
     throw new AvailabilityPluginUnavailableError('在线率历史不可用：需要 Availability History 插件')
   }
 
-  if (res.status === 404 || res.status === 502 || res.status === 503) {
-    throw new AvailabilityPluginUnavailableError('在线率历史不可用：需要 Availability History 插件')
+  if (res.status === 502 || res.status === 503) {
+    throw new AvailabilityApiError(`在线率服务暂时不可用 (${res.status})`, res.status)
   }
 
   if (!res.ok) {

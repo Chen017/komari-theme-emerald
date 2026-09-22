@@ -1,5 +1,5 @@
 import type { MetricSeriesItem, TrafficDay } from './types'
-import { getBeijingDayBounds } from './calendar'
+import { formatBeijingDate, getBeijingDayBounds } from './calendar'
 
 export interface AggregateTrafficResult {
   days: TrafficDay[]
@@ -78,43 +78,37 @@ export function aggregateDailyTraffic(
       if (!Number.isFinite(ptStartMs))
         continue
       const ptEndMs = ptStartMs + defaultIntervalMs
+      if (ptEndMs <= ptStartMs)
+        continue
 
-      // Find target day(s)
-      // Check which day(s) this interval overlaps
-      let matchedDay: MutableDayData | null = null
-      let maxOverlap = 0
-      let crossesMidnight = false
+      const startDateStr = formatBeijingDate(ptStartMs)
+      const endDateStr = formatBeijingDate(ptEndMs - 1)
 
-      for (const day of dayMap.values()) {
-        const overlapStart = Math.max(ptStartMs, day.startMs)
-        const overlapEnd = Math.min(ptEndMs, day.endMs)
-        const overlapDuration = overlapEnd - overlapStart
-
-        if (overlapDuration > 0) {
-          if (overlapDuration > maxOverlap) {
-            maxOverlap = overlapDuration
-            matchedDay = day
+      if (startDateStr === endDateStr) {
+        // Point is completely contained within a single Beijing day
+        const matchedDay = dayMap.get(startDateStr)
+        if (matchedDay) {
+          if (isUp) {
+            matchedDay.uploadBytes = (matchedDay.uploadBytes ?? 0) + pt.value
+            matchedDay.uploadPoints += 1
           }
-          // If interval extends beyond this day's boundary and into another day, it crosses midnight
-          if (ptStartMs < day.startMs || ptEndMs > day.endMs) {
-            crossesMidnight = true
+          else if (isDown) {
+            matchedDay.downloadBytes = (matchedDay.downloadBytes ?? 0) + pt.value
+            matchedDay.downloadPoints += 1
           }
         }
       }
-
-      if (matchedDay) {
-        if (crossesMidnight && defaultIntervalMs > 3600 * 1000) {
-          hasCoarseRollup = true
-          matchedDay.isCoarse = true
-        }
-
-        if (isUp) {
-          matchedDay.uploadBytes = (matchedDay.uploadBytes ?? 0) + pt.value
-          matchedDay.uploadPoints += 1
-        }
-        else if (isDown) {
-          matchedDay.downloadBytes = (matchedDay.downloadBytes ?? 0) + pt.value
-          matchedDay.downloadPoints += 1
+      else {
+        // Point interval crosses Beijing midnight - cannot accurately split
+        hasCoarseRollup = true
+        const startBounds = getBeijingDayBounds(startDateStr)
+        const endBounds = getBeijingDayBounds(endDateStr)
+        for (let cursor = startBounds.startMs; cursor <= endBounds.startMs; cursor += 24 * 3600 * 1000) {
+          const dateKey = formatBeijingDate(cursor)
+          const day = dayMap.get(dateKey)
+          if (day) {
+            day.isCoarse = true
+          }
         }
       }
     }
@@ -131,8 +125,8 @@ export function aggregateDailyTraffic(
         downloadBytes: null,
         uploadBytes: null,
         totalBytes: null,
-        quality: 'missing',
-        isCoarse: false,
+        quality: day.isCoarse ? 'partial' : 'missing',
+        isCoarse: day.isCoarse,
       }
     }
 
@@ -141,7 +135,7 @@ export function aggregateDailyTraffic(
     const totalBytes = (downloadBytes ?? 0) + (uploadBytes ?? 0)
 
     let quality: 'complete' | 'partial' | 'missing' = 'complete'
-    if (day.isInProgress) {
+    if (day.isInProgress || day.isCoarse) {
       quality = 'partial'
     }
 

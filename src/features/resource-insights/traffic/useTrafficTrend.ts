@@ -105,7 +105,9 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
         trafficView.value = {
           state: 'unsupported',
           days: [],
-          message: `当前 Komari 仅保留 ${capability.value.retentionDays ?? 1} 天流量历史`,
+          message: capability.value.retentionDays !== null
+            ? `当前 Komari 仅保留 ${capability.value.retentionDays} 天流量历史`
+            : '无法确定当前 Metric Store 的流量历史保留天数',
           retentionDays: capability.value.retentionDays,
           requestedDays: 30,
           availableDays: 0,

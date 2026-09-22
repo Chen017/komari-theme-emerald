@@ -32,7 +32,7 @@ const {
             </h3>
             <span
               v-if="fleetView.fleetUptimeRatio !== null"
-              class="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-100/70 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
+              class="text-xs font-medium px-2 py-0.5 rounded-full transition-colors bg-emerald-100/70 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
             >
               Fleet {{ fleetView.fleetUptimeText }}
             </span>
@@ -117,7 +117,7 @@ const {
           <div class="w-full bg-neutral-100 dark:bg-neutral-800 h-1.5 rounded-full overflow-hidden">
             <div
               class="h-full rounded-full transition-all duration-300"
-              :class="node.uptimeRatio !== null && node.uptimeRatio >= 0.99 ? 'bg-emerald-500' : (node.uptimeRatio !== null && node.uptimeRatio >= 0.95 ? 'bg-amber-500' : 'bg-rose-500')"
+              :class="node.uptimeRatio !== null && node.uptimeRatio >= 0.99 ? 'bg-emerald-500' : (node.uptimeRatio !== null && node.uptimeRatio >= 0.95 ? 'bg-amber-500' : (node.uptimeRatio !== null ? 'bg-rose-500' : 'bg-transparent'))"
               :style="{ width: `${(node.uptimeRatio ?? 0) * 100}%` }"
             />
           </div>
@@ -132,8 +132,8 @@ const {
             class="text-[11px]"
             :class="{
               'text-emerald-600 dark:text-emerald-400': node.hasData && node.coverageDays >= 28,
-              'text-amber-600 dark:text-amber-400': node.hasData && node.coverageDays < 28,
-              'text-neutral-400 dark:text-neutral-500': !node.hasData,
+              'text-amber-600 dark:text-amber-400': node.hasData && node.coverageDays >= 1 && node.coverageDays < 28,
+              'text-neutral-400 dark:text-neutral-500': !node.hasData || node.coverageDays < 1,
             }"
           >
             {{ node.coverageText }}
@@ -148,7 +148,7 @@ const {
       class="mt-4 pt-3 border-t border-neutral-100 dark:border-neutral-800/80 flex items-center justify-between text-xs text-neutral-400 dark:text-neutral-500"
     >
       <span>跟踪节点: {{ fleetView.coveredNodes }} / {{ fleetView.totalNodes }} 台</span>
-      <span v-if="fleetView.fleetUptimeRatio !== null" class="text-emerald-600 dark:text-emerald-400">
+      <span :class="fleetView.fleetUptimeRatio !== null ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-400 dark:text-neutral-500'">
         30 天在线率 {{ fleetView.fleetUptimeText }}
       </span>
     </div>

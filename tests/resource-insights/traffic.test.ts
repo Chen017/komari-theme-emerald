@@ -1,7 +1,7 @@
 import type { MetricSeriesItem } from '../../src/features/resource-insights/traffic/types'
 import assert from 'node:assert'
 import { aggregateDailyTraffic } from '../../src/features/resource-insights/traffic/aggregate'
-import { fetchTrafficCapability } from '../../src/features/resource-insights/traffic/api'
+import { fetchTrafficCapability, TrafficApiError } from '../../src/features/resource-insights/traffic/api'
 import {
   calculateResetWindow,
   getBeijingDates,
@@ -61,12 +61,12 @@ import {
   assert.deepStrictEqual(datesCycle, ['2026-09-20', '2026-09-21', '2026-09-22'])
 }
 
-// 4. Section 65: Hourly UTC metrics crossing Beijing midnight correctly aggregate into Asia/Shanghai days
+// 4. Case K — one-day aligned hourly point: full allocation
 {
   // Beijing midnight is at 16:00 UTC (e.g. 2026-09-21 16:00 UTC = 2026-09-22 00:00 Beijing)
-  // Let's create two 1-hour buckets:
-  // Bucket 1: 2026-09-21 15:00 UTC to 16:00 UTC (23:00 to 24:00 on 2026-09-21 Beijing) -> should belong to 2026-09-21
-  // Bucket 2: 2026-09-21 16:00 UTC to 17:00 UTC (00:00 to 01:00 on 2026-09-22 Beijing) -> should belong to 2026-09-22
+  // Two 1-hour buckets:
+  // Bucket 1: 2026-09-21 15:00 UTC to 16:00 UTC (23:00 to 24:00 on 2026-09-21 Beijing) -> belongs to 2026-09-21
+  // Bucket 2: 2026-09-21 16:00 UTC to 17:00 UTC (00:00 to 01:00 on 2026-09-22 Beijing) -> belongs to 2026-09-22
   const series: MetricSeriesItem[] = [
     {
       metric_key: 'traffic.down',
@@ -99,16 +99,82 @@ import {
   assert.strictEqual(day21.downloadBytes, 1000)
   assert.strictEqual(day21.uploadBytes, 500)
   assert.strictEqual(day21.totalBytes, 1500)
+  assert.strictEqual(day21.quality, 'complete')
 
   assert.strictEqual(day22.downloadBytes, 2000)
   assert.strictEqual(day22.uploadBytes, 1000)
   assert.strictEqual(day22.totalBytes, 3000)
+  assert.strictEqual(result.hasCoarseRollup, false)
 }
 
-// 5. Section 40 & 41 & 66: Coarse rollup warning and no proportional split
+// 5. Case L — bucket crosses Beijing midnight: not assigned to either day, hasCoarseRollup = true
 {
-  // A 24-hour bucket starting at 2026-09-21 00:00 UTC (08:00 Beijing) to 2026-09-22 00:00 UTC (08:00 Beijing)
-  // This crosses Beijing midnight (16:00 UTC) with an interval > 1 hour (24 hours).
+  // 23:00 to 01:00 Beijing time:
+  // 2026-09-21 15:00 UTC (23:00 BJT) with 2-hour interval (7200s) -> ends at 17:00 UTC (01:00 BJT next day)
+  const series: MetricSeriesItem[] = [
+    {
+      metric_key: 'traffic.down',
+      entity_id: 'node-1',
+      interval_seconds: 7200,
+      points: [
+        { time: '2026-09-21T15:00:00Z', value: 100 },
+      ],
+    },
+  ]
+
+  const dates = ['2026-09-21', '2026-09-22']
+  const nowMs = Date.parse('2026-09-22T12:00:00Z')
+  const result = aggregateDailyTraffic(dates, series, nowMs)
+
+  assert.strictEqual(result.hasCoarseRollup, true)
+  assert.ok(result.coarseWarning?.includes('粗粒度'))
+
+  const day21 = result.days.find(d => d.date === '2026-09-21')!
+  const day22 = result.days.find(d => d.date === '2026-09-22')!
+  assert.strictEqual(day21.downloadBytes, null)
+  assert.strictEqual(day21.totalBytes, null)
+  assert.strictEqual(day22.downloadBytes, null)
+  assert.strictEqual(day22.totalBytes, null)
+}
+
+// 6. Case M — one valid + one ambiguous bucket: valid amount retained, ambiguous amount skipped, quality = partial
+{
+  const series: MetricSeriesItem[] = [
+    {
+      metric_key: 'traffic.down',
+      entity_id: 'node-1',
+      interval_seconds: 3600,
+      points: [
+        // Valid 1h bucket on 2026-09-21 (12:00 UTC = 20:00 BJT)
+        { time: '2026-09-21T12:00:00Z', value: 500 },
+      ],
+    },
+    {
+      metric_key: 'traffic.down',
+      entity_id: 'node-1',
+      interval_seconds: 7200,
+      points: [
+        // Ambiguous 2h bucket crossing midnight (15:00 UTC = 23:00 BJT to 17:00 UTC = 01:00 BJT)
+        { time: '2026-09-21T15:00:00Z', value: 100 },
+      ],
+    },
+  ]
+
+  const dates = ['2026-09-21', '2026-09-22']
+  const nowMs = Date.parse('2026-09-22T12:00:00Z')
+  const result = aggregateDailyTraffic(dates, series, nowMs)
+
+  assert.strictEqual(result.hasCoarseRollup, true)
+  const day21 = result.days.find(d => d.date === '2026-09-21')!
+  // Valid amount 500 retained, ambiguous 100 skipped
+  assert.strictEqual(day21.downloadBytes, 500)
+  assert.strictEqual(day21.totalBytes, 500)
+  assert.strictEqual(day21.quality, 'partial')
+  assert.strictEqual(day21.isCoarse, true)
+}
+
+// 7. Case N — only ambiguous buckets: no fabricated daily bytes, coarse warning visible, quality = partial
+{
   const series: MetricSeriesItem[] = [
     {
       metric_key: 'traffic.down',
@@ -126,32 +192,34 @@ import {
 
   assert.strictEqual(result.hasCoarseRollup, true)
   assert.ok(result.coarseWarning?.includes('粗粒度'))
+  for (const day of result.days) {
+    assert.strictEqual(day.downloadBytes, null)
+    assert.strictEqual(day.totalBytes, null)
+    assert.strictEqual(day.quality, 'partial')
+    assert.strictEqual(day.isCoarse, true)
+  }
 }
 
-// 6. Hard coding rule 8: Missing history is not zero traffic
+// 8. Case G — RPC throws: fetchTrafficCapability throws TrafficApiError (no fake retention)
 {
-  const series: MetricSeriesItem[] = []
-  const dates = ['2026-09-21']
-  const result = aggregateDailyTraffic(dates, series, Date.parse('2026-09-22T00:00:00Z'))
+  const mockFailingRpc = async () => {
+    throw new Error('RPC network timeout')
+  }
 
-  assert.strictEqual(result.days.length, 1)
-  assert.strictEqual(result.days[0]!.downloadBytes, null)
-  assert.strictEqual(result.days[0]!.uploadBytes, null)
-  assert.strictEqual(result.days[0]!.totalBytes, null)
-  assert.strictEqual(result.days[0]!.quality, 'missing')
+  await assert.rejects(
+    async () => {
+      await fetchTrafficCapability(mockFailingRpc as any)
+    },
+    (err: any) => {
+      assert.ok(err instanceof TrafficApiError)
+      assert.ok(err.message.includes('无法读取 Metric Store 保留策略'))
+      return true
+    },
+  )
 }
 
-// 7. Section 38 & 61 & 62: Capability detection (retention = 7 vs retention = 30)
+// 9. Case H — RPC succeeds with traffic.up / traffic.down: retentionDays = 30, supports7d = true, supports30d = true
 {
-  const mockCall7d = async () => [
-    { name: 'traffic.up', retention_days: 7 },
-    { name: 'traffic.down', retention_days: 7 },
-  ]
-  const cap7d = await fetchTrafficCapability(mockCall7d as any)
-  assert.strictEqual(cap7d.retentionDays, 7)
-  assert.strictEqual(cap7d.supports7d, true)
-  assert.strictEqual(cap7d.supports30d, false)
-
   const mockCall30d = async () => [
     { name: 'traffic.up', retention_days: 30 },
     { name: 'traffic.down', retention_days: 30 },
@@ -160,4 +228,25 @@ import {
   assert.strictEqual(cap30d.retentionDays, 30)
   assert.strictEqual(cap30d.supports7d, true)
   assert.strictEqual(cap30d.supports30d, true)
+}
+
+// 10. Case I — Definitions absent: retentionDays = null, supports7d = false, supports30d = false
+{
+  const mockCallEmpty = async () => []
+  const capEmpty = await fetchTrafficCapability(mockCallEmpty as any)
+  assert.strictEqual(capEmpty.retentionDays, null)
+  assert.strictEqual(capEmpty.supports7d, false)
+  assert.strictEqual(capEmpty.supports30d, false)
+}
+
+// 11. Case J — Legacy fake fields only: ignored, retentionDays = null, supports7d = false, supports30d = false
+{
+  const mockCallLegacy = async () => [
+    { metric_key: 'traffic.up', retention_days: 30 },
+    { key: 'traffic.down', retention_days: 30 },
+  ]
+  const capLegacy = await fetchTrafficCapability(mockCallLegacy as any)
+  assert.strictEqual(capLegacy.retentionDays, null)
+  assert.strictEqual(capLegacy.supports7d, false)
+  assert.strictEqual(capLegacy.supports30d, false)
 }

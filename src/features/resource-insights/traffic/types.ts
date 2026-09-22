@@ -69,8 +69,6 @@ export interface MetricQueryResponse {
 }
 
 export interface MetricDefinitionItem {
-  name?: string
-  metric_key?: string
-  key?: string
-  retention_days?: number
+  name: string
+  retention_days: number
 }
