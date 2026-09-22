@@ -39,6 +39,14 @@ onMounted(() => {
 watch(() => props.uuid, () => {
   void loadSnapshot()
 })
+const mediaServices = [
+  { name: 'YouTube', keys: ['YouTube', 'Youtube', 'youtube'] },
+  { name: 'Netflix', keys: ['Netflix', 'netflix'] },
+  { name: 'Disney+', keys: ['DisneyPlus', 'disney+', 'Disney+'] },
+  { name: 'TikTok', keys: ['TikTok', 'tiktok'] },
+  { name: 'Reddit', keys: ['Reddit', 'reddit'] },
+]
+
 function getMediaItem(media: Record<string, any> | undefined, ...names: string[]) {
   if (!media) return null
   for (const n of names) {
@@ -118,11 +126,7 @@ function getMediaItem(media: Record<string, any> | undefined, ...names: string[]
           <!-- v4 -->
           <div v-if="latestReport.v4" class="inline-flex items-center gap-1.5 flex-wrap">
             <span class="font-mono text-[10px] px-1 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300 font-semibold">v4</span>
-            <template v-for="s in [
-              { name: 'YouTube', keys: ['YouTube', 'Youtube', 'youtube'] },
-              { name: 'TikTok', keys: ['TikTok', 'tiktok'] },
-              { name: 'Reddit', keys: ['Reddit', 'reddit'] },
-            ]" :key="s.name">
+            <template v-for="s in mediaServices" :key="s.name">
               <span
                 v-if="getMediaItem(latestReport.v4?.media, ...s.keys)"
                 class="font-medium"
@@ -136,11 +140,7 @@ function getMediaItem(media: Record<string, any> | undefined, ...names: string[]
           <!-- v6 -->
           <div v-if="latestReport.v6" class="inline-flex items-center gap-1.5 flex-wrap">
             <span class="font-mono text-[10px] px-1 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300 font-semibold">v6</span>
-            <template v-for="s in [
-              { name: 'YouTube', keys: ['YouTube', 'Youtube', 'youtube'] },
-              { name: 'TikTok', keys: ['TikTok', 'tiktok'] },
-              { name: 'Reddit', keys: ['Reddit', 'reddit'] },
-            ]" :key="s.name">
+            <template v-for="s in mediaServices" :key="s.name">
               <span
                 v-if="getMediaItem(latestReport.v6?.media, ...s.keys)"
                 class="font-medium"
