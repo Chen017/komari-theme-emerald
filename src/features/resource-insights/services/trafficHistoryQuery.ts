@@ -185,8 +185,19 @@ export async function queryMetricSegment(
     endMs: segment.endMs,
   })
 
-  const hasPoints = result.series.some(s => s.points && s.points.length > 0)
-  if (!hasPoints) {
+  const hasUsablePoints = result.series.some((s) => {
+    if (!s.points || s.points.length === 0) return false
+    const intervalMs = (s.intervalSeconds ?? 0) * 1000
+    return s.points.some((p) => {
+      if (p.value === null || typeof p.value !== 'number') return false
+      const t = Date.parse(p.time)
+      if (!Number.isFinite(t)) return false
+      const endT = t + (intervalMs > 0 ? intervalMs : 0)
+      return t < segment.endMs && endT > segment.startMs
+    })
+  })
+
+  if (!hasUsablePoints) {
     return {
       segment,
       status: 'empty',
@@ -222,8 +233,8 @@ export async function queryMetricSegment(
         const window = buildZonedDayWindow(date, timeZone, nowMs)
         // Check if interval overlaps this requested natural day
         if (startMs < window.effectiveEndMs && endMs > window.startMs) {
-          // If interval is not wholly contained within this natural day, mark as coarse!
-          if (startMs < window.startMs || endMs > window.effectiveEndMs) {
+          // If interval crosses natural day boundary (not contained within window.startMs and window.endMs), mark as coarse!
+          if (startMs < window.startMs || endMs > window.endMs) {
             coarseDatesSet.add(date)
           }
         }

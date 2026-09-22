@@ -1250,6 +1250,10 @@ function createFakeKomariMetricRpc(options: {
 
 import { useTrafficTrend } from '../../src/features/resource-insights/composables/useTrafficTrend'
 import { getSharedRpc, resetSharedRpc } from '../../src/utils/rpc'
+import {
+  buildTrafficTrendCacheKey,
+  writeTrafficTrendCache,
+} from '../../src/features/resource-insights/services/trafficTrendCache'
 
 // Test A: One-Day Coarse Leaf (Section 21)
 {
@@ -1357,11 +1361,10 @@ import { getSharedRpc, resetSharedRpc } from '../../src/utils/rpc'
     }
     if (method === 'public:queryMetrics') {
       const startMs = Date.parse(params.start)
-      const endMs = Date.parse(params.end)
-      const spanDays = (endMs - startMs) / 86400000
+      // 30d queries segments older than 8 days; 7d only queries dates within the last 7 days
+      const is30dOnly = startMs < Date.now() - 8 * 86400000
 
-      // If query spans more than 10 days, simulate slow response
-      if (spanDays > 10) {
+      if (is30dOnly) {
         return new Promise(resolve => {
           resolveSlow30d = () => {
             resolve({
@@ -1400,8 +1403,11 @@ import { getSharedRpc, resetSharedRpc } from '../../src/utils/rpc'
   await new Promise(r => setTimeout(r, 50))
   assert.strictEqual(trend.selectedRange.value, '7d')
   assert.strictEqual(trend.trafficView.value.days.length, 7)
+  const initialDay = trend.trafficView.value.days.find(d => d.uploadBytes !== null)
+  assert.ok(initialDay)
+  assert.strictEqual(initialDay.uploadBytes, 700)
 
-  // Switch to 30d (slow)
+  // Switch to 30d (slow 30d segments hang on resolveSlow30d)
   trend.selectedRange.value = '30d'
   await new Promise(r => setTimeout(r, 20))
 
@@ -1410,8 +1416,12 @@ import { getSharedRpc, resetSharedRpc } from '../../src/utils/rpc'
   await new Promise(r => setTimeout(r, 50))
   assert.strictEqual(trend.selectedRange.value, '7d')
   assert.strictEqual(trend.trafficView.value.days.length, 7)
+  const dayBefore30dResolves = trend.trafficView.value.days.find(d => d.uploadBytes !== null)
+  assert.ok(dayBefore30dResolves)
+  assert.strictEqual(dayBefore30dResolves.uploadBytes, 700)
 
   // Now the slow 30d completes later
+  assert.ok(resolveSlow30d, 'resolveSlow30d must have been captured for 30d-only segment')
   if (resolveSlow30d) {
     (resolveSlow30d as any)()
   }
@@ -1420,6 +1430,10 @@ import { getSharedRpc, resetSharedRpc } from '../../src/utils/rpc'
   // State must still be 7d and NOT overwritten by 30d
   assert.strictEqual(trend.selectedRange.value, '7d')
   assert.strictEqual(trend.trafficView.value.days.length, 7)
+  const dayAfter30dResolves = trend.trafficView.value.days.find(d => d.uploadBytes !== null)
+  assert.ok(dayAfter30dResolves)
+  assert.strictEqual(dayAfter30dResolves.uploadBytes, 700, 'Visible data must remain 700 from 7d, NOT overwritten by 3000 from 30d')
+  assert.notStrictEqual(dayAfter30dResolves.uploadBytes, 3000)
   console.log('✓ Test C passed: Range race (slow 30d does not overwrite fast 7d)')
   resetSharedRpc()
 }
@@ -1488,15 +1502,23 @@ import { getSharedRpc, resetSharedRpc } from '../../src/utils/rpc'
   trend.selectedEntity.value = 'node-B'
   await new Promise(r => setTimeout(r, 50))
   assert.strictEqual(trend.selectedEntity.value, 'node-B')
+  const dayNodeB = trend.trafficView.value.days.find(d => d.uploadBytes !== null)
+  assert.ok(dayNodeB, 'Node B must have data')
+  assert.strictEqual(dayNodeB.uploadBytes, 1111, 'Node B uploadBytes must be 1111')
 
   // Resolve slow Node A later
+  assert.ok(resolveSlowNodeA, 'resolveSlowNodeA must have been captured')
   if (resolveSlowNodeA) {
     (resolveSlowNodeA as any)()
   }
   await new Promise(r => setTimeout(r, 50))
 
-  // Snapshot must remain for Node B
+  // Snapshot and visible data must remain for Node B (1111) and NOT overwritten by Node A (9999)
   assert.strictEqual(trend.selectedEntity.value, 'node-B')
+  const dayAfterNodeA = trend.trafficView.value.days.find(d => d.uploadBytes !== null)
+  assert.ok(dayAfterNodeA)
+  assert.strictEqual(dayAfterNodeA.uploadBytes, 1111, 'Data must still be 1111 from Node B, not overwritten by 9999 from Node A')
+  assert.notStrictEqual(dayAfterNodeA.uploadBytes, 9999)
   console.log('✓ Test D passed: Node race (slow Node A does not overwrite fast Node B)')
   resetSharedRpc()
 }
@@ -1656,6 +1678,233 @@ import { getSharedRpc, resetSharedRpc } from '../../src/utils/rpc'
   assert.ok(failedDay, 'Failed day must be in view model days')
   assert.strictEqual(failedDay.queryFailed, true, 'Failed day must have queryFailed=true')
   console.log('✓ Test H passed: Partial query failure marks queryFailed and preserves successful days')
+}
+
+// Test I: Today hourly bucket (18:00-19:00 at 18:37 BJT) is fine, not coarse
+{
+  const nowMs = Date.parse('2026-09-22T18:37:00+08:00')
+  const window = buildZonedDayWindow('2026-09-22', 'Asia/Shanghai', nowMs)
+  // Hourly bucket: 18:00 to 19:00 today.
+  // 19:00 > window.effectiveEndMs (18:37), but 19:00 <= window.endMs (23:59:59.999).
+  // It is within the natural day and must NOT be marked as coarse!
+  const bucketStart = Date.parse('2026-09-22T18:00:00+08:00')
+  const gateway = createHistoryGateway(async () => ({
+    series: [
+      {
+        metric_key: 'traffic.up',
+        entity_id: 'test-node',
+        interval_seconds: 3600,
+        points: [{ time: new Date(bucketStart).toISOString(), value: 1000 }],
+      },
+    ],
+  }))
+  const result = await queryMetricSegment({
+    gateway,
+    entityIds: ['test-node'],
+    segment: {
+      dates: ['2026-09-22'],
+      startMs: window.startMs,
+      endMs: window.endMs,
+      depth: 0,
+    },
+    timeZone: 'Asia/Shanghai',
+    nowMs,
+  })
+  assert.strictEqual(result.status, 'fine', 'Current day hourly bucket must be fine, not coarse')
+  assert.strictEqual(result.coarseDates.length, 0, 'Current day must not be in coarseDates')
+  console.log('✓ Test I passed: Today hourly bucket (18:00-19:00 at 18:37 BJT) is fine, not coarse')
+}
+
+// Test J: Cache-hit clears loading state and prevents UI stuck in loading
+{
+  resetSharedRpc()
+  const rpc = getSharedRpc()
+
+  let resolveSlowCall: (() => void) | null = null
+  rpc.call = async (method: string, params: any) => {
+    if (method === 'rpc.methods') return ['public:queryMetrics']
+    if (method === 'public:listMetricDefinitions') {
+      return [
+        { name: 'traffic.up', retention_days: 30 },
+        { name: 'traffic.down', retention_days: 30 },
+      ]
+    }
+    if (method === 'public:queryMetrics') {
+      if (params.entity_ids[0] === 'node-slow') {
+        return new Promise(resolve => {
+          resolveSlowCall = () => {
+            resolve({
+              series: [
+                {
+                  metric_key: 'traffic.up',
+                  entity_id: 'node-slow',
+                  interval_seconds: 3600,
+                  points: [{ time: params.start, value: 500 }],
+                },
+              ],
+            })
+          }
+        })
+      }
+      return {
+        series: [
+          {
+            metric_key: 'traffic.up',
+            entity_id: params.entity_ids[0],
+            interval_seconds: 3600,
+            points: [{ time: params.start, value: 100 }],
+          },
+        ],
+      }
+    }
+    throw new Error(`Unhandled ${method}`)
+  }
+
+  const originalLocalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+  const storageMap = new Map<string, string>()
+  const mockStorage: any = {
+    getItem: (k: string) => storageMap.get(k) ?? null,
+    setItem: (k: string, v: string) => storageMap.set(k, v),
+    removeItem: (k: string) => storageMap.delete(k),
+    clear: () => storageMap.clear(),
+  }
+  Object.defineProperty(globalThis, 'localStorage', {
+    value: mockStorage,
+    configurable: true,
+    writable: true,
+  })
+
+  try {
+    const trend = useTrafficTrend({
+      nodes: () => [
+        { uuid: 'node-slow', name: 'Node Slow' },
+        { uuid: 'node-cached', name: 'Node Cached' },
+      ] as any,
+    })
+
+    // Wait for initial load
+    await new Promise(r => setTimeout(r, 50))
+
+    // Switch to node-slow (in-flight, loading = true)
+    trend.selectedEntity.value = 'node-slow'
+    await new Promise(r => setTimeout(r, 20))
+    assert.strictEqual(trend.loading.value, true, 'node-slow should be loading')
+
+    // Pre-populate cache for node-cached with all 7 dates
+    const currentDates = buildRecentNaturalDayKeys(7, 'Asia/Shanghai')
+    const fakeCachedSnapshot = {
+      state: 'ready' as const,
+      days: currentDates.map(date => ({
+        date,
+        uploadBytes: 888,
+        downloadBytes: 888,
+        totalBytes: 1776,
+        quality: 'complete' as const,
+        source: 'metric-delta' as const,
+        coverage: { average: 1, minimum: 1, availableEntities: 1, totalEntities: 1 },
+        isInProgress: false,
+        reasons: [],
+      })),
+      fetchedAt: Date.now(),
+      sourceKind: 'metrics' as const,
+      retentionDays: 30,
+      availability: 'available' as const,
+      failureKind: null,
+      retryable: true,
+      message: '',
+    }
+
+    const cacheKey = buildTrafficTrendCacheKey({
+      origin: '',
+      loggedIn: false,
+      entityIds: ['node-cached'],
+      range: '7d',
+      timeZone: 'Asia/Shanghai',
+      dates: currentDates,
+      schema: 3,
+      capabilityVersion: 3,
+    })
+    writeTrafficTrendCache(mockStorage, cacheKey, fakeCachedSnapshot as any)
+
+    // Switch to node-cached (cache hit!)
+    trend.selectedEntity.value = 'node-cached'
+    await new Promise(r => setTimeout(r, 50))
+
+    // Must NOT be stuck in loading!
+    assert.strictEqual(trend.loading.value, false, 'Loading must be false on cache hit')
+    assert.strictEqual(trend.trafficView.value.state, 'ready', 'trafficView.state must be ready, not loading')
+    assert.strictEqual(trend.trafficView.value.days[0]?.totalBytes, 1776)
+
+    // Resolve old slow call
+    if (resolveSlowCall) (resolveSlowCall as any)()
+    await new Promise(r => setTimeout(r, 50))
+
+    assert.strictEqual(trend.loading.value, false)
+    assert.strictEqual(trend.trafficView.value.state, 'ready')
+    console.log('✓ Test J passed: Cache-hit clears loading state and prevents UI stuck in loading')
+  } finally {
+    if (originalLocalStorage) {
+      Object.defineProperty(globalThis, 'localStorage', originalLocalStorage)
+    } else {
+      delete (globalThis as any).localStorage
+    }
+    resetSharedRpc()
+  }
+}
+
+// Test K: Null points and points outside window correctly classified as empty
+{
+  const gatewayNull = createHistoryGateway(async () => ({
+    series: [
+      {
+        metric_key: 'traffic.up',
+        entity_id: 'test-node',
+        interval_seconds: 3600,
+        points: [
+          { time: '2026-09-20T00:00:00Z', value: null },
+          { time: '2026-09-20T01:00:00Z', value: null },
+        ],
+      },
+    ],
+  }))
+  const resNull = await queryMetricSegment({
+    gateway: gatewayNull,
+    entityIds: ['test-node'],
+    segment: {
+      dates: ['2026-09-20'],
+      startMs: Date.parse('2026-09-20T00:00:00+08:00'),
+      endMs: Date.parse('2026-09-20T23:59:59.999+08:00'),
+      depth: 0,
+    },
+    timeZone: 'Asia/Shanghai',
+  })
+  assert.strictEqual(resNull.status, 'empty', 'Points with only null values must be classified as empty')
+
+  const gatewayOutside = createHistoryGateway(async () => ({
+    series: [
+      {
+        metric_key: 'traffic.up',
+        entity_id: 'test-node',
+        interval_seconds: 3600,
+        points: [
+          { time: '2026-09-10T00:00:00Z', value: 1000 },
+        ],
+      },
+    ],
+  }))
+  const resOutside = await queryMetricSegment({
+    gateway: gatewayOutside,
+    entityIds: ['test-node'],
+    segment: {
+      dates: ['2026-09-20'],
+      startMs: Date.parse('2026-09-20T00:00:00+08:00'),
+      endMs: Date.parse('2026-09-20T23:59:59.999+08:00'),
+      depth: 0,
+    },
+    timeZone: 'Asia/Shanghai',
+  })
+  assert.strictEqual(resOutside.status, 'empty', 'Points entirely outside window must be classified as empty')
+  console.log('✓ Test K passed: Null points and points outside window correctly classified as empty')
 }
 
 console.log('All traffic tests passed successfully!')
