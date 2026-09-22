@@ -8,6 +8,7 @@ import {
   calculateNode30dUptimeFromRecords,
   SECONDS_30_DAYS,
 } from '../../src/features/resource-insights/services/uptime'
+import { buildObservationTimeline } from '../../src/features/resource-insights/services/observationCoverage'
 
 console.log('--- Running 30-day uptime calculation tests ---')
 
@@ -95,27 +96,26 @@ function createMockNode(overrides: Partial<NodeData> = {}): NodeData {
   console.log('\n[Section 20] Complete 30-day history with 10 minutes downtime')
   const node = createMockNode({ name: '30d-Node', online: true })
 
-  // 30 days = 720 hours = 720 buckets of 3600s
-  // Expected count per hour = 60 (1 sample/min)
-  // In one bucket, 10 minutes missing -> 50 samples instead of 60
+  // 30 days = 43200 minutes = 4320 buckets of 600s (10 min)
+  // In one bucket, 10 minutes outage -> value: null, count: 0
   const points: NormalizedMetricPoint[] = []
   const startTime = now.getTime() - SECONDS_30_DAYS * 1000
 
-  for (let h = 0; h < 720; h++) {
-    const t = new Date(startTime + h * 3600 * 1000).toISOString()
-    if (h === 100) {
-      // 10 minutes downtime in this 1-hour bucket (50 min online = count 50)
-      points.push({ time: t, value: 12.0, count: 50 })
+  for (let b = 0; b < 4320; b++) {
+    const t = new Date(startTime + b * 600 * 1000).toISOString()
+    if (b === 100) {
+      // 10 minutes confirmed outage in this 10-minute bucket
+      points.push({ time: t, value: null, count: 0 })
     }
     else {
-      points.push({ time: t, value: 12.0, count: 60 })
+      points.push({ time: t, value: 12.0, count: 10 })
     }
   }
 
   const series: NormalizedMetricSeries = {
     entityId: node.uuid,
     metricKey: 'cpu.usage',
-    intervalSeconds: 3600,
+    intervalSeconds: 600,
     retentionDays: 30,
     points,
   }
@@ -136,25 +136,25 @@ function createMockNode(overrides: Partial<NodeData> = {}): NodeData {
   console.log('\n[Section 21] Partial retention (12 days history, 10m downtime)')
   const node = createMockNode({ name: '12d-Node', online: true })
 
-  // 12 days = 288 hours of 3600s buckets
+  // 12 days = 17280 minutes = 1728 buckets of 600s (10 min)
   const points: NormalizedMetricPoint[] = []
   const startTime = now.getTime() - 12 * 86400 * 1000
 
-  for (let h = 0; h < 288; h++) {
-    const t = new Date(startTime + h * 3600 * 1000).toISOString()
-    if (h === 50) {
+  for (let b = 0; b < 1728; b++) {
+    const t = new Date(startTime + b * 600 * 1000).toISOString()
+    if (b === 50) {
       // 10 min outage
-      points.push({ time: t, value: 10.0, count: 50 })
+      points.push({ time: t, value: null, count: 0 })
     }
     else {
-      points.push({ time: t, value: 10.0, count: 60 })
+      points.push({ time: t, value: 10.0, count: 10 })
     }
   }
 
   const series: NormalizedMetricSeries = {
     entityId: node.uuid,
     metricKey: 'cpu.usage',
-    intervalSeconds: 3600,
+    intervalSeconds: 600,
     retentionDays: 12,
     points,
   }
@@ -258,10 +258,12 @@ function createMockNode(overrides: Partial<NodeData> = {}): NodeData {
   }
 
   const res = calculateNode30dUptime(node, { kind: 'metrics', series }, now)
-  // Total online = 1 + 1 + (400/600) + 1 + 1 = 4.6667 buckets out of 5 -> 4.6667 / 5 = 0.9333
-  const expectedRatio = (4 + 400 / 600) / 5
-  assert.ok(Math.abs(res.uptimeRatio! - expectedRatio) < 0.001, `Expected ${expectedRatio}, got ${res.uptimeRatio}`)
-  console.log(`✓ Section 24 passed: partial bucket outage ratio = ${res.uptimeRatio} (~${res.uptimeText})`)
+  // Per Section 2.1 & 17 of plan: sample count variation (count = 400 vs 600) is jitter, NOT downtime.
+  // Uptime must remain 100.00%!
+  assert.strictEqual(res.uptimeRatio, 1.0, `Expected 1.0, got ${res.uptimeRatio}`)
+  assert.strictEqual(res.uptimeText, '100.00%')
+  assert.strictEqual(res.diagnostics?.offlineSeconds, 0)
+  console.log(`✓ Section 24 passed: bucket count variation (400 vs 600) preserved 100.00% uptime without jitter penalty`)
 }
 
 // ---------------------------------------------------------------------------
@@ -812,6 +814,64 @@ function createMockNode(overrides: Partial<NodeData> = {}): NodeData {
   assert.strictEqual(res.diagnostics?.partialBuckets, 0)
   assert.strictEqual(res.diagnostics?.zeroSampleObservableBuckets, 0)
   console.log('✓ Section 16 Test F passed: zero-outage node diagnostic breakdown verified')
+}
+
+// ---------------------------------------------------------------------------
+// Section 6 & 18: Case E — Fleet has 30 days history, Node has 12 days history (never offline)
+// ---------------------------------------------------------------------------
+{
+  console.log('\n[Section 6 & 18] Case E — Fleet 30d + Node 12d history (no false downtime from fleet history)')
+  const nodeA = createMockNode({ uuid: 'node-12d', name: 'NodeA-12d', online: true })
+  const nodeFleet = createMockNode({ uuid: 'node-fleet-30d', name: 'NodeFleet-30d', online: true })
+
+  const startTime30d = now.getTime() - SECONDS_30_DAYS * 1000
+  const startTime12d = now.getTime() - 12 * 86400 * 1000
+
+  // 1. Fleet node has full 30 days history (720 hours)
+  const fleetPoints: NormalizedMetricPoint[] = []
+  for (let h = 0; h < 720; h++) {
+    const t = new Date(startTime30d + h * 3600 * 1000).toISOString()
+    fleetPoints.push({ time: t, value: 5.0, count: 60 })
+  }
+  const fleetSeries: NormalizedMetricSeries = {
+    entityId: nodeFleet.uuid,
+    metricKey: 'cpu.usage',
+    intervalSeconds: 3600,
+    retentionDays: 30,
+    points: fleetPoints,
+  }
+
+  // 2. Node A only has 12 days history (288 hours), never offline during its existence
+  const nodeAPoints: NormalizedMetricPoint[] = []
+  for (let h = 0; h < 288; h++) {
+    const t = new Date(startTime12d + h * 3600 * 1000).toISOString()
+    nodeAPoints.push({ time: t, value: 3.0, count: 60 })
+  }
+  const nodeASeries: NormalizedMetricSeries = {
+    entityId: nodeA.uuid,
+    metricKey: 'cpu.usage',
+    intervalSeconds: 3600,
+    retentionDays: 12,
+    points: nodeAPoints,
+  }
+
+  // Build fleet timeline with both series (fleet earliest is 30 days ago)
+  const timeline = buildObservationTimeline({
+    windowStartMs: startTime30d,
+    windowEndMs: now.getTime(),
+    allSeries: [fleetSeries, nodeASeries],
+  })
+
+  // Calculate Node A uptime with fleet timeline present
+  const res = calculateNode30dUptime(nodeA, { kind: 'metrics', series: nodeASeries }, now, timeline)
+
+  assert.strictEqual(res.uptimeRatio, 1.0, `Node A uptime must be 1.0 (100%), got ${res.uptimeRatio}`)
+  assert.strictEqual(res.uptimeText, '100.00%', `Node A uptime text must be 100.00%, got ${res.uptimeText}`)
+  assert.strictEqual(res.status, 'partial', 'Node A status must be partial (12/30 days)')
+  assert.strictEqual(res.coverageText, '覆盖 12.0 / 30 天')
+  assert.strictEqual(res.retentionUncoveredSeconds, 18 * 86400, 'Uncovered retention must be 18 days')
+  assert.strictEqual(res.diagnostics?.offlineSeconds, 0, 'Offline seconds must be 0')
+  console.log('✓ Section 6 & 18 Case E passed: Node A with 12d history retains 100.00% uptime despite fleet 30d history')
 }
 
 console.log('\n========================================')

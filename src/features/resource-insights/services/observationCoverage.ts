@@ -115,39 +115,19 @@ export function buildObservationTimeline(options: {
     }
   }
 
+  const anchorMs = windowStartMs
   const bucketMs = bucketSeconds * 1000
 
-  // 3. Build bucket time points from retentionStartBoundMs up to windowEndMs
-  // If we have metric series points, we can collect all discrete bucket timestamps
-  const bucketTimestamps = new Set<number>()
-  for (const s of allSeries) {
-    for (const p of s.points) {
-      const t = Date.parse(p.time)
-      if (Number.isFinite(t) && t >= retentionStartBoundMs - bucketMs && t <= windowEndMs) {
-        bucketTimestamps.add(t)
-      }
-    }
-  }
-
-  // If metric series did not provide dense timestamps, synthesize buckets
-  if (bucketTimestamps.size === 0) {
-    for (let t = retentionStartBoundMs; t < windowEndMs; t += bucketMs) {
-      bucketTimestamps.add(t)
-    }
-  }
-
-  const sortedBucketTimes = Array.from(bucketTimestamps).sort((a, b) => a - b)
-
-  // Fast lookup for telemetry presence per bucket
-  // bucketStartMs -> boolean (true if any node has positive telemetry sample)
+  // 3. Mark which bucket indices have telemetry across any fleet node
   const bucketHasTelemetry = new Map<number, boolean>()
 
   for (const s of allSeries) {
     for (const p of s.points) {
       const t = Date.parse(p.time)
       const hasData = (typeof p.count === 'number' && p.count > 0) || (p.value !== null)
-      if (hasData) {
-        bucketHasTelemetry.set(t, true)
+      if (hasData && Number.isFinite(t)) {
+        const bIdx = Math.floor((t - anchorMs) / bucketMs)
+        bucketHasTelemetry.set(bIdx, true)
       }
     }
   }
@@ -157,9 +137,10 @@ export function buildObservationTimeline(options: {
     for (const recs of allLegacyRecords) {
       for (const r of recs) {
         const t = Date.parse(r.time)
-        // Map to nearest bucket
-        const bStart = Math.floor(t / bucketMs) * bucketMs
-        bucketHasTelemetry.set(bStart, true)
+        if (Number.isFinite(t)) {
+          const bIdx = Math.floor((t - anchorMs) / bucketMs)
+          bucketHasTelemetry.set(bIdx, true)
+        }
       }
     }
   }
@@ -186,14 +167,16 @@ export function buildObservationTimeline(options: {
     return false
   }
 
-  // 4. Construct buckets and calculate controller blackout
+  // 4. Construct buckets aligned to bucketMs from retentionStartBoundMs to windowEndMs
   const buckets: ObserverBucket[] = []
   let controllerBlackoutSeconds = 0
 
-  for (let i = 0; i < sortedBucketTimes.length; i++) {
-    const bStart = sortedBucketTimes[i]!
-    const nextStart = sortedBucketTimes[i + 1]
-    const bEnd = nextStart !== undefined && nextStart > bStart ? nextStart : bStart + bucketMs
+  const startIdx = Math.floor((retentionStartBoundMs - anchorMs) / bucketMs)
+  const endIdx = Math.ceil((windowEndMs - anchorMs) / bucketMs)
+
+  for (let idx = startIdx; idx < endIdx; idx++) {
+    const bStart = anchorMs + idx * bucketMs
+    const bEnd = bStart + bucketMs
 
     // Overlap with requested window [retentionStartBoundMs, windowEndMs]
     const startClamped = Math.max(bStart, retentionStartBoundMs)
@@ -201,7 +184,7 @@ export function buildObservationTimeline(options: {
     const duration = Math.max(0, (endClamped - startClamped) / 1000)
     if (duration <= 0) continue
 
-    const hasFleetTelemetry = Boolean(bucketHasTelemetry.get(bStart))
+    const hasFleetTelemetry = Boolean(bucketHasTelemetry.get(idx))
     const hasProbe = hasProbeEvidenceInInterval(bStart, bEnd)
 
     let state: 'observable' | 'unobserved' = 'unobserved'
@@ -221,22 +204,13 @@ export function buildObservationTimeline(options: {
 
   function isObservable(timeMs: number): boolean {
     if (timeMs < retentionStartBoundMs || timeMs > windowEndMs) return false
-    for (const b of buckets) {
-      if (timeMs >= b.startMs && timeMs < b.endMs) {
-        return b.state === 'observable'
-      }
-    }
-    return false
+    const idx = Math.floor((timeMs - anchorMs) / bucketMs)
+    return Boolean(bucketHasTelemetry.get(idx)) || hasProbeEvidenceInInterval(anchorMs + idx * bucketMs, anchorMs + (idx + 1) * bucketMs)
   }
 
   function isBlackout(timeMs: number): boolean {
     if (timeMs < retentionStartBoundMs || timeMs > windowEndMs) return false
-    for (const b of buckets) {
-      if (timeMs >= b.startMs && timeMs < b.endMs) {
-        return b.state === 'unobserved'
-      }
-    }
-    return false
+    return !isObservable(timeMs)
   }
 
   return {

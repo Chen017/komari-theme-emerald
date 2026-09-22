@@ -153,12 +153,21 @@ export function calculateNode30dUptimeFromMetrics(
     }
   }
 
-  // If a fleet observation timeline provides earliestTelemetryMs, use it;
-  // otherwise use this node's first active point
-  let startEvaluateMs = firstActiveIdx >= 0 ? Date.parse(points[firstActiveIdx]!.time) : windowStartMs
-  if (timeline?.earliestTelemetryMs !== null && timeline?.earliestTelemetryMs !== undefined) {
-    startEvaluateMs = Math.min(startEvaluateMs, Math.max(windowStartMs, timeline.earliestTelemetryMs))
+  // Node retention start must be strictly derived from the node's own history.
+  // Never pull it backward to fleet earliestTelemetryMs, which would treat unobserved pre-node time as downtime!
+  const firstPointMs = points.length > 0 ? Date.parse(points[0]!.time) : windowStartMs
+  let nodeRetentionStartMs = Number.isFinite(firstPointMs)
+    ? Math.max(windowStartMs, firstPointMs)
+    : windowStartMs
+
+  if (typeof series?.retentionDays === 'number' && series.retentionDays > 0) {
+    const retentionLimitMs = windowEndMs - series.retentionDays * 86400 * 1000
+    if (retentionLimitMs > nodeRetentionStartMs) {
+      nodeRetentionStartMs = retentionLimitMs
+    }
   }
+
+  const startEvaluateMs = nodeRetentionStartMs
   const retentionUncoveredSeconds = Math.max(0, (startEvaluateMs - windowStartMs) / 1000)
 
   // Find start index in points matching startEvaluateMs
@@ -232,29 +241,11 @@ export function calculateNode30dUptimeFromMetrics(
       ? p.count
       : (p.value !== null ? 1 : 0)
 
-    if (actualCount === 0) {
+    const isBucketOnline = actualCount > 0 || p.value !== null
+    const onlineFraction = isBucketOnline ? 1 : 0
+
+    if (!isBucketOnline) {
       zeroSampleObservableBuckets++
-    }
-
-    // Scale expected count for partial bucket duration
-    const bucketRatio = bucketSeconds > 0 ? Math.min(1, effectiveBucketSeconds / bucketSeconds) : 1
-    const bucketExpectedCount = expectedCount > 0 ? expectedCount * bucketRatio : 0
-    // Allow small sampling jitter (>= 85% of expected count) without penalizing uptime
-    const jitterThreshold = bucketExpectedCount * 0.85
-
-    let onlineFraction: number
-    if (actualCount >= jitterThreshold && bucketExpectedCount > 0) {
-      onlineFraction = 1
-    }
-    else if (bucketExpectedCount > 0) {
-      onlineFraction = Math.max(0, Math.min(1, actualCount / bucketExpectedCount))
-    }
-    else {
-      onlineFraction = p.value !== null ? 1 : 0
-    }
-
-    if (onlineFraction > 0 && onlineFraction < 1) {
-      partialBuckets++
     }
 
     onlineSeconds += effectiveBucketSeconds * onlineFraction
