@@ -252,5 +252,7 @@ export function historyResultToTrafficEvidence(
 ): EntityTrafficEvidence[] {
   if (result.kind === 'metrics')
     return metricsToTrafficEvidence(result.series, window)
-  return recordsToTrafficEvidence(result.records, { sampled: result.sampled, window })
+  if (result.kind === 'records')
+    return recordsToTrafficEvidence(result.records, { sampled: result.sampled, window })
+  return []
 }

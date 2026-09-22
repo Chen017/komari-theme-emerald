@@ -6,7 +6,7 @@ import type {
   RpcCall,
   TrafficQuery,
 } from '../types/history'
-import { RpcError } from '@/utils/rpc'
+import { RpcError } from '../../../utils/rpc'
 import { isRetryableHistoryFailure } from './historyErrorPolicy'
 
 const UNKNOWN_METRIC_KEY_PATTERN = /unknown metric key/i
@@ -29,6 +29,15 @@ export class HistoryCapabilitiesUnavailableError extends Error {
 export type TrafficHistoryResult
   = { kind: 'metrics', retentionDays: number | null, series: NormalizedMetricSeries[] }
     | { kind: 'records', sampled: boolean, records: Record<string, RawStatusRecord[]> }
+    | {
+        kind: 'unavailable'
+        reason:
+          | 'metrics-unsupported'
+          | 'metrics-query-failed'
+          | 'retention-insufficient'
+          | 'no-data'
+        error?: unknown
+      }
 
 type LegacyRecordsResult = Extract<TrafficHistoryResult, { kind: 'records' }>
 
@@ -213,19 +222,47 @@ export function createHistoryGateway(call: RpcCall) {
           await waitForMetricsRetry(query.signal)
           series = await queryMetricSeries(query, entityIds, query.start, query.end, query.maxPoints ?? 500)
         }
-        catch {
-          return await queryLegacyRecords(query, entityIds)
+        catch (retryError) {
+          if (isMetricFallback(retryError)) {
+            try {
+              return await queryLegacyRecords(query, entityIds)
+            }
+            catch (recordsError) {
+              return {
+                kind: 'unavailable',
+                reason: isMetricsMethodUnavailable(retryError) && isLegacyRecordsUnavailable(recordsError)
+                  ? 'metrics-unsupported'
+                  : 'metrics-query-failed',
+                error: recordsError,
+              }
+            }
+          }
+          return {
+            kind: 'unavailable',
+            reason: 'metrics-query-failed',
+            error: retryError,
+          }
         }
       }
-      else {
-        // Fall back to legacy records for any queryMetricSeries failure
+      else if (isMetricFallback(error)) {
         try {
           return await queryLegacyRecords(query, entityIds)
         }
         catch (recordsError) {
-          if (isMetricsMethodUnavailable(error) && isLegacyRecordsUnavailable(recordsError))
-            throw new HistoryCapabilitiesUnavailableError()
-          throw recordsError
+          return {
+            kind: 'unavailable',
+            reason: isMetricsMethodUnavailable(error) && isLegacyRecordsUnavailable(recordsError)
+              ? 'metrics-unsupported'
+              : 'metrics-query-failed',
+            error: recordsError,
+          }
+        }
+      }
+      else {
+        return {
+          kind: 'unavailable',
+          reason: 'metrics-query-failed',
+          error,
         }
       }
     }

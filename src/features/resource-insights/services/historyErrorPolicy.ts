@@ -1,4 +1,4 @@
-import { RpcError } from '@/utils/rpc'
+import { RpcError } from '../../../utils/rpc'
 
 export type HistoryFailureKind = 'timeout' | 'rpc-error' | 'unsupported' | 'aborted' | 'unknown'
 
