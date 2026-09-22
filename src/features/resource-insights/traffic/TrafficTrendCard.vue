@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { TrafficRange } from './types'
+import type { TrafficRange } from '../services/trafficTrend'
 import type { NodeData } from '@/stores/nodes'
 import { Icon } from '@iconify/vue'
 import { computed } from 'vue'
