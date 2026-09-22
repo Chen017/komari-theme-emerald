@@ -23,6 +23,7 @@ const {
   selectedEntity,
   selectedRange,
   canUseSinceReset,
+  resetWindow,
   refresh,
 } = useTrafficTrend({
   nodes: () => props.nodes,
@@ -30,15 +31,37 @@ const {
 
 const rangeOptions: Array<{ value: TrafficRange, label: string }> = [
   { value: '7d', label: '7 天' },
-  { value: 'since_reset', label: '自上次重置' },
+  { value: '30d', label: '30 天' },
+  { value: 'since_reset', label: '自重置日' },
 ]
+
+function getRangeTooltip(val: TrafficRange): string {
+  if (val === 'since_reset') {
+    if (selectedEntity.value === 'all')
+      return '全部节点无法统一按重置日汇总'
+    if (!canUseSinceReset.value)
+      return '无法确定该节点的流量重置日'
+    if (resetWindow.value)
+      return `${resetWindow.value.startDate} – ${resetWindow.value.endDate} (重置日: 每月 ${resetWindow.value.resetDay} 日)`
+    return '自上次重置日'
+  }
+  if (val === '30d')
+    return '近 30 天每日流量趋势'
+  return '近 7 天每日流量趋势'
+}
+
+const coverage30dText = computed(() => {
+  if (selectedRange.value !== '30d') return ''
+  const availableDays = snapshot.value.days.filter(d => d.totalBytes !== null).length
+  return `历史覆盖 ${availableDays} / 30 天`
+})
 
 const chartOption = computed(() => {
   const days = snapshot.value.days
   const dates = days.map(d => d.date.slice(5)) // MM-DD
-  const downloads = days.map(d => d.downloadBytes ?? 0)
-  const uploads = days.map(d => d.uploadBytes ?? 0)
-  const totals = days.map(d => d.totalBytes ?? 0)
+  const downloads = days.map(d => d.downloadBytes)
+  const uploads = days.map(d => d.uploadBytes)
+  const totals = days.map(d => d.totalBytes)
 
   const textColor = isDark.value ? '#94a3b8' : '#64748b'
   const splitLineColor = isDark.value ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)'
@@ -66,6 +89,10 @@ const chartOption = computed(() => {
         const qualityText = qualityLabels[day.quality] || day.quality
 
         let html = `<div style="font-weight:600;margin-bottom:4px;">${day.date} (${qualityText})</div>`
+        if (day.quality === 'missing' && day.totalBytes === null) {
+          html += `<div style="color:${textColor};font-size:11px;margin-top:2px;">该日暂无历史采集记录</div>`
+          return html
+        }
         html += `<div style="display:flex;justify-content:space-between;gap:16px;margin:2px 0;">`
         html += `<span style="color:#10b981;">● 下行流量:</span><strong>${day.downloadBytes !== null ? formatBytes(day.downloadBytes) : '--'}</strong></div>`
         html += `<div style="display:flex;justify-content:space-between;gap:16px;margin:2px 0;">`
@@ -125,6 +152,7 @@ const chartOption = computed(() => {
         type: 'line',
         smooth: true,
         showSymbol: false,
+        connectNulls: false,
         lineStyle: { color: '#f59e0b', width: 2 },
         itemStyle: { color: '#f59e0b' },
         data: totals,
@@ -142,6 +170,18 @@ const chartOption = computed(() => {
         <h2 class="text-sm font-semibold text-foreground">
           每日流量趋势
         </h2>
+        <span
+          v-if="selectedRange === 'since_reset' && resetWindow"
+          class="text-xs text-muted-foreground font-normal"
+        >
+          ({{ resetWindow.startDate.slice(5) }} – {{ resetWindow.endDate.slice(5) }} · 每月 {{ resetWindow.resetDay }} 日重置)
+        </span>
+        <span
+          v-else-if="selectedRange === '30d' && coverage30dText"
+          class="text-xs text-muted-foreground font-normal"
+        >
+          ({{ coverage30dText }})
+        </span>
       </div>
 
       <!-- Controls: Node Selector & Range -->
@@ -167,7 +207,7 @@ const chartOption = computed(() => {
             :key="opt.value"
             type="button"
             :disabled="opt.value === 'since_reset' && !canUseSinceReset"
-            :title="opt.value === 'since_reset' && !canUseSinceReset ? (selectedEntity === 'all' ? '全部节点无法统一按重置日汇总' : '该节点未配置流量上限/重置周期') : ''"
+            :title="getRangeTooltip(opt.value)"
             class="rounded px-2 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40"
             :class="selectedRange === opt.value
               ? 'bg-background text-emerald-700 dark:text-emerald-300 shadow-xs'

@@ -3,7 +3,12 @@ import {
   aggregateDailyTraffic,
   buildZonedDayWindow,
 } from '../../src/features/resource-insights/services/trafficAggregator'
-import { canRequestSinceReset } from '../../src/features/resource-insights/services/trafficTrend'
+import {
+  buildTrafficTrendViewModel,
+  calculateResetWindow,
+  canRequestSinceReset,
+  resolveNodeResetDay,
+} from '../../src/features/resource-insights/services/trafficTrend'
 
 console.log('--- Running traffic aggregator & trend tests ---')
 
@@ -160,4 +165,120 @@ console.log('--- Running traffic aggregator & trend tests ---')
   console.log('✓ Metric delta evidence aggregation passes')
 }
 
+// 5. Reset Window Calculation Tests (Section 25)
+{
+  const refDate = new Date('2026-09-22T10:00:00Z')
+
+  // Node reset day 1 on Sep 22 -> Sep 1 to Sep 22 (22 days)
+  const win1 = calculateResetWindow(1, refDate, 'UTC')
+  assert.strictEqual(win1.startDate, '2026-09-01')
+  assert.strictEqual(win1.endDate, '2026-09-22')
+  assert.strictEqual(win1.diffDays, 22)
+  assert.strictEqual(win1.resetDay, 1)
+
+  // Node reset day 18 on Sep 22 -> Sep 18 to Sep 22 (5 days)
+  const win18 = calculateResetWindow(18, refDate, 'UTC')
+  assert.strictEqual(win18.startDate, '2026-09-18')
+  assert.strictEqual(win18.endDate, '2026-09-22')
+  assert.strictEqual(win18.diffDays, 5)
+  assert.strictEqual(win18.resetDay, 18)
+
+  // Node reset day 25 on Sep 22 -> Aug 25 to Sep 22 (29 days)
+  const win25 = calculateResetWindow(25, refDate, 'UTC')
+  assert.strictEqual(win25.startDate, '2026-08-25')
+  assert.strictEqual(win25.endDate, '2026-09-22')
+  assert.strictEqual(win25.diffDays, 29)
+  assert.strictEqual(win25.resetDay, 25)
+
+  // Short month: reset day 31 evaluated in March -> Feb 28 to March 10
+  const marchDate = new Date('2026-03-10T12:00:00Z')
+  const winShort = calculateResetWindow(31, marchDate, 'UTC')
+  assert.strictEqual(winShort.startDate, '2026-02-28')
+  assert.strictEqual(winShort.endDate, '2026-03-10')
+  assert.strictEqual(winShort.diffDays, 11)
+  assert.strictEqual(winShort.resetDay, 28) // clamped to Feb 28
+
+  console.log('✓ Section 25 reset window calculation tests pass (Day 1, 18, 25 & short month)')
+}
+
+// 6. Resolve Node Reset Day Priority Tests (Section 20)
+{
+  assert.strictEqual(resolveNodeResetDay(null), null)
+  assert.strictEqual(resolveNodeResetDay({}), null)
+  assert.strictEqual(resolveNodeResetDay({ traffic_limit: 1000 }), null, 'traffic_limit alone must not yield a reset day')
+  assert.strictEqual(resolveNodeResetDay({ traffic_reset_day: 18 }), 18)
+  assert.strictEqual(resolveNodeResetDay({ month_rotate: 15 }), 15)
+  assert.strictEqual(resolveNodeResetDay({ monthRotate: 12 }), 12)
+  assert.strictEqual(resolveNodeResetDay({ trafficResetDay: 5 }), 5)
+  assert.strictEqual(resolveNodeResetDay({ traffic_reset_day: '20' }), 20)
+  assert.strictEqual(resolveNodeResetDay({ traffic_reset_day: 0 }), null)
+  assert.strictEqual(resolveNodeResetDay({ traffic_reset_day: 32 }), null)
+
+  console.log('✓ Section 20 resolveNodeResetDay tests pass')
+}
+
+// 7. 30D Traffic Range & Partial Coverage Label (Section 28 & 30)
+{
+  const dates30: string[] = []
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(Date.parse('2026-09-22T00:00:00Z') - i * 86400000)
+    dates30.push(d.toISOString().slice(0, 10))
+  }
+  assert.strictEqual(dates30.length, 30)
+
+  // Simulate only 12 days retained (last 12 days have data, first 18 days have no data)
+  const aggregatesByEntity = new Map<string, any[]>()
+  const entityId = 'node-partial-30d'
+  const dailyRows: any[] = []
+
+  for (let i = 0; i < 30; i++) {
+    const date = dates30[i]!
+    if (i < 18) {
+      // Missing retention day
+      dailyRows.push({
+        date,
+        uploadBytes: null,
+        downloadBytes: null,
+        quality: 'missing',
+        source: null,
+        coverage: 0,
+        isInProgress: false,
+        reasons: ['no-data'],
+      })
+    }
+    else {
+      // Valid historical day
+      dailyRows.push({
+        date,
+        uploadBytes: 1000 * (i + 1),
+        downloadBytes: 2000 * (i + 1),
+        quality: 'complete',
+        source: 'metric-delta',
+        coverage: 1.0,
+        isInProgress: false,
+        reasons: [],
+      })
+    }
+  }
+  aggregatesByEntity.set(entityId, dailyRows)
+
+  const vm = buildTrafficTrendViewModel(aggregatesByEntity, dates30, [entityId])
+  assert.strictEqual(vm.days.length, 30)
+  // First 18 days must be null, NOT zero!
+  for (let i = 0; i < 18; i++) {
+    assert.strictEqual(vm.days[i]!.totalBytes, null, `Day ${i} must have totalBytes=null, not 0`)
+    assert.strictEqual(vm.days[i]!.quality, 'missing')
+  }
+  // Last 12 days must have real traffic totals
+  for (let i = 18; i < 30; i++) {
+    assert.strictEqual(vm.days[i]!.totalBytes, 3000 * (i + 1))
+    assert.strictEqual(vm.days[i]!.quality, 'complete')
+  }
+  // Message must show explicit coverage
+  assert.strictEqual(vm.message, '历史覆盖 12 / 30 天')
+
+  console.log('✓ Section 28 & 30: 30D traffic range and partial coverage label tests pass')
+}
+
 console.log('All traffic tests passed successfully!')
+

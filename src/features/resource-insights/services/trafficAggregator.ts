@@ -59,7 +59,7 @@ export interface DailyTrafficAggregate extends ZonedDayWindow {
   reasons: TrafficReason[]
 }
 
-interface CivilDate {
+export interface CivilDate {
   year: number
   month: number
   day: number
@@ -125,11 +125,11 @@ function parseDate(date: string): CivilDate {
   return civil
 }
 
-function civilOrdinal(civil: CivilDate): number {
+export function civilOrdinal(civil: CivilDate): number {
   return Date.UTC(civil.year, civil.month - 1, civil.day) / DAY_MS
 }
 
-function civilAt(epochMs: number, timeZone: string): CivilDate {
+export function civilAt(epochMs: number, timeZone: string): CivilDate {
   const parts = getDateFormatter(timeZone).formatToParts(new Date(epochMs))
   const values = new Map(parts.map(part => [part.type, part.value]))
   return {
@@ -148,8 +148,63 @@ function addCivilDays(civil: CivilDate, days: number): CivilDate {
   }
 }
 
-function formatCivil(civil: CivilDate): string {
+export function formatCivil(civil: CivilDate): string {
   return `${civil.year.toString().padStart(4, '0')}-${civil.month.toString().padStart(2, '0')}-${civil.day.toString().padStart(2, '0')}`
+}
+
+export function getLastDayOfMonth(year: number, monthIndex: number): number {
+  return new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate()
+}
+
+export interface ResetWindowInfo {
+  startDate: string
+  endDate: string
+  diffDays: number
+  resetDay: number
+}
+
+export function calculateResetWindow(
+  resetDay: number,
+  now = new Date(),
+  timeZone: AnalyticsTimeZone = 'browser',
+  browserTimeZone?: string,
+): ResetWindowInfo {
+  const resolvedTimeZone = resolveAnalyticsTimeZone(timeZone, browserTimeZone)
+  const today = civilAt(now.getTime(), resolvedTimeZone)
+
+  let resetYear = today.year
+  let resetMonth = today.month // 1-based (1..12)
+
+  if (today.day < resetDay) {
+    resetMonth -= 1
+    if (resetMonth < 1) {
+      resetMonth = 12
+      resetYear -= 1
+    }
+  }
+
+  const maxDayInResetMonth = getLastDayOfMonth(resetYear, resetMonth - 1)
+  const effectiveResetDay = Math.min(resetDay, maxDayInResetMonth)
+
+  const startCivil: CivilDate = {
+    year: resetYear,
+    month: resetMonth,
+    day: effectiveResetDay,
+  }
+
+  const startDate = formatCivil(startCivil)
+  const endDate = formatCivil(today)
+
+  const startOrdinal = civilOrdinal(startCivil)
+  const todayOrdinal = civilOrdinal(today)
+  const diffDays = Math.max(1, todayOrdinal - startOrdinal + 1)
+
+  return {
+    startDate,
+    endDate,
+    diffDays,
+    resetDay: effectiveResetDay,
+  }
 }
 
 function zonedDateBoundary(civil: CivilDate, timeZone: string): number {

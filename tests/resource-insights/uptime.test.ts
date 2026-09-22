@@ -747,7 +747,75 @@ function createMockNode(overrides: Partial<NodeData> = {}): NodeData {
   console.log('✓ Section 47 passed: missing packet-loss point remains null/gap, genuine 100% preserved')
 }
 
+// ---------------------------------------------------------------------------
+// Section 16: Test E — healthy sampling jitter (no false ~92% downtime)
+// ---------------------------------------------------------------------------
+{
+  console.log('\n[Section 16] Test E — healthy sampling jitter')
+  const node = createMockNode({ name: 'Jitter-Node', online: true })
+
+  // 720 buckets of 3600s (30 days)
+  // Counts vary between 54 and 60 samples per bucket (normal network/sampling jitter)
+  // This must NOT cause ~92% uptime! It must remain 100.00%!
+  const points: NormalizedMetricPoint[] = []
+  const startTime = now.getTime() - SECONDS_30_DAYS * 1000
+
+  for (let h = 0; h < 720; h++) {
+    const t = new Date(startTime + h * 3600 * 1000).toISOString()
+    // Sample jitter between 54 and 60
+    const count = 54 + (h % 7) // 54, 55, 56, 57, 58, 59, 60
+    points.push({ time: t, value: 5.0, count })
+  }
+
+  const series: NormalizedMetricSeries = {
+    entityId: node.uuid,
+    metricKey: 'cpu.usage',
+    intervalSeconds: 3600,
+    retentionDays: 30,
+    points,
+  }
+
+  const res = calculateNode30dUptime(node, { kind: 'metrics', series }, now)
+  assert.strictEqual(res.uptimeRatio, 1.0, `Uptime ratio must be 1.0, got ${res.uptimeRatio}`)
+  assert.strictEqual(res.uptimeText, '100.00%', `Uptime text must be 100.00%, got ${res.uptimeText}`)
+  assert.strictEqual(res.diagnostics?.offlineSeconds, 0, 'Offline seconds must be 0')
+  console.log(`✓ Section 16 Test E passed: healthy sampling jitter preserved 100.00% uptime without ~92% bug`)
+}
+
+// ---------------------------------------------------------------------------
+// Section 16: Test F — 30-day node with zero known outages
+// ---------------------------------------------------------------------------
+{
+  console.log('\n[Section 16] Test F — 30-day node with zero known outages')
+  const node = createMockNode({ name: 'Zero-Outage-Node', online: true })
+
+  const points: NormalizedMetricPoint[] = []
+  const startTime = now.getTime() - SECONDS_30_DAYS * 1000
+
+  for (let h = 0; h < 720; h++) {
+    const t = new Date(startTime + h * 3600 * 1000).toISOString()
+    points.push({ time: t, value: 8.0, count: 60 })
+  }
+
+  const series: NormalizedMetricSeries = {
+    entityId: node.uuid,
+    metricKey: 'cpu.usage',
+    intervalSeconds: 3600,
+    retentionDays: 30,
+    points,
+  }
+
+  const res = calculateNode30dUptime(node, { kind: 'metrics', series }, now)
+  assert.strictEqual(res.uptimeText, '100.00%')
+  assert.strictEqual(res.diagnostics?.offlineSeconds, 0)
+  assert.strictEqual(res.diagnostics?.onlineSeconds, SECONDS_30_DAYS)
+  assert.strictEqual(res.diagnostics?.partialBuckets, 0)
+  assert.strictEqual(res.diagnostics?.zeroSampleObservableBuckets, 0)
+  console.log('✓ Section 16 Test F passed: zero-outage node diagnostic breakdown verified')
+}
+
 console.log('\n========================================')
 console.log('All 30-day uptime regression tests passed!')
 console.log('========================================')
+
 

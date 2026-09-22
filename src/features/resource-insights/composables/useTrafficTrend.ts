@@ -8,7 +8,12 @@ import {
   buildRecentNaturalDayKeys,
   type DailyTrafficAggregate,
 } from '../services/trafficAggregator'
-import { buildTrafficTrendViewModel, canRequestSinceReset } from '../services/trafficTrend'
+import {
+  buildTrafficTrendViewModel,
+  calculateResetWindow,
+  canRequestSinceReset,
+  resolveNodeResetDay,
+} from '../services/trafficTrend'
 import {
   buildTrafficTrendCacheKey,
   readTrafficTrendCache,
@@ -49,23 +54,27 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
     return canRequestSinceReset(selectedEntity.value, selectedNode.value)
   })
 
+  const resetWindow = computed(() => {
+    if (!selectedNode.value) return null
+    const day = resolveNodeResetDay(selectedNode.value)
+    if (!day) return null
+    return calculateResetWindow(day, new Date(), 'browser')
+  })
+
+  // Fallback to 7d if since_reset is no longer supported for selected node
+  watch(canUseSinceReset, (canUse) => {
+    if (!canUse && selectedRange.value === 'since_reset') {
+      selectedRange.value = '7d'
+    }
+  })
+
   // Determine dates based on range
   const dates = computed(() => {
-    if (selectedRange.value === 'since_reset' && selectedNode.value) {
-      const resetDay = selectedNode.value.traffic_reset_day || 1
-      const now = new Date()
-      let resetYear = now.getFullYear()
-      let resetMonth = now.getMonth()
-      if (now.getDate() < resetDay) {
-        resetMonth -= 1
-        if (resetMonth < 0) {
-          resetMonth = 11
-          resetYear -= 1
-        }
+    if (selectedRange.value === 'since_reset') {
+      if (resetWindow.value) {
+        return buildRecentNaturalDayKeys(resetWindow.value.diffDays, 'browser')
       }
-      const resetDate = new Date(resetYear, resetMonth, resetDay, 0, 0, 0, 0)
-      const diffDays = Math.max(1, Math.min(31, Math.floor((now.getTime() - resetDate.getTime()) / (24 * 60 * 60 * 1000)) + 1))
-      return buildRecentNaturalDayKeys(diffDays, 'browser')
+      return buildRecentNaturalDayKeys(7, 'browser')
     }
     const dayCount = selectedRange.value === '30d' ? 30 : 7
     return buildRecentNaturalDayKeys(dayCount, 'browser')
@@ -136,6 +145,7 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
           entityIds,
           start: queryStart,
           end: queryEnd,
+          maxPoints: selectedRange.value === '30d' ? 720 : 500,
           signal,
         })
 
@@ -207,6 +217,7 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
     selectedEntity,
     selectedRange,
     canUseSinceReset,
+    resetWindow,
     refresh: () => fetchTrend(true),
   }
 }

@@ -5,6 +5,33 @@ import { buildObservationTimeline, type ObservationTimeline } from './observatio
 export const SECONDS_30_DAYS = 30 * 24 * 3600
 export const MAX_HEARTBEAT_GAP_SECONDS = 300 // 5 minutes
 
+export interface UptimeDiagnostics {
+  nodeUuid: string
+  rangeStart: number
+  rangeEnd: number
+  requestedSeconds: number
+
+  retentionStart: number | null
+  retentionCoveredSeconds: number
+
+  observerBlackoutSeconds: number
+  observableSeconds: number
+
+  expectedHealthyCount: number | null
+
+  totalBuckets: number
+  observableBuckets: number
+  unobservedBuckets: number
+  partialBuckets: number
+  zeroSampleObservableBuckets: number
+
+  onlineSeconds: number
+  offlineSeconds: number
+
+  uptimeRatio: number | null
+  monitoringCoverageRatio: number
+}
+
 export interface NodeUptime30d {
   uuid: string
   name: string
@@ -22,6 +49,7 @@ export interface NodeUptime30d {
   source: 'metrics' | 'legacy' | 'unavailable'
   status: 'complete' | 'partial' | 'unavailable'
   isOnline: boolean
+  diagnostics?: UptimeDiagnostics
 }
 
 export interface FleetUptime30d {
@@ -140,12 +168,29 @@ export function calculateNode30dUptimeFromMetrics(
     if (idx >= 0) startIdx = idx
   }
 
-  // 3. Estimate expected healthy sample count dynamically using median of positive counts
+  // 3. Estimate expected healthy sample count dynamically using median of positive counts.
+  // Exclude first and last points (boundary buckets) and blackout buckets to avoid skewing baseline.
   const positiveCounts: number[] = []
   for (let i = 0; i < points.length; i++) {
-    const c = points[i]!.count
+    if (points.length > 2 && (i === 0 || i === points.length - 1)) {
+      continue
+    }
+    const p = points[i]!
+    const bucketStartMs = Date.parse(p.time)
+    if (timeline && timeline.isBlackout(bucketStartMs)) {
+      continue
+    }
+    const c = p.count
     if (typeof c === 'number' && c > 0) {
       positiveCounts.push(c)
+    }
+  }
+  if (positiveCounts.length === 0) {
+    for (let i = 0; i < points.length; i++) {
+      const c = points[i]!.count
+      if (typeof c === 'number' && c > 0) {
+        positiveCounts.push(c)
+      }
     }
   }
   positiveCounts.sort((a, b) => a - b)
@@ -155,6 +200,10 @@ export function calculateNode30dUptimeFromMetrics(
   let onlineSeconds = 0
   let observedSeconds = 0
   let controllerBlackoutSeconds = 0
+  let observableBuckets = 0
+  let unobservedBuckets = 0
+  let partialBuckets = 0
+  let zeroSampleObservableBuckets = 0
 
   for (let i = startIdx; i < points.length; i++) {
     const p = points[i]!
@@ -173,16 +222,40 @@ export function calculateNode30dUptimeFromMetrics(
     // Exclude bucket from both numerator and denominator!
     if (timeline && timeline.isBlackout(bucketStartMs)) {
       controllerBlackoutSeconds += effectiveBucketSeconds
+      unobservedBuckets++
       continue
     }
+
+    observableBuckets++
 
     const actualCount = typeof p.count === 'number'
       ? p.count
       : (p.value !== null ? 1 : 0)
 
-    const onlineFraction = expectedCount > 0
-      ? Math.max(0, Math.min(1, actualCount / expectedCount))
-      : (p.value !== null ? 1 : 0)
+    if (actualCount === 0) {
+      zeroSampleObservableBuckets++
+    }
+
+    // Scale expected count for partial bucket duration
+    const bucketRatio = bucketSeconds > 0 ? Math.min(1, effectiveBucketSeconds / bucketSeconds) : 1
+    const bucketExpectedCount = expectedCount > 0 ? expectedCount * bucketRatio : 0
+    // Allow small sampling jitter (>= 85% of expected count) without penalizing uptime
+    const jitterThreshold = bucketExpectedCount * 0.85
+
+    let onlineFraction: number
+    if (actualCount >= jitterThreshold && bucketExpectedCount > 0) {
+      onlineFraction = 1
+    }
+    else if (bucketExpectedCount > 0) {
+      onlineFraction = Math.max(0, Math.min(1, actualCount / bucketExpectedCount))
+    }
+    else {
+      onlineFraction = p.value !== null ? 1 : 0
+    }
+
+    if (onlineFraction > 0 && onlineFraction < 1) {
+      partialBuckets++
+    }
 
     onlineSeconds += effectiveBucketSeconds * onlineFraction
     observedSeconds += effectiveBucketSeconds
@@ -196,10 +269,14 @@ export function calculateNode30dUptimeFromMetrics(
     if (tailGapSeconds > 0) {
       if (timeline && timeline.isBlackout(lastBucketEndMs)) {
         controllerBlackoutSeconds += tailGapSeconds
+        unobservedBuckets++
       } else {
         observedSeconds += tailGapSeconds
+        observableBuckets++
         if (isOnline) {
           onlineSeconds += tailGapSeconds
+        } else {
+          zeroSampleObservableBuckets++
         }
         // If !isOnline, 0 credited: counts as confirmed downtime!
       }
@@ -236,6 +313,35 @@ export function calculateNode30dUptimeFromMetrics(
     ? `${(uptimeRatio * 100).toFixed(2)}%`
     : '--'
 
+  const offlineSeconds = Math.max(0, observedSeconds - onlineSeconds)
+  const diagnostics: UptimeDiagnostics = {
+    nodeUuid: node.uuid,
+    rangeStart: windowStartMs,
+    rangeEnd: windowEndMs,
+    requestedSeconds,
+    retentionStart: startEvaluateMs,
+    retentionCoveredSeconds: Math.max(0, requestedSeconds - retentionUncoveredSeconds),
+    observerBlackoutSeconds: controllerBlackoutSeconds,
+    observableSeconds: observedSeconds,
+    expectedHealthyCount: expectedCount > 0 ? expectedCount : null,
+    totalBuckets: points.length,
+    observableBuckets,
+    unobservedBuckets,
+    partialBuckets,
+    zeroSampleObservableBuckets,
+    onlineSeconds,
+    offlineSeconds,
+    uptimeRatio,
+    monitoringCoverageRatio,
+  }
+
+  if (typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production') {
+    // eslint-disable-next-line no-console
+    console.debug(
+      `[Uptime30d] node=${node.name} requested=${requestedSeconds}s retention=${diagnostics.retentionCoveredSeconds}s observer_blackout=${controllerBlackoutSeconds}s observable=${observedSeconds}s online=${onlineSeconds}s offline=${offlineSeconds}s coverage=${coverageRatio.toFixed(3)} expected_count=${expectedCount} uptime=${uptimeText}`,
+    )
+  }
+
   return {
     uuid: node.uuid,
     name: node.name,
@@ -253,6 +359,7 @@ export function calculateNode30dUptimeFromMetrics(
     source: 'metrics',
     status,
     isOnline,
+    diagnostics,
   }
 }
 
@@ -317,6 +424,9 @@ export function calculateNode30dUptimeFromRecords(
   let onlineSeconds = 0
   let observedSeconds = 0
   let controllerBlackoutSeconds = 0
+  let partialBuckets = 0
+  let unobservedBuckets = 0
+  let observableBuckets = 0
 
   for (let i = 1; i < validRecords.length; i++) {
     const prev = validRecords[i - 1]!
@@ -326,15 +436,19 @@ export function calculateNode30dUptimeFromRecords(
     if (gapSeconds > 0) {
       if (timeline && timeline.isBlackout(prev.atMs)) {
         controllerBlackoutSeconds += gapSeconds
+        unobservedBuckets++
       }
       else if (gapSeconds <= maxAllowedGap) {
         onlineSeconds += gapSeconds
         observedSeconds += gapSeconds
+        observableBuckets++
       }
       else {
         // Outage occurred: credit cadence, remainder is downtime
         onlineSeconds += Math.min(gapSeconds, cadence)
         observedSeconds += gapSeconds
+        observableBuckets++
+        partialBuckets++
       }
     }
   }
@@ -344,15 +458,18 @@ export function calculateNode30dUptimeFromRecords(
   if (tailGapSeconds > 0) {
     if (timeline && timeline.isBlackout(lastMs)) {
       controllerBlackoutSeconds += tailGapSeconds
+      unobservedBuckets++
     }
     else {
       observedSeconds += tailGapSeconds
+      observableBuckets++
       if (isOnline) {
         if (tailGapSeconds <= maxAllowedGap) {
           onlineSeconds += tailGapSeconds
         }
         else {
           onlineSeconds += Math.min(tailGapSeconds, cadence)
+          partialBuckets++
         }
       }
       // If !isOnline, 0 credited: counts as confirmed downtime!
@@ -388,6 +505,28 @@ export function calculateNode30dUptimeFromRecords(
     ? `${(uptimeRatio * 100).toFixed(2)}%`
     : '--'
 
+  const offlineSeconds = Math.max(0, observedSeconds - onlineSeconds)
+  const diagnostics: UptimeDiagnostics = {
+    nodeUuid: node.uuid,
+    rangeStart: windowStartMs,
+    rangeEnd: windowEndMs,
+    requestedSeconds,
+    retentionStart: firstMs,
+    retentionCoveredSeconds: rawCoveredSeconds,
+    observerBlackoutSeconds: controllerBlackoutSeconds,
+    observableSeconds: observedSeconds,
+    expectedHealthyCount: null,
+    totalBuckets: validRecords.length,
+    observableBuckets,
+    unobservedBuckets,
+    partialBuckets,
+    zeroSampleObservableBuckets: 0,
+    onlineSeconds,
+    offlineSeconds,
+    uptimeRatio,
+    monitoringCoverageRatio,
+  }
+
   return {
     uuid: node.uuid,
     name: node.name,
@@ -405,6 +544,7 @@ export function calculateNode30dUptimeFromRecords(
     source: 'legacy',
     status,
     isOnline,
+    diagnostics,
   }
 }
 

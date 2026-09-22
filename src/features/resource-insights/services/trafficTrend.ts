@@ -123,21 +123,44 @@ export function buildTrafficTrendViewModel(
   const missingDays = days.filter(day => day.totalBytes === null).length
   const availableDays = days.length - missingDays
 
+  let message = `采集：${availableDays}天，缺失：${missingDays}天`
+  if (dates.length === 30) {
+    message = `历史覆盖 ${availableDays} / 30 天`
+  }
+
   return {
     state: days.every(day => day.uploadBytes === null && day.downloadBytes === null) ? 'empty' : 'ready',
     days,
-    message: `采集：${availableDays}天，缺失：${missingDays}天`,
+    message,
   }
+}
+
+export { calculateResetWindow, type ResetWindowInfo } from './trafficAggregator'
+
+export function resolveNodeResetDay(node: any): number | null {
+  if (!node || typeof node !== 'object')
+    return null
+  const raw = node.traffic_reset_day
+    ?? node.month_rotate
+    ?? node.monthRotate
+    ?? node.trafficResetDay
+  if (typeof raw === 'number' && Number.isInteger(raw) && raw >= 1 && raw <= 31) {
+    return raw
+  }
+  if (typeof raw === 'string') {
+    const parsed = parseInt(raw, 10)
+    if (Number.isInteger(parsed) && parsed >= 1 && parsed <= 31) {
+      return parsed
+    }
+  }
+  return null
 }
 
 export function canRequestSinceReset(
   selectedEntity: string,
-  selectedNode: { traffic_limit?: number; traffic_reset_day?: number } | null,
+  selectedNode: any,
 ): boolean {
   if (selectedEntity === 'all' || !selectedNode)
     return false
-  return Boolean(
-    (selectedNode.traffic_limit && selectedNode.traffic_limit > 0)
-    || (selectedNode.traffic_reset_day && selectedNode.traffic_reset_day > 0),
-  )
+  return resolveNodeResetDay(selectedNode) !== null
 }
