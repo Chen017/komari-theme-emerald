@@ -14,7 +14,6 @@ const props = defineProps<{
 const activeFilter = ref<RenewalFilter>('30d')
 
 const filterOptions: Array<{ value: RenewalFilter, label: string }> = [
-  { value: '7d', label: '7 天内' },
   { value: '30d', label: '30 天内' },
   { value: '90d', label: '90 天内' },
   { value: 'expired', label: '已过期' },

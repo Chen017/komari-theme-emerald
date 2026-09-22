@@ -221,9 +221,6 @@ describe('cost-renewal calculations', () => {
     ] as any
 
     it('filters correctly by filter option', () => {
-      assert.equal(filterRenewalNodes(nodes, '7d').length, 1)
-      assert.equal(filterRenewalNodes(nodes, '7d')[0].uuid, 'soon')
-
       assert.equal(filterRenewalNodes(nodes, '30d').length, 1)
       assert.equal(filterRenewalNodes(nodes, '90d').length, 2)
       assert.equal(filterRenewalNodes(nodes, 'expired').length, 1)

@@ -1,7 +1,7 @@
 import type { CurrencyCode, ExchangeRates, ExchangeRateSource } from '@/utils/financeHelper'
 import type { ExpireStatus } from '@/utils/tagHelper'
 
-export type RenewalFilter = 'all' | '7d' | '30d' | '90d' | 'expired' | 'no_expiry'
+export type RenewalFilter = 'all' | '30d' | '90d' | 'expired' | 'no_expiry'
 
 export interface NormalizedNodeCost {
   uuid: string

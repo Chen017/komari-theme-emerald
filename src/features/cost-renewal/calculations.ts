@@ -198,8 +198,6 @@ export function filterRenewalNodes(
 ): NormalizedNodeCost[] {
   return nodes.filter((node) => {
     switch (filter) {
-      case '7d':
-        return node.daysUntilExpiry !== null && node.daysUntilExpiry >= 0 && node.daysUntilExpiry <= 7
       case '30d':
         return node.daysUntilExpiry !== null && node.daysUntilExpiry >= 0 && node.daysUntilExpiry <= 30
       case '90d':
