@@ -6,6 +6,7 @@ import type {
 } from './trafficAggregator'
 import type { TrafficTrendAvailability } from './trafficTrendAvailability'
 import type { HistoryFailureKind } from './historyErrorPolicy'
+import { resolveTrafficResetDay } from './trafficResetConfig'
 
 export type TrafficRange = '7d' | '30d' | 'since_reset'
 export type TrafficTrendState = 'idle' | 'loading' | 'ready' | 'empty' | 'unsupported' | 'error'
@@ -137,9 +138,20 @@ export function buildTrafficTrendViewModel(
 
 export { calculateResetWindow, type ResetWindowInfo } from './trafficAggregator'
 
-export function resolveNodeResetDay(node: any): number | null {
+export {
+  extractResetDayFromTags,
+  resolveTrafficResetDay,
+  type TrafficResetConfigResult,
+  type TrafficResetSettings,
+} from './trafficResetConfig'
+
+export function resolveNodeResetDay(node: any, settings?: any): number | null {
   if (!node || typeof node !== 'object')
     return null
+  const config = resolveTrafficResetDay(node, settings)
+  if (config.day !== null) {
+    return config.day
+  }
   const raw = node.traffic_reset_day
     ?? node.month_rotate
     ?? node.monthRotate
@@ -159,8 +171,9 @@ export function resolveNodeResetDay(node: any): number | null {
 export function canRequestSinceReset(
   selectedEntity: string,
   selectedNode: any,
+  settings?: any,
 ): boolean {
   if (selectedEntity === 'all' || !selectedNode)
     return false
-  return resolveNodeResetDay(selectedNode) !== null
+  return resolveNodeResetDay(selectedNode, settings) !== null
 }

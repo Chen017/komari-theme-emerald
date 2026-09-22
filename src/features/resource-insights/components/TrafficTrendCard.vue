@@ -27,6 +27,7 @@ const {
   refresh,
 } = useTrafficTrend({
   nodes: () => props.nodes,
+  settings: () => appStore.publicSettings?.theme_settings,
 })
 
 const rangeOptions: Array<{ value: TrafficRange, label: string }> = [
@@ -40,7 +41,7 @@ function getRangeTooltip(val: TrafficRange): string {
     if (selectedEntity.value === 'all')
       return '全部节点无法统一按重置日汇总'
     if (!canUseSinceReset.value)
-      return '无法确定该节点的流量重置日'
+      return '该节点未配置流量重置日\n可在节点 Tag 中添加 <TRD:18>'
     if (resetWindow.value)
       return `${resetWindow.value.startDate} – ${resetWindow.value.endDate} (重置日: 每月 ${resetWindow.value.resetDay} 日)`
     return '自上次重置日'

@@ -26,6 +26,7 @@ const requestPool = createTrafficTrendRequestPool<DailyTrafficAggregate[]>()
 
 export interface UseTrafficTrendOptions {
   nodes: () => readonly NodeData[]
+  settings?: () => any
 }
 
 export function useTrafficTrend(options: UseTrafficTrendOptions) {
@@ -51,12 +52,12 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
   })
 
   const canUseSinceReset = computed(() => {
-    return canRequestSinceReset(selectedEntity.value, selectedNode.value)
+    return canRequestSinceReset(selectedEntity.value, selectedNode.value, options.settings?.())
   })
 
   const resetWindow = computed(() => {
     if (!selectedNode.value) return null
-    const day = resolveNodeResetDay(selectedNode.value)
+    const day = resolveNodeResetDay(selectedNode.value, options.settings?.())
     if (!day) return null
     return calculateResetWindow(day, new Date(), 'browser')
   })
@@ -148,6 +149,28 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
           maxPoints: selectedRange.value === '30d' ? 720 : 500,
           signal,
         })
+
+        if (result.kind === 'unavailable') {
+          const failureMessage = result.reason === 'metrics-unsupported'
+            ? '当前服务不支持历史流量指标'
+            : result.reason === 'retention-insufficient'
+              ? '历史保留时长不足'
+              : result.reason === 'no-data'
+                ? '暂无历史流量数据'
+                : '历史流量获取失败'
+          const builtSnapshot: TrafficTrendSnapshot = {
+            state: 'error',
+            days: [],
+            fetchedAt: Date.now(),
+            sourceKind: null,
+            retentionDays: null,
+            availability: 'unavailable',
+            failureKind: result.reason,
+            retryable: true,
+            message: failureMessage,
+          }
+          return builtSnapshot as any
+        }
 
         const evidence = historyResultToTrafficEvidence(result, {
           startMs: startMs - 86400000,
