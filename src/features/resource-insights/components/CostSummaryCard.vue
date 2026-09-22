@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { RenewalTimelineItem } from '@/features/cost-renewal'
 import type { NodeData } from '@/stores/nodes'
 import { Icon } from '@iconify/vue'
 import { computed, onMounted } from 'vue'
@@ -7,7 +8,6 @@ import {
   buildRenewalTimeline,
   calculateCostRenewalSummary,
   normalizeNodeCost,
-  type RenewalTimelineItem,
   useFxRates,
 } from '@/features/cost-renewal'
 

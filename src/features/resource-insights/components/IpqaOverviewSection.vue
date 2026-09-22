@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import type { NodeData } from '@/stores/nodes'
 import type { IpqaFleetOverview, IpqaSemanticChange } from '@/features/ipqa'
+import type { NodeData } from '@/stores/nodes'
 import { Icon } from '@iconify/vue'
 import { computed, onMounted, ref } from 'vue'
-import { useAppStore } from '@/stores/app'
 import {
   fetchFleetOverview,
   fetchNodeChanges,
@@ -13,6 +12,7 @@ import {
   IpqaRiskMatrix,
   RecentIpqaChanges,
 } from '@/features/ipqa'
+import { useAppStore } from '@/stores/app'
 
 const props = defineProps<{
   nodes: readonly NodeData[]
