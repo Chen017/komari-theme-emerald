@@ -188,6 +188,70 @@ const chartOption = computed(() => {
     ],
   }
 })
+const rangeSummary = computed(() => {
+  const days = trafficView.value.days
+  const state = trafficView.value.state
+  if (state === 'loading' || state === 'empty' || state === 'error' || days.length === 0) {
+    return {
+      hasData: false,
+      label: '',
+      down: 0,
+      up: 0,
+      total: 0,
+      dailyAverage: null as number | null,
+      daysCount: 0,
+    }
+  }
+
+  // If in cycle mode and cycleCumulative is available, prioritize agent cumulative
+  if (selectedRange.value === 'cycle' && cycleCumulative.value) {
+    const down = cycleCumulative.value.down
+    const up = cycleCumulative.value.up
+    const total = cycleCumulative.value.total
+    const validDays = days.filter(d => d.totalBytes !== null).length || days.length
+    return {
+      hasData: true,
+      label: '本周期累计',
+      down,
+      up,
+      total,
+      dailyAverage: validDays > 0 ? total / validDays : null,
+      daysCount: validDays,
+    }
+  }
+
+  let down = 0
+  let up = 0
+  let total = 0
+  let validDays = 0
+
+  for (const day of days) {
+    if (day.downloadBytes !== null || day.uploadBytes !== null || day.totalBytes !== null) {
+      validDays++
+      const d = day.downloadBytes ?? 0
+      const u = day.uploadBytes ?? 0
+      down += d
+      up += u
+      total += (day.totalBytes !== null ? day.totalBytes : (d + u))
+    }
+  }
+
+  const labelMap: Record<TrafficRange, string> = {
+    '7d': '近 7 天累计',
+    '30d': '近 30 天累计',
+    'cycle': '本周期累计',
+  }
+
+  return {
+    hasData: validDays > 0,
+    label: labelMap[selectedRange.value] || '区间累计',
+    down,
+    up,
+    total,
+    dailyAverage: validDays > 0 ? total / validDays : null,
+    daysCount: validDays,
+  }
+})
 </script>
 
 <template>
@@ -259,27 +323,46 @@ const chartOption = computed(() => {
       </div>
     </div>
 
-    <!-- Cycle Cumulative Banner for 本周期 -->
+    <!-- Range Cumulative Stats Banner for 7d, 30d, cycle -->
     <div
-      v-if="selectedRange === 'cycle' && cycleCumulative"
-      class="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2 text-xs border border-border/40"
+      v-if="rangeSummary.hasData && trafficView.state !== 'loading'"
+      class="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg bg-muted/40 px-3.5 py-2 text-xs border border-border/50"
     >
-      <div class="flex items-center gap-3">
-        <span class="text-muted-foreground font-medium">本周期累计:</span>
-        <span class="text-emerald-600 dark:text-emerald-400 font-semibold">↓ {{ formatBytes(cycleCumulative.down) }}</span>
-        <span class="text-sky-600 dark:text-sky-400 font-semibold">↑ {{ formatBytes(cycleCumulative.up) }}</span>
-        <span class="text-foreground font-bold">(总计 {{ formatBytes(cycleCumulative.total) }})</span>
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span class="font-medium text-muted-foreground">{{ rangeSummary.label }}:</span>
+        <div class="flex items-center gap-1.5">
+          <span class="inline-block size-2 rounded-full bg-emerald-500"></span>
+          <span class="text-muted-foreground text-[11px]">下行</span>
+          <span class="font-semibold text-emerald-600 dark:text-emerald-400">{{ formatBytes(rangeSummary.down) }}</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="inline-block size-2 rounded-full bg-sky-500"></span>
+          <span class="text-muted-foreground text-[11px]">上行</span>
+          <span class="font-semibold text-sky-600 dark:text-sky-400">{{ formatBytes(rangeSummary.up) }}</span>
+        </div>
+        <div class="flex items-center gap-1.5 pl-2 border-l border-border/70">
+          <span class="text-muted-foreground text-[11px]">总量</span>
+          <span class="font-bold text-foreground text-[13px]">{{ formatBytes(rangeSummary.total) }}</span>
+        </div>
       </div>
-      <div class="flex items-center gap-2 text-muted-foreground text-[11px]">
-        <span v-if="resetWindow">
-          周期: {{ resetWindow.resetStartText }} → {{ resetWindow.endDate.slice(5) }}
-          <span v-if="resetWindow.isFallbackTimezone" class="text-amber-600 dark:text-amber-400" title="未配置重置时区，当前按 Asia/Shanghai 计算">
-            (Asia/Shanghai)
+
+      <div class="flex items-center gap-2 text-[11px] text-muted-foreground">
+        <template v-if="selectedRange === 'cycle' && resetWindow">
+          <span>
+            周期: {{ resetWindow.resetStartText }} → {{ resetWindow.endDate.slice(5) }}
+            <span v-if="resetWindow.isFallbackTimezone" class="text-amber-600 dark:text-amber-400" title="未配置重置时区，当前按 Asia/Shanghai 计算">
+              (Asia/Shanghai)
+            </span>
+            <span v-else-if="resetWindow.resetTimezone !== 'Asia/Shanghai'" class="opacity-75">
+              ({{ resetWindow.resetTimezone }})
+            </span>
           </span>
-          <span v-else-if="resetWindow.resetTimezone !== 'Asia/Shanghai'" class="opacity-75">
-            ({{ resetWindow.resetTimezone }})
-          </span>
-        </span>
+        </template>
+        <template v-else-if="rangeSummary.dailyAverage !== null">
+          <span>日均: <strong class="text-foreground/80 font-medium">{{ formatBytes(rangeSummary.dailyAverage) }}</strong></span>
+          <span class="text-border">·</span>
+          <span>{{ rangeSummary.daysCount }} 天统计</span>
+        </template>
       </div>
     </div>
 
