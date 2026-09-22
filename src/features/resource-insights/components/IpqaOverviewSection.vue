@@ -21,6 +21,7 @@ const props = defineProps<{
 const loading = ref(false)
 const overview = ref<IpqaFleetOverview | null>(null)
 const recentChanges = ref<Array<IpqaSemanticChange & { nodeName: string }>>([])
+const isPluginAvailable = ref<boolean | null>(null)
 
 async function loadData() {
   loading.value = true
@@ -28,6 +29,7 @@ async function loadData() {
     const data = await fetchFleetOverview()
     if (data) {
       overview.value = data
+      isPluginAvailable.value = true
       // Collect recent changes across nodes
       const allChanges: Array<IpqaSemanticChange & { nodeName: string }> = []
       for (const node of data.nodes) {
@@ -47,6 +49,7 @@ async function loadData() {
       recentChanges.value = allChanges.slice(0, 15)
     }
     else {
+      isPluginAvailable.value = false
       // Fallback synthetic overview from current nodes list if plugin not yet synced
       overview.value = {
         schema_version: 1,
@@ -73,6 +76,7 @@ async function loadData() {
   }
   catch (err) {
     console.warn('[IPQA] Failed to load IPQA overview:', err)
+    isPluginAvailable.value = false
   }
   finally {
     loading.value = false
@@ -131,11 +135,36 @@ const hasIpqaData = computed(() => {
     </div>
 
     <!-- 1. Fleet Summary Strip -->
-    <IpqaFleetSummary v-if="overview" :overview="overview" />
+    <IpqaFleetSummary v-if="overview && isPluginAvailable !== false" :overview="overview" />
 
-    <!-- Notice if plugin has no data yet -->
+    <!-- Notice if plugin is not detected -->
     <div
-      v-if="!hasIpqaData"
+      v-if="isPluginAvailable === false"
+      class="py-8 px-4 rounded-xl bg-neutral-50/50 dark:bg-neutral-800/20 border border-dashed border-neutral-200 dark:border-neutral-800 text-center"
+    >
+      <div class="p-3 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 w-fit mx-auto mb-3">
+        <Icon icon="lucide:plug-zap" class="w-8 h-8" />
+      </div>
+      <div class="text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+        未检测到 IPQA Alert Report 插件
+      </div>
+      <p class="text-[11px] text-neutral-400 dark:text-neutral-500 max-w-md mx-auto mb-3">
+        安装插件后可启用 IPQA 概览、风险矩阵与节点历史档案。
+      </p>
+      <a
+        href="https://github.com/Chen017/komari-plugin-ipqa-alert-report"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-medium transition-colors"
+      >
+        <Icon icon="lucide:external-link" class="w-3.5 h-3.5" />
+        <span>查看安装说明</span>
+      </a>
+    </div>
+
+    <!-- Notice if plugin is installed but has no data yet -->
+    <div
+      v-else-if="!hasIpqaData"
       class="py-6 px-4 rounded-xl bg-neutral-50/50 dark:bg-neutral-800/20 border border-dashed border-neutral-200 dark:border-neutral-800 text-center"
     >
       <Icon icon="lucide:database" class="w-8 h-8 mx-auto mb-2 text-indigo-400/60" />
@@ -148,7 +177,7 @@ const hasIpqaData = computed(() => {
     </div>
 
     <!-- 2. Node Grid -->
-    <IpqaNodeGrid v-if="overview && overview.nodes.length > 0" :nodes="overview.nodes" />
+    <IpqaNodeGrid v-if="isPluginAvailable !== false && overview && overview.nodes.length > 0" :nodes="overview.nodes" />
 
     <!-- 3. Risk & Media Matrices -->
     <div

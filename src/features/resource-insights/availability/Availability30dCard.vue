@@ -68,9 +68,18 @@ const {
       <p class="font-medium text-neutral-700 dark:text-neutral-300 mb-1">
         在线率历史不可用
       </p>
-      <p class="text-neutral-400 dark:text-neutral-500 max-w-[260px]">
-        {{ errorMessage || '需要 Availability History 插件' }}
+      <p class="text-neutral-400 dark:text-neutral-500 max-w-[260px] mb-3">
+        安装 Availability History 插件后即可开始记录精确在线率历史。
       </p>
+      <a
+        href="https://github.com/Chen017/komari-plugin-availability-history"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-medium transition-colors"
+      >
+        <Icon icon="lucide:external-link" class="w-3.5 h-3.5" />
+        <span>查看安装说明</span>
+      </a>
     </div>
 
     <!-- Error notice -->
