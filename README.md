@@ -53,12 +53,23 @@ Modern Komari theme with Resource Insights, traffic trends, exact availability, 
 
 ---
 
-## 使用
+## 安装与使用
 
-1. 从 [Release 页面](https://github.com/Chen017/komari-theme-emerald-insights/releases) 下载最新的 `komari-theme-emerald-insights-build-*.zip` 文件
-2. 登录 Komari Monitor 后，点击 `设置`，选择 `主题管理` 选项卡
-3. 点击 `上传主题` 按钮，选择下载的 `komari-theme-emerald-insights-build-*.zip` 文件
-4. 刷新页面，即可看到新的主题
+### 方式一：直接填入仓库地址安装（推荐）
+
+1. 登录 Komari Monitor 后，进入 **「设置」** -> **「主题管理」**。
+2. 点击 **「导入主题」**，在主题仓库地址中直接填入：
+   ```text
+   https://github.com/Chen017/komari-theme-emerald-insights
+   ```
+3. 点击确定，Komari 将自动拉取并安装最新版本。
+
+### 方式二：手动上传安装包
+
+1. 从 [Release 页面](https://github.com/Chen017/komari-theme-emerald-insights/releases) 下载最新的 `komari-theme-emerald-insights.zip` 文件。
+2. 登录 Komari Monitor 后，点击 **「设置」** -> **「主题管理」**。
+3. 点击 **「上传主题」** 按钮，选择下载的 `komari-theme-emerald-insights.zip` 文件。
+4. 刷新页面，即可启用新主题。
 
 ---
 
