@@ -18,16 +18,20 @@ export interface FetchAvailabilitySummaryOptions {
   days?: number
   uuids?: string[]
   signal?: AbortSignal
+  force?: boolean
 }
 
 export async function fetchAvailabilitySummary(
   options: FetchAvailabilitySummaryOptions = {},
 ): Promise<AvailabilitySummaryResponse> {
-  const { days = 30, uuids, signal } = options
+  const { days = 30, uuids, signal, force = false } = options
   const params = new URLSearchParams()
   params.set('days', String(days))
   if (uuids && uuids.length > 0) {
     params.set('uuids', uuids.join(','))
+  }
+  if (force) {
+    params.set('_t', String(Date.now()))
   }
 
   const url = `/api/plugin/availability-history/v1/summary?${params.toString()}`
@@ -39,6 +43,7 @@ export async function fetchAvailabilitySummary(
       headers: {
         Accept: 'application/json',
       },
+      cache: force ? 'no-cache' : 'default',
       signal,
     })
   }

@@ -15,6 +15,10 @@ const {
 } = useAvailability30d({
   nodes: () => props.nodes,
 })
+
+defineExpose({
+  refresh,
+})
 </script>
 
 <template>
@@ -42,19 +46,6 @@ const {
           </p>
         </div>
       </div>
-
-      <button
-        class="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-        title="刷新在线率"
-        :disabled="state === 'loading'"
-        @click="refresh"
-      >
-        <Icon
-          icon="lucide:refresh-cw"
-          class="w-4 h-4"
-          :class="{ 'animate-spin': state === 'loading' }"
-        />
-      </button>
     </div>
 
     <!-- Plugin Missing / Unsupported Notice -->

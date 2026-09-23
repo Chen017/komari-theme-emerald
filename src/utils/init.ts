@@ -394,6 +394,31 @@ class InitManager {
   }
 
   /**
+   * 手动立即刷新节点配置与最新状态
+   */
+  async refreshNodes(): Promise<void> {
+    try {
+      const [, clientsResult, statusesResult] = await Promise.all([
+        this.rpc.ping().catch(() => null),
+        this.rpc.getNodes() as Promise<Record<string, Client>>,
+        this.rpc.getNodesLatestStatus() as Promise<Record<string, NodeStatus>>,
+      ])
+
+      if (clientsResult) {
+        this.nodesStore.updateNodeClients(clientsResult)
+      }
+      if (statusesResult) {
+        this.nodesStore.updateNodeStatuses(statusesResult)
+      }
+      this.appStore.connectionError = false
+    }
+    catch (error) {
+      console.error('[InitManager] Failed to refresh nodes:', error)
+      throw error
+    }
+  }
+
+  /**
    * 停止轮询
    */
   stopPolling(): void {
@@ -449,3 +474,14 @@ export function destroyInitManager(): void {
     initManager = null
   }
 }
+
+/**
+ * 全局刷新节点数据与最新状态
+ */
+export async function refreshAllNodes(): Promise<void> {
+  const manager = getInitManager()
+  if (manager) {
+    await manager.refreshNodes()
+  }
+}
+

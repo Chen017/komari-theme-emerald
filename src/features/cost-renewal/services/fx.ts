@@ -40,11 +40,11 @@ export function useFxRates() {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  async function fetchRates() {
+  async function fetchRates(force = false) {
     loading.value = true
     error.value = null
     try {
-      const result = await getDailyExchangeRates()
+      const result = await getDailyExchangeRates(force)
       rates.value = result.rates
       source.value = result.source
       date.value = getTodayDateKey()

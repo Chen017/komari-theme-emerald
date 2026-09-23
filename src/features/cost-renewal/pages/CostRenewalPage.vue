@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useNodesStore } from '@/stores/nodes'
+import { refreshAllNodes } from '@/utils/init'
 import { calculateCostRenewalSummary, normalizeNodeCost } from '../calculations'
 import CostSummaryCards from '../components/CostSummaryCards.vue'
 import NodeCostTable from '../components/NodeCostTable.vue'
@@ -13,6 +14,23 @@ defineOptions({ name: 'CostRenewalPage' })
 
 const nodesStore = useNodesStore()
 const { rates, source, date, loading: fxLoading, sourceLabel, fetchRates } = useFxRates()
+const refreshing = ref(false)
+
+async function handleRefresh() {
+  if (refreshing.value || fxLoading.value) return
+  refreshing.value = true
+  const minDelay = new Promise(resolve => setTimeout(resolve, 600))
+  try {
+    await Promise.allSettled([
+      fetchRates(true),
+      refreshAllNodes(),
+      minDelay,
+    ])
+  }
+  finally {
+    refreshing.value = false
+  }
+}
 
 onMounted(() => {
   void fetchRates()
@@ -67,15 +85,15 @@ const summary = computed(() =>
         </div>
         <button
           type="button"
-          class="ml-1 rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
-          :disabled="fxLoading"
-          title="刷新汇率"
-          @click="fetchRates"
+          class="ml-1 rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50 cursor-pointer"
+          :disabled="refreshing || fxLoading"
+          title="刷新汇率与节点成本数据"
+          @click="handleRefresh"
         >
           <Icon
             icon="lucide:refresh-cw"
             class="size-3.5"
-            :class="fxLoading ? 'animate-spin' : ''"
+            :class="refreshing || fxLoading ? 'animate-spin' : ''"
           />
         </button>
       </div>

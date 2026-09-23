@@ -68,6 +68,15 @@ function komariThemeZip(): Plugin {
           const sizeMB = (archive.pointer() / 1024 / 1024).toFixed(2)
           console.log(`[komari-theme-zip] Created ${zipFileName} (${sizeMB} MB)`)
 
+          // Update canonical release zip
+          const canonicalZip = resolve(__dirname, 'komari-theme-emerald-insights.zip')
+          try {
+            fs.copyFileSync(outputPath, canonicalZip)
+            console.log(`[komari-theme-zip] Updated canonical zip: ${canonicalZip}`)
+          } catch (err) {
+            console.error('[komari-theme-zip] Failed to copy canonical zip:', err)
+          }
+
           // Push to Desktop
           const desktopDir = resolve(process.env.USERPROFILE || 'C:\\Users\\y2hlb', 'Desktop')
           if (existsSync(desktopDir)) {

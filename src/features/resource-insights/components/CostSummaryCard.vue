@@ -21,6 +21,10 @@ onMounted(() => {
   void fetchRates()
 })
 
+defineExpose({
+  refresh: () => fetchRates(true),
+})
+
 const summary = computed(() =>
   calculateCostRenewalSummary(
     props.nodes,

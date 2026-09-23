@@ -25,12 +25,13 @@ export function formatCoverageDays(seconds: number): string {
 
 export function useAvailability30d(options: UseAvailability30dOptions) {
   const loadState = ref<AvailabilityLoadState>('idle')
+  const refreshing = ref(false)
   const errorMessage = ref<string>('')
   const summaryResponse = ref<AvailabilitySummaryResponse | null>(null)
   let timerId: ReturnType<typeof setInterval> | null = null
   let abortController: AbortController | null = null
 
-  async function loadData() {
+  async function loadData(force = false) {
     abortController?.abort()
     abortController = new AbortController()
 
@@ -44,6 +45,7 @@ export function useAvailability30d(options: UseAvailability30dOptions) {
       const res = await fetchAvailabilitySummary({
         days: 30,
         uuids,
+        force,
         signal: abortController.signal,
       })
       summaryResponse.value = res
@@ -147,8 +149,15 @@ export function useAvailability30d(options: UseAvailability30dOptions) {
     }
   })
 
-  function refresh() {
-    return loadData()
+  async function refresh(force = true): Promise<void> {
+    if (refreshing.value) return
+    refreshing.value = true
+    try {
+      await loadData(force)
+    }
+    finally {
+      refreshing.value = false
+    }
   }
 
   watch(
@@ -173,6 +182,7 @@ export function useAvailability30d(options: UseAvailability30dOptions) {
 
   return {
     state: loadState,
+    refreshing,
     errorMessage,
     fleetView,
     refresh,

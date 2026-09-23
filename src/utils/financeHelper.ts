@@ -282,14 +282,14 @@ export function formatFinanceAmount(amount: number, currency: CurrencyCode): {
   }
 }
 
-export async function getDailyExchangeRates(): Promise<{
+export async function getDailyExchangeRates(force = false): Promise<{
   rates: ExchangeRates
   source: ExchangeRateSource
 }> {
   const today = getTodayDateKey()
   const cached = readCachedExchangeRates()
 
-  if (cached && cached.date === today) {
+  if (!force && cached && cached.date === today) {
     return {
       rates: cached.rates,
       source: 'cache',
@@ -333,7 +333,9 @@ function getPriceCNY(node: NodeData, exchangeRates: ExchangeRates): number {
 async function fetchExchangeRates(): Promise<ExchangeRates | null> {
   for (const api of EXCHANGE_RATE_APIS) {
     try {
-      const response = await fetchWithTimeout(api.url)
+      const sep = api.url.includes('?') ? '&' : '?'
+      const url = `${api.url}${sep}_t=${Date.now()}`
+      const response = await fetchWithTimeout(url)
       if (!response.ok)
         continue
 
@@ -355,7 +357,7 @@ export async function fetchWithTimeout(url: string, timeoutMs = 5000): Promise<R
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
 
   try {
-    return await fetch(url, { signal: controller.signal })
+    return await fetch(url, { signal: controller.signal, cache: 'no-cache' })
   }
   finally {
     window.clearTimeout(timeoutId)

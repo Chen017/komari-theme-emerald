@@ -32,6 +32,10 @@ const {
   settings: () => appStore.publicSettings?.theme_settings,
 })
 
+defineExpose({
+  refresh,
+})
+
 const rangeOptions: Array<{ value: TrafficRange, label: string }> = [
   { value: '7d', label: '7 天' },
   { value: '30d', label: '30 天' },
@@ -240,6 +244,8 @@ const rangeSummary = computed(() => {
     '7d': '近 7 天累计',
     '30d': '近 30 天累计',
     'cycle': '本周期累计',
+    'current_cycle': '本周期累计',
+    'since_reset': '重置以来累计',
   }
 
   return {
@@ -310,16 +316,6 @@ const rangeSummary = computed(() => {
             {{ opt.label }}
           </button>
         </div>
-
-        <button
-          type="button"
-          class="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
-          :disabled="trafficView.state === 'loading' || refreshing"
-          title="刷新流量数据"
-          @click="refresh"
-        >
-          <Icon icon="lucide:refresh-cw" class="size-3.5" :class="refreshing ? 'animate-spin' : ''" />
-        </button>
       </div>
     </div>
 

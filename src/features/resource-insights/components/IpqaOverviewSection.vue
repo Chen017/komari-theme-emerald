@@ -23,6 +23,10 @@ const overview = ref<IpqaFleetOverview | null>(null)
 const recentChanges = ref<Array<IpqaSemanticChange & { nodeName: string }>>([])
 const isPluginAvailable = ref<boolean | null>(null)
 
+defineExpose({
+  refresh: loadData,
+})
+
 async function loadData() {
   loading.value = true
   try {
@@ -119,19 +123,6 @@ const hasIpqaData = computed(() => {
           </p>
         </div>
       </div>
-
-      <button
-        class="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-        title="刷新 IPQA 数据"
-        :disabled="loading"
-        @click="loadData"
-      >
-        <Icon
-          icon="lucide:refresh-cw"
-          class="w-4 h-4"
-          :class="{ 'animate-spin': loading }"
-        />
-      </button>
     </div>
 
     <!-- 1. Fleet Summary Strip -->

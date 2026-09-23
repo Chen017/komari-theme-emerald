@@ -16,8 +16,11 @@ async function getJson<T>(
   rpcParams?: Record<string, unknown>,
 ): Promise<T | null> {
   try {
-    const res = await fetch(`${API_BASE}${endpoint}`, {
+    const sep = endpoint.includes('?') ? '&' : '?'
+    const url = `${API_BASE}${endpoint}${sep}_t=${Date.now()}`
+    const res = await fetch(url, {
       headers: { Accept: 'application/json' },
+      cache: 'no-cache',
     })
     if (res.ok) {
       return (await res.json()) as T
