@@ -42,7 +42,7 @@ async function handleRefreshAll() {
 <template>
   <div class="mx-auto max-w-[1280px] px-4 py-6 overflow-x-hidden space-y-6">
     <!-- Hero Header -->
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div>
         <div class="mb-2 flex items-center gap-2">
           <RouterLink
@@ -65,7 +65,7 @@ async function handleRefreshAll() {
       </div>
 
       <!-- Unified Page Refresh Button -->
-      <div class="flex items-center gap-2 self-start sm:self-auto">
+      <div class="flex items-center gap-2 self-start sm:self-end">
         <button
           type="button"
           class="inline-flex items-center gap-2 rounded-xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white/80 dark:bg-neutral-900/80 backdrop-blur px-3.5 py-2 text-xs font-medium text-neutral-700 dark:text-neutral-300 shadow-xs hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors disabled:opacity-50 cursor-pointer"
@@ -86,17 +86,17 @@ async function handleRefreshAll() {
     <!-- Top Grid: Traffic Trends (left) + 30-day Uptime (right) -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
       <div class="lg:col-span-7">
-        <TrafficTrendCard ref="trafficCardRef" :nodes="nodesStore.nodes" />
+        <TrafficTrendCard ref="trafficCardRef" :nodes="nodesStore.nodes" :loading="refreshing" />
       </div>
       <div class="lg:col-span-5">
-        <Availability30dCard ref="availabilityCardRef" :nodes="nodesStore.nodes" />
+        <Availability30dCard ref="availabilityCardRef" :nodes="nodesStore.nodes" :loading="refreshing" />
       </div>
     </div>
 
     <!-- IP Quality Section -->
-    <IpqaOverviewSection ref="ipqaSectionRef" :nodes="nodesStore.nodes" />
+    <IpqaOverviewSection ref="ipqaSectionRef" :nodes="nodesStore.nodes" :loading="refreshing" />
 
     <!-- Cost Summary Section -->
-    <CostSummaryCard ref="costCardRef" :nodes="nodesStore.nodes" />
+    <CostSummaryCard ref="costCardRef" :nodes="nodesStore.nodes" :loading="refreshing" />
   </div>
 </template>

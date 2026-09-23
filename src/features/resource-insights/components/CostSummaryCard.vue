@@ -13,6 +13,7 @@ import {
 
 const props = defineProps<{
   nodes: readonly NodeData[]
+  loading?: boolean
 }>()
 
 const { rates, source, date, fetchRates } = useFxRates()
@@ -80,7 +81,8 @@ function formatCny(val: number): string {
         <div class="text-[11px] text-neutral-400 dark:text-neutral-500 mb-1">
           月均成本
         </div>
-        <div class="text-lg font-bold text-neutral-800 dark:text-neutral-100">
+        <div v-if="loading" class="h-6 w-20 animate-pulse rounded bg-neutral-200 dark:bg-neutral-800 my-0.5" />
+        <div v-else class="text-lg font-bold text-neutral-800 dark:text-neutral-100">
           {{ formatCny(summary.monthlyCny) }}
         </div>
         <div class="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">
@@ -93,7 +95,8 @@ function formatCny(val: number): string {
         <div class="text-[11px] text-neutral-400 dark:text-neutral-500 mb-1">
           年度预算
         </div>
-        <div class="text-lg font-bold text-neutral-800 dark:text-neutral-100">
+        <div v-if="loading" class="h-6 w-20 animate-pulse rounded bg-neutral-200 dark:bg-neutral-800 my-0.5" />
+        <div v-else class="text-lg font-bold text-neutral-800 dark:text-neutral-100">
           {{ formatCny(summary.annualBudgetCny) }}
         </div>
         <div class="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">
@@ -106,7 +109,8 @@ function formatCny(val: number): string {
         <div class="text-[11px] text-neutral-400 dark:text-neutral-500 mb-1">
           30 天内续费
         </div>
-        <div class="text-lg font-bold text-neutral-800 dark:text-neutral-100">
+        <div v-if="loading" class="h-6 w-20 animate-pulse rounded bg-neutral-200 dark:bg-neutral-800 my-0.5" />
+        <div v-else class="text-lg font-bold text-neutral-800 dark:text-neutral-100">
           {{ formatCny(summary.upcomingRenewalCny) }}
         </div>
         <div class="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">
@@ -119,7 +123,8 @@ function formatCny(val: number): string {
         <div class="text-[11px] text-neutral-400 dark:text-neutral-500 mb-1">
           最近续费节点
         </div>
-        <template v-if="nextRenewal">
+        <div v-if="loading" class="h-6 w-24 animate-pulse rounded bg-neutral-200 dark:bg-neutral-800 my-0.5" />
+        <template v-else-if="nextRenewal">
           <div class="text-sm font-semibold text-neutral-800 dark:text-neutral-100 truncate" :title="nextRenewal.name">
             {{ nextRenewal.name }}
           </div>

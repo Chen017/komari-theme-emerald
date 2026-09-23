@@ -5,10 +5,12 @@ import { useAvailability30d } from './useAvailability30d'
 
 const props = defineProps<{
   nodes: readonly NodeData[]
+  loading?: boolean
 }>()
 
 const {
   state,
+  refreshing,
   errorMessage,
   fleetView,
   refresh,
@@ -35,7 +37,11 @@ defineExpose({
               近 30 天在线率
             </h3>
             <span
-              v-if="fleetView.fleetUptimeRatio !== null"
+              v-if="props.loading || refreshing"
+              class="h-5 w-20 animate-pulse rounded-full bg-neutral-200 dark:bg-neutral-800 inline-block"
+            />
+            <span
+              v-else-if="fleetView.fleetUptimeRatio !== null"
               class="text-xs font-medium px-2 py-0.5 rounded-full transition-colors bg-emerald-100/70 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
             >
               Fleet {{ fleetView.fleetUptimeText }}
@@ -82,9 +88,30 @@ defineExpose({
       <span>{{ errorMessage || '在线率获取失败' }}</span>
     </div>
 
+    <!-- Skeleton Pulse during Loading / Refreshing -->
+    <div
+      v-if="state !== 'unsupported' && (props.loading || refreshing)"
+      class="flex-1 overflow-y-auto max-h-[340px] pr-1 space-y-3 py-1"
+    >
+      <div
+        v-for="i in Math.min(props.nodes.length || 3, 5)"
+        :key="i"
+        class="pt-2 first:pt-0 space-y-2"
+      >
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2 flex-1">
+            <span class="w-2 h-2 rounded-full bg-neutral-200 dark:bg-neutral-800 animate-pulse shrink-0" />
+            <div class="h-3.5 w-28 animate-pulse rounded bg-neutral-200 dark:bg-neutral-800" />
+          </div>
+          <div class="h-3.5 w-14 animate-pulse rounded bg-neutral-200 dark:bg-neutral-800 shrink-0" />
+        </div>
+        <div class="w-full bg-neutral-100 dark:bg-neutral-800 h-1.5 rounded-full overflow-hidden animate-pulse" />
+      </div>
+    </div>
+
     <!-- Node list -->
     <div
-      v-if="state !== 'unsupported'"
+      v-else-if="state !== 'unsupported'"
       class="flex-1 overflow-y-auto max-h-[340px] pr-1 space-y-2 divide-y divide-neutral-100 dark:divide-neutral-800/40"
     >
       <div

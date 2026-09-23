@@ -16,6 +16,7 @@ import { useAppStore } from '@/stores/app'
 
 const props = defineProps<{
   nodes: readonly NodeData[]
+  loading?: boolean
 }>()
 
 const loading = ref(false)
@@ -125,8 +126,11 @@ const hasIpqaData = computed(() => {
       </div>
     </div>
 
-    <!-- 1. Fleet Summary Strip -->
-    <IpqaFleetSummary v-if="overview && isPluginAvailable !== false" :overview="overview" />
+    <!-- 1. Fleet Summary Strip / Skeleton -->
+    <div v-if="props.loading || loading" class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div v-for="i in 4" :key="i" class="h-16 animate-pulse rounded-xl bg-neutral-100 dark:bg-neutral-800/60" />
+    </div>
+    <IpqaFleetSummary v-else-if="overview && isPluginAvailable !== false" :overview="overview" />
 
     <!-- Notice if plugin is not detected -->
     <div

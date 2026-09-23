@@ -12,6 +12,7 @@ import '@/utils/echarts'
 
 const props = defineProps<{
   nodes: readonly NodeData[]
+  loading?: boolean
 }>()
 
 const appStore = useAppStore()
@@ -324,7 +325,12 @@ const rangeSummary = computed(() => {
       v-if="rangeSummary.hasData && trafficView.state !== 'loading'"
       class="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg bg-muted/40 px-3.5 py-2 text-xs border border-border/50"
     >
-      <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <div v-if="props.loading || refreshing" class="flex items-center gap-3">
+        <div class="h-4 w-28 animate-pulse rounded bg-muted" />
+        <div class="h-4 w-20 animate-pulse rounded bg-muted" />
+        <div class="h-4 w-24 animate-pulse rounded bg-muted" />
+      </div>
+      <div v-else class="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span class="font-medium text-muted-foreground">{{ rangeSummary.label }}:</span>
         <div class="flex items-center gap-1.5">
           <span class="inline-block size-2 rounded-full bg-emerald-500"></span>
@@ -373,6 +379,16 @@ const rangeSummary = computed(() => {
 
     <!-- Body: only body changes depending on state -->
     <div class="relative min-h-64 w-full flex-1">
+      <div
+        v-if="props.loading || refreshing"
+        class="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/50 backdrop-blur-xs transition-all"
+      >
+        <div class="flex items-center gap-2 rounded-lg bg-card/90 px-3 py-1.5 text-xs text-muted-foreground shadow-xs border border-border/50">
+          <Icon icon="lucide:loader-2" class="size-4 animate-spin text-emerald-600" />
+          <span>正在重新聚合流量数据...</span>
+        </div>
+      </div>
+
       <div v-if="trafficView.state === 'loading' && !refreshing" class="flex h-64 items-center justify-center">
         <Icon icon="lucide:loader-2" class="size-6 animate-spin text-emerald-600" />
       </div>
