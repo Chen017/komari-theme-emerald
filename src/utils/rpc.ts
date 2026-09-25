@@ -317,7 +317,11 @@ export class RpcClient {
   /**
    * 调用 RPC 方法（HTTP POST）
    */
-  private async callHttp<T>(method: string, params?: Record<string, unknown> | unknown[]): Promise<T> {
+  private async callHttp<T>(
+    method: string,
+    params?: Record<string, unknown> | unknown[],
+    options?: { signal?: AbortSignal },
+  ): Promise<T> {
     const id = ++this.requestId
     const request: JsonRpcRequest = {
       jsonrpc: '2.0',
@@ -327,6 +331,14 @@ export class RpcClient {
     }
 
     const controller = new AbortController()
+    const externalSignal = options?.signal
+    const abortFromExternal = () => controller.abort(externalSignal?.reason)
+    if (externalSignal?.aborted) {
+      abortFromExternal()
+    }
+    else {
+      externalSignal?.addEventListener('abort', abortFromExternal, { once: true })
+    }
     const timeoutId = setTimeout(() => controller.abort(), this.timeout)
 
     try {
@@ -337,8 +349,6 @@ export class RpcClient {
         signal: controller.signal,
       })
 
-      clearTimeout(timeoutId)
-
       if (!response.ok) {
         throw new RpcError(response.status, `HTTP error: ${response.status}`)
       }
@@ -347,10 +357,18 @@ export class RpcClient {
       return this.handleResponse(data)
     }
     catch (error) {
-      clearTimeout(timeoutId)
+      if (externalSignal?.aborted) {
+        throw externalSignal.reason instanceof Error
+          ? externalSignal.reason
+          : new DOMException('The operation was aborted', 'AbortError')
+      }
       if (error instanceof RpcError)
         throw error
       throw new RpcError(-32000, `Network error: ${error instanceof Error ? error.message : String(error)}`)
+    }
+    finally {
+      clearTimeout(timeoutId)
+      externalSignal?.removeEventListener('abort', abortFromExternal)
     }
   }
 
@@ -557,11 +575,15 @@ export class RpcClient {
   /**
    * 调用 RPC 方法
    */
-  async call<T>(method: string, params?: Record<string, unknown> | unknown[]): Promise<T> {
+  async call<T>(
+    method: string,
+    params?: Record<string, unknown> | unknown[],
+    options?: { signal?: AbortSignal },
+  ): Promise<T> {
     if (this.useWebSocket) {
       return this.callWebSocket<T>(method, params)
     }
-    return this.callHttp<T>(method, params)
+    return this.callHttp<T>(method, params, options)
   }
 
   /**
@@ -658,9 +680,9 @@ export class KomariRpc {
   async call<T>(
     method: string,
     params?: Record<string, unknown> | unknown[],
-    _options?: { signal?: AbortSignal },
+    options?: { signal?: AbortSignal },
   ): Promise<T> {
-    return this.client.call<T>(method, params)
+    return this.client.call<T>(method, params, options)
   }
 
   // ==================== 内置方法 ====================

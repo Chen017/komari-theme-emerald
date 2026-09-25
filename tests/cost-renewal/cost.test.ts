@@ -10,7 +10,61 @@ import {
   filterRenewalNodes,
   normalizeNodeCost,
 } from '../../src/features/cost-renewal/calculations'
-import { DEFAULT_EXCHANGE_RATES } from '../../src/utils/financeHelper'
+import { DEFAULT_EXCHANGE_RATES, getDailyExchangeRates } from '../../src/utils/financeHelper'
+
+describe('exchange-rate cache semantics', () => {
+  it('keeps a same-day cache labeled fresh after a forced refresh fails', async () => {
+    const originalFetch = globalThis.fetch
+    const originalLocalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+    const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window')
+    const storage = new Map<string, string>()
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => storage.set(key, value),
+      },
+      configurable: true,
+    })
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        setTimeout: globalThis.setTimeout.bind(globalThis),
+        clearTimeout: globalThis.clearTimeout.bind(globalThis),
+      },
+      configurable: true,
+    })
+
+    try {
+      globalThis.fetch = async () => ({
+        ok: true,
+        json: async () => ({ rates: DEFAULT_EXCHANGE_RATES }),
+      } as Response)
+
+      const first = await getDailyExchangeRates(true)
+      assert.equal(first.source, 'network')
+
+      globalThis.fetch = async () => ({ ok: false } as Response)
+      const fallback = await getDailyExchangeRates(true)
+
+      assert.equal(fallback.source, 'cache')
+      assert.equal(fallback.date, first.date)
+    }
+    finally {
+      globalThis.fetch = originalFetch
+      if (originalLocalStorage) {
+        Object.defineProperty(globalThis, 'localStorage', originalLocalStorage)
+      }
+      else {
+        delete (globalThis as any).localStorage
+      }
+      if (originalWindow) {
+        Object.defineProperty(globalThis, 'window', originalWindow)
+      }
+      else {
+        delete (globalThis as any).window
+      }
+    }
+  })
+})
 
 describe('cost-renewal calculations', () => {
   const mockRates: ExchangeRates = {
@@ -63,6 +117,7 @@ describe('cost-renewal calculations', () => {
     it('returns null for invalid amounts or unknown currencies', () => {
       assert.equal(convertCurrencyToCny(-5, 'USD', mockRates), null)
       assert.equal(convertCurrencyToCny(null, 'USD', mockRates), null)
+      assert.equal(convertCurrencyToCny(100, 'XYZ', mockRates), null)
     })
   })
 
@@ -125,6 +180,22 @@ describe('cost-renewal calculations', () => {
       assert.equal(normalizeNodeCost(freeTagNode, mockRates).monthlyCny, 0)
       assert.equal(normalizeNodeCost(freeZeroNode, mockRates).isFree, true)
       assert.equal(normalizeNodeCost(freeZeroNode, mockRates).monthlyCny, 0)
+    })
+
+    it('does not silently price an unknown currency as CNY', () => {
+      const node = {
+        uuid: 'unknown-currency',
+        name: 'Unknown Currency',
+        price: 100,
+        currency: 'XYZ',
+        billing_cycle: 30,
+      } as NodeData
+
+      const res = normalizeNodeCost(node, mockRates)
+      assert.equal(res.originalCurrency, 'XYZ')
+      assert.equal(res.renewalAmountCny, null)
+      assert.equal(res.monthlyCny, null)
+      assert.equal(res.annualizedCny, null)
     })
 
     it('handles missing price and missing expiry gracefully', () => {

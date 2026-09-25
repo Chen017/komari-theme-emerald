@@ -4,14 +4,14 @@ import type {
   TrafficReason,
   TrafficSource,
 } from './trafficAggregator'
-import type { TrafficTrendAvailability } from './trafficTrendAvailability'
-import type { HistoryFailureKind } from './historyErrorPolicy'
 import {
   resolveTrafficResetConfig,
   resolveTrafficResetDay,
 } from './trafficResetConfig'
 
 export type TrafficRange = '7d' | '30d' | 'since_reset' | 'current_cycle' | 'cycle'
+export type TrafficTrendAvailability = 'available' | 'recording-disabled' | 'retention-insufficient'
+export type HistoryFailureKind = 'timeout' | 'rpc-error' | 'unsupported' | 'aborted' | 'unknown'
 export type TrafficTrendState = 'idle' | 'loading' | 'ready' | 'empty' | 'unsupported' | 'error'
 export type TrafficTrendCapability
   = 'full'

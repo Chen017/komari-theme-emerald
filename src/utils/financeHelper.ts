@@ -119,13 +119,21 @@ const EXPLICIT_CURRENCY_ALIASES: Record<string, CurrencyCode> = {
 }
 const CURRENCY_SYMBOL_ALIASES = createCurrencySymbolAliases()
 
-export function normalizeCurrency(currency: string | null | undefined): CurrencyCode {
-  const value = String(currency || 'CNY').trim().toUpperCase()
+export function normalizeCurrencyStrict(currency: string | null | undefined): CurrencyCode | null {
+  const rawValue = String(currency ?? '').trim()
+  if (!rawValue)
+    return 'CNY'
+
+  const value = rawValue.toUpperCase()
 
   if (isSupportedCurrency(value))
     return value
 
-  return EXPLICIT_CURRENCY_ALIASES[value] || CURRENCY_SYMBOL_ALIASES[value] || 'CNY'
+  return EXPLICIT_CURRENCY_ALIASES[value] || CURRENCY_SYMBOL_ALIASES[value] || null
+}
+
+export function normalizeCurrency(currency: string | null | undefined): CurrencyCode {
+  return normalizeCurrencyStrict(currency) ?? 'CNY'
 }
 
 export function isSupportedCurrency(currency: string): currency is CurrencyCode {
@@ -285,6 +293,7 @@ export function formatFinanceAmount(amount: number, currency: CurrencyCode): {
 export async function getDailyExchangeRates(force = false): Promise<{
   rates: ExchangeRates
   source: ExchangeRateSource
+  date: string
 }> {
   const today = getTodayDateKey()
   const cached = readCachedExchangeRates()
@@ -293,6 +302,7 @@ export async function getDailyExchangeRates(force = false): Promise<{
     return {
       rates: cached.rates,
       source: 'cache',
+      date: cached.date,
     }
   }
 
@@ -302,19 +312,22 @@ export async function getDailyExchangeRates(force = false): Promise<{
     return {
       rates: fetchedRates,
       source: 'network',
+      date: today,
     }
   }
 
   if (cached) {
     return {
       rates: cached.rates,
-      source: 'stale-cache',
+      source: cached.date === today ? 'cache' : 'stale-cache',
+      date: cached.date,
     }
   }
 
   return {
     rates: DEFAULT_EXCHANGE_RATES,
     source: 'default',
+    date: today,
   }
 }
 

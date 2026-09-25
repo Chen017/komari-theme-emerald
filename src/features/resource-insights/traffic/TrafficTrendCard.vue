@@ -7,7 +7,7 @@ import VChart from 'vue-echarts'
 import { useAppStore } from '@/stores/app'
 import { formatBytes } from '@/utils/helper'
 import TrafficNodeSelect from './TrafficNodeSelect.vue'
-import { useTrafficTrend } from './useTrafficTrend'
+import { useTrafficTrend } from '../composables/useTrafficTrend'
 import '@/utils/echarts'
 
 const props = defineProps<{

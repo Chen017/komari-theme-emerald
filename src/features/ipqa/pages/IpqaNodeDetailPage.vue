@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { IpqaDailyPairedReport, IpqaNormalizedReport, IpqaSemanticChange } from '../types'
 import { Icon } from '@iconify/vue'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useNodesStore } from '@/stores/nodes'
 import IpqaArchiveNavigator from '../components/IpqaArchiveNavigator.vue'
@@ -48,23 +48,38 @@ const tabs: Array<{ key: TabKey, label: string, icon: string }> = [
   { key: 'raw', label: '原始归档', icon: 'lucide:code-2' },
 ]
 
-async function loadArchive(targetDate?: string) {
+let loadGeneration = 0
+
+async function loadArchive(targetDate?: string, refreshMetadata = true) {
+  const generation = ++loadGeneration
+  const targetUuid = uuid.value
   loading.value = true
+
   try {
-    // 1. Fetch available dates
-    const availableDates = await fetchNodeArchiveDates(uuid.value)
-    dates.value = availableDates
+    let availableDates = dates.value
+
+    if (refreshMetadata) {
+      const [nextDates, changes] = await Promise.all([
+        fetchNodeArchiveDates(targetUuid),
+        fetchNodeChanges(targetUuid),
+      ])
+      if (generation !== loadGeneration) return
+      availableDates = nextDates
+      dates.value = nextDates
+      nodeChanges.value = changes
+    }
 
     if (availableDates.length > 0) {
       const selected = targetDate && availableDates.includes(targetDate)
         ? targetDate
         : availableDates[0]!
 
+      const report = await fetchNodeArchive(targetUuid, selected)
+      if (generation !== loadGeneration) return
+
       currentDate.value = selected
-      const report = await fetchNodeArchive(uuid.value, selected)
       currentReport.value = report
 
-      // Default IP version
       if (report?.v4) {
         activeIpVersion.value = 'IPv4'
       }
@@ -73,44 +88,56 @@ async function loadArchive(targetDate?: string) {
       }
     }
     else {
-      // Try fetching latest directly
-      const latest = await fetchNodeLatest(uuid.value)
+      const latest = await fetchNodeLatest(targetUuid)
+      if (generation !== loadGeneration) return
+
       currentReport.value = latest
       if (latest) {
         dates.value = [latest.date]
         currentDate.value = latest.date
+        activeIpVersion.value = latest.v4 ? 'IPv4' : 'IPv6'
+      }
+      else {
+        currentDate.value = ''
       }
     }
-
-    // 2. Fetch node changes
-    const changes = await fetchNodeChanges(uuid.value)
-    nodeChanges.value = changes
   }
   catch (err) {
+    if (generation !== loadGeneration) return
     console.warn('[IPQA Detail] Error loading node archive:', err)
+    currentReport.value = null
   }
   finally {
-    loading.value = false
+    if (generation === loadGeneration) {
+      loading.value = false
+    }
   }
 }
 
-onMounted(() => {
-  const queryDate = typeof route.query.date === 'string' ? route.query.date : undefined
-  void loadArchive(queryDate)
-})
-
-async function onDateChange(newDate: string) {
+function onDateChange(newDate: string) {
   if (newDate === currentDate.value && currentReport.value?.date === newDate) return
-  currentDate.value = newDate
   void router.push({ query: { ...route.query, date: newDate } })
-  await loadArchive(newDate)
 }
 
-watch(() => route.query.date, (newDate) => {
-  if (typeof newDate === 'string' && newDate !== currentReport.value?.date) {
-    void loadArchive(newDate)
-  }
-})
+watch(
+  [uuid, () => route.query.date],
+  ([newUuid, newDate], [oldUuid, oldDate]) => {
+    const targetDate = typeof newDate === 'string' ? newDate : undefined
+    if (newUuid !== oldUuid) {
+      dates.value = []
+      currentDate.value = ''
+      currentReport.value = null
+      nodeChanges.value = []
+      void loadArchive(targetDate, true)
+      return
+    }
+
+    if (newDate !== oldDate && targetDate && targetDate !== currentReport.value?.date) {
+      void loadArchive(targetDate, false)
+    }
+  },
+  { immediate: true },
+)
 
 const activeNormalizedReport = computed<IpqaNormalizedReport | null>(() => {
   if (!currentReport.value) return null

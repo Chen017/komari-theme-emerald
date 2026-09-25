@@ -4,8 +4,9 @@ import { Icon } from '@iconify/vue'
 import { ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { getRiskColor, getRiskLabel } from '../formatters'
+import { findProtocolOverviewService } from '../overviewSelectors'
 
-const props = defineProps<{
+defineProps<{
   nodes: IpqaNodeOverview[]
 }>()
 
@@ -62,34 +63,13 @@ function getActiveRisk(node: IpqaNodeOverview): { category: any, source: string 
 }
 
 function findMedia(node: IpqaNodeOverview, ...names: string[]) {
-  const ver = getActiveVersion(node)
-  const activeProto = ver === 'v4' ? node.v4 : node.v6
-  const fallbackProto = ver === 'v4' ? node.v6 : node.v4
+  const result = findProtocolOverviewService(node, getActiveVersion(node), names, 'media')
+  return result.available ? result : null
+}
 
-  for (const n of names) {
-    const lower = n.toLowerCase()
-    if (activeProto?.media) {
-      for (const [k, v] of Object.entries(activeProto.media)) {
-        if (k.toLowerCase() === lower || k.toLowerCase().includes(lower)) {
-          return v
-        }
-      }
-    }
-    // Fallback to media_summary
-    for (const [k, v] of Object.entries(node.media_summary || {})) {
-      if (k.toLowerCase() === lower || k.toLowerCase().includes(lower)) {
-        return v
-      }
-    }
-    if (fallbackProto?.media) {
-      for (const [k, v] of Object.entries(fallbackProto.media)) {
-        if (k.toLowerCase() === lower || k.toLowerCase().includes(lower)) {
-          return v
-        }
-      }
-    }
-  }
-  return null
+function findAi(node: IpqaNodeOverview, ...names: string[]) {
+  const result = findProtocolOverviewService(node, getActiveVersion(node), names, 'ai')
+  return result.available ? result : null
 }
 </script>
 
@@ -204,9 +184,9 @@ function findMedia(node: IpqaNodeOverview, ...names: string[]) {
               </span>
               <!-- GPT -->
               <span
-                v-if="node.ai_summary.ChatGPT || findMedia(node, 'ChatGPT', 'chatgpt')"
+                v-if="findAi(node, 'ChatGPT', 'chatgpt', 'OpenAI')"
                 class="text-[10px] px-1.5 py-0.5 rounded font-medium"
-                :class="(node.ai_summary.ChatGPT?.unlocked || findMedia(node, 'ChatGPT', 'chatgpt')?.unlocked) ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-neutral-100 text-neutral-400 dark:bg-neutral-800'"
+                :class="findAi(node, 'ChatGPT', 'chatgpt', 'OpenAI')?.unlocked ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-neutral-100 text-neutral-400 dark:bg-neutral-800'"
               >
                 GPT
               </span>

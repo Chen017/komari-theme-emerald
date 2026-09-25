@@ -23,7 +23,7 @@ import {
 } from '../../src/features/resource-insights/services/trafficResetConfig'
 import { historyResultToTrafficEvidence } from '../../src/features/resource-insights/services/trafficEvidence'
 import { createHistoryGateway } from '../../src/features/resource-insights/services/historyGateway'
-import { RpcError } from '../../src/utils/rpc'
+import { getSharedRpc, KomariRpc, resetSharedRpc, RpcError } from '../../src/utils/rpc'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -1155,6 +1155,115 @@ function createFakeKomariMetricRpc(options: {
   console.log('✓ Section 63 passed: Abort signal stops request immediately')
 }
 
+// Section 63b: RpcClient propagates AbortSignal to the HTTP transport
+{
+  const originalFetch = globalThis.fetch
+  let transportSignal: AbortSignal | null = null
+
+  globalThis.fetch = async (_url: any, init?: RequestInit) => {
+    transportSignal = init?.signal as AbortSignal | null
+    return await new Promise<Response>((_resolve, reject) => {
+      const signal = init?.signal
+      if (signal?.aborted) {
+        reject(new DOMException('The operation was aborted', 'AbortError'))
+        return
+      }
+      signal?.addEventListener('abort', () => {
+        reject(new DOMException('The operation was aborted', 'AbortError'))
+      }, { once: true })
+    })
+  }
+
+  try {
+    const rpc = new KomariRpc({ useWebSocket: false, timeout: 5000 })
+    const controller = new AbortController()
+    const request = rpc.call('public:queryMetrics', {}, { signal: controller.signal })
+    await Promise.resolve()
+    controller.abort()
+
+    await assert.rejects(
+      request,
+      (err: any) => err?.name === 'AbortError',
+      'External abort must reject as AbortError',
+    )
+    assert.strictEqual(transportSignal?.aborted, true, 'HTTP fetch signal must be aborted')
+    rpc.close()
+  }
+  finally {
+    globalThis.fetch = originalFetch
+  }
+
+  console.log('✓ Section 63b passed: HTTP RPC transport honors AbortSignal')
+}
+
+// Section 63c: History gateway must not downgrade an in-flight abort to a query failure
+{
+  const gateway = createHistoryGateway(async (_method, _params, options) => {
+    await new Promise((_resolve, reject) => {
+      const signal = options?.signal
+      if (signal?.aborted) {
+        reject(new DOMException('Aborted', 'AbortError'))
+        return
+      }
+      signal?.addEventListener('abort', () => {
+        reject(new DOMException('Aborted', 'AbortError'))
+      }, { once: true })
+    })
+    return null as any
+  })
+
+  const controller = new AbortController()
+  const request = gateway.queryTraffic({
+    entityIds: ['test-node'],
+    start: '2026-09-21T00:00:00.000Z',
+    end: '2026-09-22T00:00:00.000Z',
+    maxPoints: 100,
+    signal: controller.signal,
+  })
+  controller.abort()
+
+  await assert.rejects(
+    request,
+    (err: any) => err?.name === 'AbortError',
+    'History gateway must preserve AbortError',
+  )
+  console.log('✓ Section 63c passed: History gateway preserves in-flight AbortError')
+}
+
+// Section 63d: Full traffic resolver must preserve an in-flight abort
+{
+  const controller = new AbortController()
+  const gateway = createHistoryGateway(async (_method, _params, options) => {
+    await new Promise((_resolve, reject) => {
+      const signal = options?.signal
+      if (signal?.aborted) {
+        reject(new DOMException('Aborted', 'AbortError'))
+        return
+      }
+      signal?.addEventListener('abort', () => {
+        reject(new DOMException('Aborted', 'AbortError'))
+      }, { once: true })
+    })
+    return null as any
+  })
+
+  const request = resolveTrafficHistory({
+    gateway,
+    entityIds: ['test-node'],
+    dates: ['2026-09-21'],
+    timeZone: 'Asia/Shanghai',
+    signal: controller.signal,
+  })
+  controller.abort()
+
+  await assert.rejects(
+    request,
+    (err: any) => err?.name === 'AbortError',
+    'Full traffic resolver must preserve AbortError',
+  )
+  console.log('✓ Section 63d passed: resolveTrafficHistory preserves in-flight AbortError')
+}
+
 // Section 64: Request budget ceiling
 {
   const nowMs = Date.parse('2026-09-22T12:00:00+08:00')
@@ -1250,7 +1359,6 @@ function createFakeKomariMetricRpc(options: {
 
 import { ref } from 'vue'
 import { useTrafficTrend } from '../../src/features/resource-insights/composables/useTrafficTrend'
-import { getSharedRpc, resetSharedRpc } from '../../src/utils/rpc'
 import {
   buildTrafficTrendCacheKey,
   writeTrafficTrendCache,
@@ -1943,6 +2051,59 @@ import {
   assert.strictEqual(trend.refreshing.value, false, 'refreshing must be false when nodes are empty')
   assert.strictEqual(trend.snapshot.value.state, 'empty')
   console.log('✓ Test L passed: When nodes become empty, loading and refreshing are cleared')
+}
+
+// Test M: Replacing nodes with the same count invalidates the traffic query and stale selection
+{
+  resetSharedRpc()
+  const rpc = getSharedRpc()
+  const queriedEntities: string[] = []
+
+  rpc.call = async (method: string, params: any) => {
+    if (method === 'public:listMetricDefinitions') {
+      return [
+        { name: 'traffic.up', retention_days: 30 },
+        { name: 'traffic.down', retention_days: 30 },
+      ]
+    }
+    if (method === 'public:queryMetrics') {
+      queriedEntities.push(...params.entity_ids)
+      return {
+        series: [
+          {
+            metric_key: 'traffic.up',
+            entity_id: params.entity_ids[0],
+            interval_seconds: 3600,
+            points: [{ time: params.start, value: 100 }],
+          },
+        ],
+      }
+    }
+    if (method === 'common:getRecords') {
+      return { records: {} }
+    }
+    throw new Error(`Unhandled ${method}`)
+  }
+
+  const nodesRef = ref([{ uuid: 'node-a', name: 'Node A' }])
+  const trend = useTrafficTrend({
+    nodes: () => nodesRef.value as any,
+  })
+
+  await new Promise(r => setTimeout(r, 40))
+  trend.selectedEntity.value = 'node-a'
+  await new Promise(r => setTimeout(r, 20))
+
+  queriedEntities.length = 0
+  nodesRef.value = [{ uuid: 'node-b', name: 'Node B' }]
+  await new Promise(r => setTimeout(r, 60))
+
+  assert.strictEqual(trend.selectedEntity.value, 'all', 'Removed selected node must fall back to all')
+  assert.ok(queriedEntities.includes('node-b'), 'Same-count node replacement must query the new UUID')
+  assert.ok(!queriedEntities.includes('node-a'), 'Same-count replacement must not keep querying the removed UUID')
+  resetSharedRpc()
+
+  console.log('✓ Test M passed: Same-count node replacement refreshes traffic data')
 }
 
 console.log('All traffic tests passed successfully!')

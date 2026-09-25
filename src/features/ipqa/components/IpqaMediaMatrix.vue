@@ -2,6 +2,7 @@
 import type { IpqaNodeOverview } from '../types'
 import { Icon } from '@iconify/vue'
 import { ref } from 'vue'
+import { findProtocolOverviewService } from '../overviewSelectors'
 
 defineProps<{
   nodes: IpqaNodeOverview[]
@@ -19,45 +20,8 @@ const services = [
   { keys: ['ChatGPT', 'chatgpt', 'OpenAI'], label: 'ChatGPT', isAi: true },
 ]
 
-function getMediaUnlock(node: IpqaNodeOverview, serviceKeys: string[], isAi: boolean, ipVer: 'v4' | 'v6'): { unlocked: boolean, region?: string, available: boolean } {
-  if (node.status !== 'ok' && node.status !== 'stale') {
-    return { unlocked: false, available: false }
-  }
-
-  const hasVer = ipVer === 'v4' ? node.has_ipv4 : node.has_ipv6
-  if (!hasVer) {
-    return { unlocked: false, available: false }
-  }
-
-  const proto = ipVer === 'v4' ? node.v4 : node.v6
-  const pool = proto ? (isAi ? proto.ai : proto.media) : null
-  if (pool) {
-    for (const key of serviceKeys) {
-      const lower = key.toLowerCase()
-      for (const [k, v] of Object.entries(pool)) {
-        if (k.toLowerCase() === lower || k.toLowerCase().includes(lower)) {
-          const unlocked = Boolean((v as any)?.unlocked)
-          const region = (v as any)?.region
-          return { unlocked, region, available: true }
-        }
-      }
-    }
-  }
-
-  // fallback to media_summary / ai_summary
-  const summaryPool = isAi ? node.ai_summary : node.media_summary
-  if (summaryPool) {
-    for (const key of serviceKeys) {
-      const lower = key.toLowerCase()
-      for (const [k, v] of Object.entries(summaryPool)) {
-        if (k.toLowerCase() === lower || k.toLowerCase().includes(lower)) {
-          return { unlocked: Boolean(v?.unlocked), region: v?.region, available: true }
-        }
-      }
-    }
-  }
-
-  return { unlocked: false, available: true }
+function getMediaUnlock(node: IpqaNodeOverview, serviceKeys: string[], isAi: boolean, ipVer: 'v4' | 'v6') {
+  return findProtocolOverviewService(node, ipVer, serviceKeys, isAi ? 'ai' : 'media')
 }
 </script>
 
