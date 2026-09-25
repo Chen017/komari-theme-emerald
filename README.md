@@ -44,32 +44,7 @@ Modern Komari theme with Resource Insights, traffic trends, exact availability, 
 
 ### 优雅降级说明
 
-若未安装上述可选插件，Komari Emerald Insights 仍可完整使用常规监控、流量趋势、成本续费等内置功能；对应的插件特性区域仅会展示友好的安装指引卡片，绝不阻塞主题正常加载与运行。
-
-### 汇率服务与隐私保护
-
-- 汇率优先通过 Frankfurter (`api.frankfurter.app`) 获取，备用 open.er-api (`open.er-api.com`)，并在客户端进行 24 小时缓存。
-- **隐私承诺**：仅向公共汇率接口查询货币兑换比率，绝不发送任何节点名称、价格、账单或续费元数据。
-
----
-
-## 安装与使用
-
-### 方式一：直接填入仓库地址安装（推荐）
-
-1. 登录 Komari Monitor 后，进入 **「设置」** -> **「主题管理」**。
-2. 点击 **「导入主题」**，在主题仓库地址中直接填入：
-   ```text
-   https://github.com/Chen017/komari-theme-emerald-insights
-   ```
-3. 点击确定，Komari 将自动拉取并安装最新版本。
-
-### 方式二：手动上传安装包
-
-1. 从 [Release 页面](https://github.com/Chen017/komari-theme-emerald-insights/releases) 下载最新的 `komari-theme-emerald-insights.zip` 文件。
-2. 登录 Komari Monitor 后，点击 **「设置」** -> **「主题管理」**。
-3. 点击 **「上传主题」** 按钮，选择下载的 `komari-theme-emerald-insights.zip` 文件。
-4. 刷新页面，即可启用新主题。
+若未安装上述可选插件，Komari Emerald Insights 仍可完整使用常规监控、流量趋势、成本续费等内置功能
 
 ---
 
@@ -138,8 +113,6 @@ Resource Insights 汇集了集群与节点的关键资源指标，其数据来�
 
 - **依赖插件**：[komari-plugin-availability-history](https://github.com/Chen017/komari-plugin-availability-history)。
 - **实时事件账本**：插件基于服务端与 Agent 之间的 WebSocket 实时断连事件记录精准账本，而非通过 CPU 采样历史猜测短时离线。
-- **无历史回溯**：插件自安装启用时起开始精确建账。刚安装时因无过往账本数据，在线率可能展示为 `—` 并提示 `覆盖 <1 / 30 天`，此属完全正常现象。随着时间推移，覆盖范围将逐步增长至完整的 `30 / 30 天`。
-- **抖动过滤**：网络瞬断或闪断由 Availability History 插件端的离线宽限期（offline grace）进行平滑过滤，避免频繁误报。
 
 ---
 
@@ -164,11 +137,10 @@ IPQA 体系由三层架构协同运作：
 └─────────────────────────────────┘
 ```
 
-- **极简部署**：
+**极简部署**：
   1. 在需监控 IP 质量的 VPS 上安装部署 [IP-Quality-Archive](https://github.com/Chen017/IP-Quality-Archive)。
   2. 在 Komari 服务端安装并启用 [komari-plugin-ipqa-alert-report](https://github.com/Chen017/komari-plugin-ipqa-alert-report) 插件。
   3. 在主题设置中开启「显示 IP 质量概览」与「节点详情展示 IP 快照」。
-- **优雅降级**：若服务端未安装 IPQA 插件，资源概览中将仅展示温和的安装指引卡片；若集群中仅部分节点启用了 IPQA，主题仅展示有归档数据的节点，绝不影响其他节点或核心监控功能。
 
 ---
 
@@ -190,10 +162,9 @@ IPQA 体系由三层架构协同运作：
 2. 节点价格 `price` 填写为 `0`；
 3. 节点价格 `price` 填写为 `-1`。
 
-#### 多币种折算与隐私保证
+#### 多币种折算
 - 支持各大主流货币统一折算为人民币 (CNY)，方便全局统筹开销。
 - 汇率数据优先由 Frankfurter (`api.frankfurter.app`) 提供，备用 open.er-api，并在本地安全缓存 24 小时。
-- **零隐私泄露**：查询汇率时仅请求货币兑换比率（如 USD/CNY），绝不向外泄露任何服务器资产、价格或账单信息。
 
 ---
 
@@ -258,58 +229,6 @@ Oracle-ARM;白嫖中;<TRD:1>
 
 ---
 
-## 环境要求
-
-- Node.js: `^20.19.0` 或 `>=22.12.0`
-- Bun: `>=1.2.0`
-
-## 开发
-
-```bash
-# 安装依赖
-bun install
-
-# 启动开发服务器
-bun run dev
-
-# 运行自动化测试
-bun run test
-
-# 代码检查
-bun run lint
-```
-
-## 构建
-
-```bash
-# 类型检查 + 生产构建
-bun run build
-
-# 预览生产构建
-bun run preview
-```
-
----
-
-## 技术栈
-
-| 类别     | 技术                             |
-| -------- | -------------------------------- |
-| 框架     | Vue 3                            |
-| 构建工具 | Vite 7                           |
-| UI 组件  | reka-ui（shadcn-vue 风格组件）   |
-| 样式方案 | Tailwind CSS v4 + tw-animate-css |
-| 状态管理 | Pinia 3                          |
-| 路由     | Vue Router 5                     |
-| 提示系统 | vue-sonner（Toaster）            |
-| 图标     | @iconify/vue                     |
-| 图表     | vue-echarts                      |
-| 3D 地球  | cobe                             |
-| 实用工具 | @vueuse/core, dayjs              |
-| 代码规范 | ESLint (@antfu/eslint-config)    |
-
----
-
 ## Komari Emerald Ecosystem
 
 本主题是 **Komari Emerald Ecosystem** 的前端核心：
@@ -338,16 +257,6 @@ bun run preview
 - [Komari Plugin: Availability History](https://github.com/Chen017/komari-plugin-availability-history)：基于事件账本的在线率历史与 30 天可用性插件
 - [Komari Plugin: IPQA Alert Report](https://github.com/Chen017/komari-plugin-ipqa-alert-report)：IP 质量归档同步与告警报告插件
 - [IP-Quality-Archive](https://github.com/Chen017/IP-Quality-Archive)：节点端 IP 质量采集工具
-
----
-
-## Related Projects
-
-- [Komari Emerald Suite](https://github.com/Chen017/komari-emerald-suite)
-- [Availability History](https://github.com/Chen017/komari-plugin-availability-history)
-- [IPQA Alert Report](https://github.com/Chen017/komari-plugin-ipqa-alert-report)
-- [IP-Quality-Archive](https://github.com/Chen017/IP-Quality-Archive)
-- [Komari](https://github.com/komari-monitor/komari)
 
 ---
 
