@@ -7,7 +7,6 @@ import type {
   TrafficQuery,
 } from '../types/history'
 import { RpcError } from '../../../utils/rpc'
-import { isRetryableHistoryFailure } from './historyErrorPolicy'
 
 const UNKNOWN_METRIC_KEY_PATTERN = /unknown metric key/i
 const METRICS_RETRY_DELAY_MS = 100
@@ -16,13 +15,6 @@ export class HistoryProtocolError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'HistoryProtocolError'
-  }
-}
-
-export class HistoryCapabilitiesUnavailableError extends Error {
-  constructor() {
-    super('当前服务不支持历史流量接口')
-    this.name = 'HistoryCapabilitiesUnavailableError'
   }
 }
 
@@ -40,6 +32,25 @@ export type TrafficHistoryResult
       }
 
 type LegacyRecordsResult = Extract<TrafficHistoryResult, { kind: 'records' }>
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'AbortError'
+}
+
+function isRetryableHistoryFailure(error: unknown): boolean {
+  if (error instanceof DOMException && error.name === 'AbortError')
+    return false
+
+  if (error instanceof RpcError)
+    return error.code === -32603 || error.code === -32000 || error.code === -32001
+
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase()
+    return message.includes('timeout') || message.includes('network') || message.includes('failed to fetch')
+  }
+
+  return false
+}
 
 function isMetricFallback(error: unknown): boolean {
   if (!(error instanceof RpcError))
@@ -217,17 +228,26 @@ export function createHistoryGateway(call: RpcCall) {
       series = await queryMetricSeries(query, entityIds, query.start, query.end, query.maxPoints ?? 500)
     }
     catch (error) {
+      if (isAbortError(error))
+        throw error
+
       if (isRetryableHistoryFailure(error)) {
         try {
           await waitForMetricsRetry(query.signal)
           series = await queryMetricSeries(query, entityIds, query.start, query.end, query.maxPoints ?? 500)
         }
         catch (retryError) {
+          if (isAbortError(retryError))
+            throw retryError
+
           if (isMetricFallback(retryError)) {
             try {
               return await queryLegacyRecords(query, entityIds)
             }
             catch (recordsError) {
+              if (isAbortError(recordsError))
+                throw recordsError
+
               return {
                 kind: 'unavailable',
                 reason: isMetricsMethodUnavailable(retryError) && isLegacyRecordsUnavailable(recordsError)
@@ -249,6 +269,9 @@ export function createHistoryGateway(call: RpcCall) {
           return await queryLegacyRecords(query, entityIds)
         }
         catch (recordsError) {
+          if (isAbortError(recordsError))
+            throw recordsError
+
           return {
             kind: 'unavailable',
             reason: isMetricsMethodUnavailable(error) && isLegacyRecordsUnavailable(recordsError)
@@ -274,20 +297,5 @@ export function createHistoryGateway(call: RpcCall) {
     }
   }
 
-  async function probeCapabilities(): Promise<{ metrics: boolean, records: boolean }> {
-    try {
-      const methods = await call<string[]>('rpc.methods')
-      if (!Array.isArray(methods) || methods.some(method => typeof method !== 'string'))
-        return { metrics: false, records: false }
-      return {
-        metrics: methods.includes('public:queryMetrics'),
-        records: methods.includes('common:getRecords'),
-      }
-    }
-    catch {
-      return { metrics: false, records: false }
-    }
-  }
-
-  return { queryTraffic, queryLegacyRecords, probeCapabilities }
+  return { queryTraffic, queryLegacyRecords }
 }

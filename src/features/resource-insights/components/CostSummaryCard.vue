@@ -60,7 +60,7 @@ function formatCny(val: number): string {
             成本与预算摘要
           </h3>
           <p class="text-xs text-neutral-400 dark:text-neutral-500">
-            按实时公开汇率换算为统一人民币（CNY）核算
+            按公开汇率及可用缓存换算为人民币（CNY）
           </p>
         </div>
       </div>
@@ -86,7 +86,7 @@ function formatCny(val: number): string {
           {{ formatCny(summary.monthlyCny) }}
         </div>
         <div class="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">
-          {{ summary.pricedNodeCount }} / {{ summary.totalNodeCount }} 台配置价格
+          {{ summary.pricedNodeCount }} / {{ summary.totalNodeCount }} 台可折算计价
         </div>
       </div>
 
@@ -137,7 +137,7 @@ function formatCny(val: number): string {
             暂无近期续费
           </div>
           <div class="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">
-            所有节点运行正常
+            未来 30 天无待续费节点
           </div>
         </template>
       </div>

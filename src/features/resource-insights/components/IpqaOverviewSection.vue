@@ -24,38 +24,52 @@ const overview = ref<IpqaFleetOverview | null>(null)
 const recentChanges = ref<Array<IpqaSemanticChange & { nodeName: string }>>([])
 const isPluginAvailable = ref<boolean | null>(null)
 
+let loadGeneration = 0
+
 defineExpose({
   refresh: loadData,
 })
 
 async function loadData() {
+  const generation = ++loadGeneration
   loading.value = true
   try {
     const data = await fetchFleetOverview()
+    if (generation !== loadGeneration) return
     if (data) {
       overview.value = data
       isPluginAvailable.value = true
-      // Collect recent changes across nodes
+      const archivedNodes = data.nodes.filter(node =>
+        node.has_ipv4 || node.has_ipv6 || node.changes_today > 0,
+      )
+      const changesByNode = await Promise.all(
+        archivedNodes.map(async node => ({
+          node,
+          changes: await fetchNodeChanges(node.uuid),
+        })),
+      )
+
+      if (generation !== loadGeneration) return
+
       const allChanges: Array<IpqaSemanticChange & { nodeName: string }> = []
-      for (const node of data.nodes) {
-        if (node.status === 'ok' || node.status === 'stale' || node.changes_today > 0) {
-          const nodeChanges = await fetchNodeChanges(node.uuid)
-          for (const c of nodeChanges) {
-            // Defensively filter out any execution metadata/timestamp noise
-            if (c.field && (c.field.includes('Head') || c.field.includes('Time') || c.field.includes('timestamp'))) {
-              continue
-            }
-            allChanges.push({ ...c, nodeName: node.name })
+      for (const { node, changes } of changesByNode) {
+        for (const c of changes) {
+          if (c.field && (c.field.includes('Head') || c.field.includes('Time') || c.field.includes('timestamp'))) {
+            continue
           }
+          allChanges.push({ ...c, nodeName: node.name })
         }
       }
-      // Sort newest first
+
       allChanges.sort((a, b) => b.date.localeCompare(a.date))
       recentChanges.value = allChanges.slice(0, 15)
     }
     else {
+      if (overview.value && isPluginAvailable.value === true)
+        return
+
       isPluginAvailable.value = false
-      // Fallback synthetic overview from current nodes list if plugin not yet synced
+      // Neutral fallback when IPQA data cannot be reached on the initial load.
       overview.value = {
         schema_version: 1,
         updated_at: new Date().toISOString(),
@@ -80,11 +94,14 @@ async function loadData() {
     }
   }
   catch (err) {
+    if (generation !== loadGeneration) return
     console.warn('[IPQA] Failed to load IPQA overview:', err)
     isPluginAvailable.value = false
   }
   finally {
-    loading.value = false
+    if (generation === loadGeneration) {
+      loading.value = false
+    }
   }
 }
 
@@ -141,10 +158,10 @@ const hasIpqaData = computed(() => {
         <Icon icon="lucide:plug-zap" class="w-8 h-8" />
       </div>
       <div class="text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-        未检测到 IPQA Alert Report 插件
+        IPQA 数据暂不可用
       </div>
       <p class="text-[11px] text-neutral-400 dark:text-neutral-500 max-w-md mx-auto mb-3">
-        安装插件后可启用 IPQA 概览、风险矩阵与节点历史档案。
+        请确认 IPQA Alert Report 插件已安装并运行；临时网络或接口故障也可能导致此状态。
       </p>
       <a
         href="https://github.com/Chen017/komari-plugin-ipqa-alert-report"
@@ -153,7 +170,7 @@ const hasIpqaData = computed(() => {
         class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-medium transition-colors"
       >
         <Icon icon="lucide:external-link" class="w-3.5 h-3.5" />
-        <span>查看安装说明</span>
+        <span>查看插件说明</span>
       </a>
     </div>
 

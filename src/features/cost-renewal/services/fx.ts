@@ -16,8 +16,8 @@ export interface FxState {
 }
 
 const sourceLabels: Record<ExchangeRateSource, string> = {
-  'network': '当日网络实时汇率',
-  'cache': '当日缓存汇率 (24h)',
+  'network': '当日网络汇率',
+  'cache': '当日缓存汇率',
   'stale-cache': '过期缓存汇率 (网络不可用)',
   'default': '内置基准汇率 (网络与缓存不可用)',
 }
@@ -47,7 +47,7 @@ export function useFxRates() {
       const result = await getDailyExchangeRates(force)
       rates.value = result.rates
       source.value = result.source
-      date.value = getTodayDateKey()
+      date.value = result.date
     }
     catch (err) {
       error.value = err instanceof Error ? err.message : String(err)

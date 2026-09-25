@@ -143,6 +143,9 @@ export async function queryMetricSegment(
     })
   }
   catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError')
+      throw error
+
     return {
       segment,
       status: 'failed',

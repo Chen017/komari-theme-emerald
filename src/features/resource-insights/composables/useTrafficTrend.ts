@@ -1,9 +1,8 @@
 import type { NodeData } from '@/stores/nodes'
-import type { HistoryFailureKind } from '../services/historyErrorPolicy'
 import type { ResourceHistoryCapabilities } from '../services/historyCapabilities'
 import type { DailyTrafficAggregate } from '../services/trafficAggregator'
 import type { TrafficRange, TrafficTrendSnapshot } from '../services/trafficTrend'
-import { computed, ref, shallowRef, watch } from 'vue'
+import { computed, getCurrentScope, onScopeDispose, ref, shallowRef, watch } from 'vue'
 import { getSharedRpc } from '../../../utils/rpc'
 import { fetchHistoryCapabilities } from '../services/historyCapabilities'
 import { createHistoryGateway } from '../services/historyGateway'
@@ -137,6 +136,14 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
 
   let requestGeneration = 0
   let activeLease: { release: () => void } | null = null
+
+  if (getCurrentScope()) {
+    onScopeDispose(() => {
+      requestGeneration += 1
+      activeLease?.release()
+      activeLease = null
+    })
+  }
 
   const trafficView = computed(() => {
     const days = snapshot.value.days
@@ -351,7 +358,16 @@ export function useTrafficTrend(options: UseTrafficTrendOptions) {
     }
   }
 
-  watch([selectedEntity, selectedRange, () => options.nodes().length], () => {
+  watch([
+    selectedEntity,
+    selectedRange,
+    () => options.nodes().map(node => node.uuid).join(','),
+    () => dates.value.join(','),
+  ], () => {
+    if (selectedEntity.value !== 'all' && !options.nodes().some(node => node.uuid === selectedEntity.value)) {
+      selectedEntity.value = 'all'
+      return
+    }
     void fetchTrend()
   }, { immediate: true })
 

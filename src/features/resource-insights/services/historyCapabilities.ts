@@ -12,8 +12,6 @@ export interface ResourceHistoryCapabilities {
   trafficDown: MetricCapability | null
   trafficRetentionDays: number | null
   supports30dTraffic: boolean | null
-  hasMetricsApi: boolean
-  hasRecordsApi: boolean
 }
 
 export function normalizeMetricDefinition(raw: unknown): MetricCapability | null {
@@ -44,22 +42,6 @@ export async function fetchHistoryCapabilities(
     return cachedCapabilities
   }
 
-  let hasMetricsApi = false
-  let hasRecordsApi = false
-
-  try {
-    const methods = await call<string[]>('rpc.methods')
-    if (Array.isArray(methods)) {
-      hasMetricsApi = methods.includes('public:queryMetrics')
-      hasRecordsApi = methods.includes('common:getRecords')
-    }
-  }
-  catch {
-    // If rpc.methods probe fails, assume standard methods might exist
-    hasMetricsApi = true
-    hasRecordsApi = true
-  }
-
   let trafficUp: MetricCapability | null = null
   let trafficDown: MetricCapability | null = null
 
@@ -88,8 +70,6 @@ export async function fetchHistoryCapabilities(
     trafficDown,
     trafficRetentionDays,
     supports30dTraffic: trafficRetentionDays !== null ? trafficRetentionDays >= 30 : null,
-    hasMetricsApi,
-    hasRecordsApi,
   }
 
   cachedCapabilities = capabilities
@@ -97,7 +77,3 @@ export async function fetchHistoryCapabilities(
   return capabilities
 }
 
-export function clearHistoryCapabilitiesCache(): void {
-  cachedCapabilities = null
-  cachedAt = 0
-}

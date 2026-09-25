@@ -1,8 +1,7 @@
 import type { NodeData } from '@/stores/nodes'
-import type { CurrencyCode, ExchangeRates, ExchangeRateSource } from '@/utils/financeHelper'
-import type { ExpireStatus } from '@/utils/tagHelper'
+import type { ExchangeRates, ExchangeRateSource } from '@/utils/financeHelper'
 import type { CostRenewalSummary, NormalizedNodeCost, RenewalFilter, RenewalTimelineItem } from './types'
-import { normalizeCurrency } from '../../utils/financeHelper'
+import { normalizeCurrencyStrict } from '../../utils/financeHelper'
 import { getBillingCycleText, getDaysUntilExpired, getExpireStatus } from '../../utils/tagHelper'
 
 /**
@@ -62,7 +61,9 @@ export function convertCurrencyToCny(
   if (numericAmount === 0)
     return 0
 
-  const code = normalizeCurrency(currency)
+  const code = normalizeCurrencyStrict(currency)
+  if (!code)
+    return null
   if (code === 'CNY')
     return numericAmount
 
@@ -79,7 +80,6 @@ export function convertCurrencyToCny(
 export function normalizeNodeCost(
   node: NodeData,
   rates: ExchangeRates,
-  _now = new Date(),
 ): NormalizedNodeCost {
   const isFree = Boolean(
     node.tags?.includes('白嫖中')
@@ -154,9 +154,8 @@ export function calculateCostRenewalSummary(
   rateSource: ExchangeRateSource,
   rateDate: string,
   renewalWindowDays = 30,
-  now = new Date(),
 ): CostRenewalSummary {
-  const normalizedNodes = nodes.map(node => normalizeNodeCost(node, rates, now))
+  const normalizedNodes = nodes.map(node => normalizeNodeCost(node, rates))
   const pricedNodes = normalizedNodes.filter(node => !node.isFree && node.monthlyCny !== null)
 
   const monthlyCny = pricedNodes.reduce((sum, node) => sum + (node.monthlyCny ?? 0), 0)

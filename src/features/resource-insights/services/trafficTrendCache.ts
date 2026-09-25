@@ -1,10 +1,10 @@
 import type {
+  HistoryFailureKind,
+  TrafficTrendAvailability,
   TrafficTrendCoverageViewModel,
   TrafficTrendDayViewModel,
   TrafficTrendSnapshot,
 } from './trafficTrend'
-import type { TrafficTrendAvailability } from './trafficTrendAvailability'
-import type { HistoryFailureKind } from './historyErrorPolicy'
 
 export const TRAFFIC_TREND_CACHE_TTL_MS = 15 * 60_000
 

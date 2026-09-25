@@ -23,6 +23,82 @@ export function formatCoverageDays(seconds: number): string {
   return `覆盖 ${days.toFixed(1)} / 30 天`
 }
 
+export function buildAvailabilityFleetView(
+  currentNodes: readonly NodeData[],
+  summaryResponse: AvailabilitySummaryResponse | null,
+): AvailabilityFleetView {
+  const summaryNodes = summaryResponse?.nodes ?? []
+  const summaryMap = new Map(summaryNodes.map(s => [s.uuid, s]))
+
+  let totalOnlineSeconds = 0
+  let totalTrackedSeconds = 0
+  let coveredCount = 0
+
+  const nodeViews: AvailabilityNodeView[] = currentNodes.map((node) => {
+    const summary = summaryMap.get(node.uuid)
+    const isLiveOnline = Boolean(node.online)
+
+    if (!summary || summary.observableSeconds <= 0) {
+      return {
+        uuid: node.uuid,
+        name: node.name,
+        isLiveOnline,
+        uptimeRatio: null,
+        uptimeText: '--',
+        coverageDays: 0,
+        coverageText: '未观测',
+        currentState: summary?.currentState ?? (isLiveOnline ? 'online' : 'offline'),
+        outageCount: summary?.outageCount ?? 0,
+        hasData: false,
+      }
+    }
+
+    coveredCount += 1
+    const observable = summary.onlineSeconds + summary.offlineSeconds
+    if (observable > 0) {
+      totalOnlineSeconds += summary.onlineSeconds
+      totalTrackedSeconds += observable
+    }
+
+    const coverageDays = Number((summary.observableSeconds / 86400).toFixed(1))
+    const rawUptimeRatio = summary.uptimeRatio
+    const hasSufficientData = summary.observableSeconds >= 86400 && rawUptimeRatio !== null
+    const uptimeRatio = hasSufficientData ? rawUptimeRatio : null
+    const uptimeText = hasSufficientData
+      ? `${(rawUptimeRatio * 100).toFixed(2)}%`
+      : '--'
+
+    return {
+      uuid: node.uuid,
+      name: node.name,
+      isLiveOnline,
+      uptimeRatio,
+      uptimeText,
+      coverageDays,
+      coverageText: formatCoverageDays(summary.observableSeconds),
+      currentState: summary.currentState,
+      outageCount: summary.outageCount,
+      hasData: summary.observableSeconds > 0 && rawUptimeRatio !== null,
+    }
+  })
+
+  const hasMatureNode = nodeViews.some(n => n.coverageDays >= 1 && n.hasData)
+  const fleetHasSufficientData = hasMatureNode && totalTrackedSeconds > 0
+  const fleetUptimeRatio = fleetHasSufficientData
+    ? totalOnlineSeconds / totalTrackedSeconds
+    : null
+
+  return {
+    fleetUptimeRatio,
+    fleetUptimeText: fleetUptimeRatio !== null
+      ? `${(fleetUptimeRatio * 100).toFixed(2)}%`
+      : '--',
+    nodes: nodeViews,
+    totalNodes: currentNodes.length,
+    coveredNodes: coveredCount,
+  }
+}
+
 export function useAvailability30d(options: UseAvailability30dOptions) {
   const loadState = ref<AvailabilityLoadState>('idle')
   const refreshing = ref(false)
@@ -70,84 +146,9 @@ export function useAvailability30d(options: UseAvailability30dOptions) {
     }
   }
 
-  const fleetView = computed<AvailabilityFleetView>(() => {
-    const currentNodes = options.nodes()
-    const summaryNodes = summaryResponse.value?.nodes ?? []
-    const summaryMap = new Map(summaryNodes.map(s => [s.uuid, s]))
-
-    let totalOnlineSeconds = 0
-    let totalTrackedSeconds = 0
-    let coveredCount = 0
-
-    const nodeViews: AvailabilityNodeView[] = currentNodes.map((node) => {
-      const summary = summaryMap.get(node.uuid)
-      const isLiveOnline = Boolean(node.online)
-
-      if (!summary || summary.observableSeconds <= 0) {
-        return {
-          uuid: node.uuid,
-          name: node.name,
-          isLiveOnline,
-          uptimeRatio: null,
-          uptimeText: '--',
-          coverageDays: 0,
-          coverageText: '未观测',
-          currentState: summary?.currentState ?? (isLiveOnline ? 'online' : 'offline'),
-          outageCount: summary?.outageCount ?? 0,
-          hasData: false,
-        }
-      }
-
-      coveredCount += 1
-      const observable = summary.onlineSeconds + summary.offlineSeconds
-      if (observable > 0) {
-        totalOnlineSeconds += summary.onlineSeconds
-        totalTrackedSeconds += observable
-      }
-
-      const coverageDays = Number((summary.observableSeconds / 86400).toFixed(1))
-      const rawUptimeRatio = summary.uptimeRatio
-
-      // 样本覆盖太少时（覆盖 < 1 天）先不显示百分比，显示 --；覆盖 >= 1 天且 uptimeRatio 有效时开始显示实际在线率
-      const hasSufficientData = summary.observableSeconds >= 86400 && rawUptimeRatio !== null
-      const uptimeRatio = hasSufficientData ? rawUptimeRatio : null
-      const uptimeText = hasSufficientData
-        ? `${(rawUptimeRatio * 100).toFixed(2)}%`
-        : '--'
-
-      return {
-        uuid: node.uuid,
-        name: node.name,
-        isLiveOnline,
-        uptimeRatio,
-        uptimeText,
-        coverageDays,
-        coverageText: formatCoverageDays(summary.observableSeconds),
-        currentState: summary.currentState,
-        outageCount: summary.outageCount,
-        hasData: summary.observableSeconds > 0 && rawUptimeRatio !== null,
-      }
-    })
-
-    // Fleet 统计：如果没有任何节点拥有 >= 1 天的观测历史，不展示 Fleet 百分比（显示 --）
-    const hasMatureNode = nodeViews.some(n => n.coverageDays >= 1 && n.hasData)
-    const fleetHasSufficientData = hasMatureNode && totalTrackedSeconds > 0
-
-    const fleetUptimeRatio = fleetHasSufficientData
-      ? totalOnlineSeconds / totalTrackedSeconds
-      : null
-    const fleetUptimeText = fleetUptimeRatio !== null
-      ? `${(fleetUptimeRatio * 100).toFixed(2)}%`
-      : '--'
-
-    return {
-      fleetUptimeRatio,
-      fleetUptimeText,
-      nodes: nodeViews,
-      totalNodes: currentNodes.length,
-      coveredNodes: coveredCount,
-    }
-  })
+  const fleetView = computed<AvailabilityFleetView>(() =>
+    buildAvailabilityFleetView(options.nodes(), summaryResponse.value),
+  )
 
   async function refresh(force = true): Promise<void> {
     if (refreshing.value) return

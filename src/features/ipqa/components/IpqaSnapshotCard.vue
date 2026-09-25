@@ -16,19 +16,28 @@ const { pickSurfaceClass } = useBackgroundSurface()
 
 const loading = ref(false)
 const latestReport = ref<IpqaDailyPairedReport | null>(null)
+let loadGeneration = 0
 
 async function loadSnapshot() {
-  if (!props.uuid) return
+  const targetUuid = props.uuid
+  if (!targetUuid) return
+  const generation = ++loadGeneration
   loading.value = true
   try {
-    const report = await fetchNodeLatest(props.uuid)
-    latestReport.value = report
+    const report = await fetchNodeLatest(targetUuid)
+    if (generation === loadGeneration) {
+      latestReport.value = report
+    }
   }
   catch {
-    latestReport.value = null
+    if (generation === loadGeneration) {
+      latestReport.value = null
+    }
   }
   finally {
-    loading.value = false
+    if (generation === loadGeneration) {
+      loading.value = false
+    }
   }
 }
 

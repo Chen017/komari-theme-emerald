@@ -20,10 +20,6 @@ const providers = [
 ]
 
 function getProviderScore(node: IpqaNodeOverview, providerKey: string, ipVer: 'v4' | 'v6'): { text: string, cls: string } {
-  if (node.status !== 'ok' && node.status !== 'stale') {
-    return { text: '--', cls: 'text-neutral-300 dark:text-neutral-600' }
-  }
-
   const hasVer = ipVer === 'v4' ? node.has_ipv4 : node.has_ipv6
   if (!hasVer) {
     return { text: '--', cls: 'text-neutral-300 dark:text-neutral-600' }

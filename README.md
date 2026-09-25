@@ -23,7 +23,7 @@ Modern Komari theme with Resource Insights, traffic trends, exact availability, 
 - **成本与续费 (Cost & Renewal)**：
   - **多币种统一折算**：自动将 USD、EUR、JPY、HKD、GBP 等外币折算为 CNY。
   - **月均成本与年度预算**：支持月付、季付、半年付、年付与多年付等多种计费周期折算。
-  - **续费时间轴与节点成本表**：支持按 7 天、30 天、90 天、已过期或无到期日多维度筛选。
+  - **续费时间轴与节点成本表**：支持按 30 天、90 天、已过期、无到期日或全部节点筛选。
 - **IPQA 节点档案与历史 (/ip-quality/:uuid)**：
   - 支持按历史归档日期逐日回溯，展示 IP 归属/ASN/ISP、各大评分引擎（IP2Location、Scamalytics、ipapi、AbuseIPDB、IPQS、DB-IP）、风险因子矩阵、流媒体与 AI 服务解锁、邮件端口与 DNSBL 黑名单检测、语义变更记录及原始 JSON 查看。
 - **节点详情 IPQA 快照**：
@@ -164,7 +164,7 @@ IPQA 体系由三层架构协同运作：
 
 #### 多币种折算
 - 支持各大主流货币统一折算为人民币 (CNY)，方便全局统筹开销。
-- 汇率数据优先由 Frankfurter (`api.frankfurter.app`) 提供，备用 open.er-api，并在本地安全缓存 24 小时。
+- 汇率数据优先由 Frankfurter (`api.frankfurter.app`) 提供，备用 open.er-api，并按自然日使用本地缓存；网络不可用时可回退到最近一次缓存。
 
 ---
 

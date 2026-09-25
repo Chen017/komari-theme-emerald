@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { getRiskColor, getRiskLabel } from '../../src/features/ipqa/formatters'
+import { findProtocolOverviewService } from '../../src/features/ipqa/overviewSelectors'
 import type {
   IpqaDailyPairedReport,
   IpqaFleetOverview,
@@ -344,5 +345,41 @@ describe('IPQA adapters & domain model tests', () => {
     assert.equal(evaluatedCustom.text, '18.16%')
     assert.equal(evaluatedCustom.tagLabel, '极高风险')
     assert.equal(evaluatedCustom.category, 'Critical')
+  })
+})
+
+describe('IPQA protocol-specific overview selectors', () => {
+  it('does not leak IPv6 or aggregate media data into an IPv4 view', () => {
+    const node = {
+      uuid: 'dual',
+      name: 'Dual Stack',
+      status: 'pending_today',
+      latest_date: '2026-09-25',
+      has_ipv4: true,
+      has_ipv6: true,
+      highest_risk: { category: 'Low', source: 'IPQS' },
+      media_summary: { Netflix: { unlocked: true, region: 'US' } },
+      ai_summary: { ChatGPT: { unlocked: true, region: 'US' } },
+      changes_today: 0,
+      v4: {
+        scores: {},
+        media: {},
+        ai: {},
+      },
+      v6: {
+        scores: {},
+        media: { Netflix: { unlocked: true, region: 'US' } },
+        ai: { ChatGPT: { unlocked: true, region: 'US' } },
+      },
+    } as any
+
+    const v4Netflix = findProtocolOverviewService(node, 'v4', ['Netflix'], 'media')
+    const v6Netflix = findProtocolOverviewService(node, 'v6', ['Netflix'], 'media')
+    const v4ChatGpt = findProtocolOverviewService(node, 'v4', ['ChatGPT'], 'ai')
+
+    assert.equal(v4Netflix.available, false)
+    assert.equal(v6Netflix.available, true)
+    assert.equal(v6Netflix.unlocked, true)
+    assert.equal(v4ChatGpt.available, false)
   })
 })
